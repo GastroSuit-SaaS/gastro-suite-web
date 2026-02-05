@@ -1,0 +1,393 @@
+/**
+ * ==========================================================================
+ * LAYOUT - DASHBOARD / SIDEBAR CORPORATIVO
+ * ==========================================================================
+ * Sistema de layout para aplicaciones administrativas con sidebar.
+ * Compatible con PrimeFlex para layout utilities.
+ */
+
+/* ========================================
+   ESTRUCTURA BASE DEL DASHBOARD
+   ======================================== */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+/* ========================================
+   SIDEBAR - MENÚ LATERAL
+   ======================================== */
+
+.app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--transition-base), transform var(--transition-base);
+  z-index: var(--z-fixed);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Sidebar colapsado */
+.app-sidebar.is-collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+/* Logo del sidebar */
+.app-sidebar__logo {
+  padding: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  border-bottom: 1px solid var(--border-light);
+  min-height: var(--header-height);
+}
+
+.app-sidebar__logo-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.app-sidebar__logo-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--transition-fast);
+}
+
+.app-sidebar.is-collapsed .app-sidebar__logo-text {
+  opacity: 0;
+  width: 0;
+}
+
+/* Navegación del sidebar */
+.app-sidebar__nav {
+  flex: 1;
+  padding: var(--spacing-md);
+}
+
+.app-sidebar__menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.app-sidebar__menu-item {
+  margin-bottom: var(--spacing-xs);
+}
+
+.app-sidebar__menu-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  color: var(--text-secondary);
+  background-color: transparent;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: var(--font-size-base);
+}
+
+.app-sidebar__menu-link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.app-sidebar__menu-link.is-active {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-weight: var(--font-weight-medium);
+}
+
+.app-sidebar__menu-icon {
+  font-size: var(--font-size-xl);
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-sidebar__menu-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--transition-fast);
+}
+
+.app-sidebar.is-collapsed .app-sidebar__menu-text {
+  opacity: 0;
+  width: 0;
+}
+
+/* Footer del sidebar */
+.app-sidebar__footer {
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--border-light);
+}
+
+/* ========================================
+   MAIN CONTENT AREA
+   ======================================== */
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: var(--sidebar-width);
+  transition: margin-left var(--transition-base);
+  min-height: 100vh;
+}
+
+.app-sidebar.is-collapsed ~ .app-main {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+/* ========================================
+   HEADER - BARRA SUPERIOR
+   ======================================== */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  height: var(--header-height);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-lg);
+  z-index: var(--z-sticky);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.app-header__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* ========================================
+   CONTENT - CONTENIDO PRINCIPAL
+   ======================================== */
+
+.app-content {
+  flex: 1;
+  padding: var(--spacing-lg);
+  background-color: var(--bg-primary);
+}
+
+.app-content__container {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ========================================
+   PAGE HEADER
+   ======================================== */
+
+.page-header {
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.page-header__title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.page-header__description {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.page-header__actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+/* ========================================
+   CARD CONTAINER
+   ======================================== */
+
+.card-container {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-container__header {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.card-container__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.card-container__body {
+  color: var(--text-primary);
+}
+
+/* ========================================
+   GRID LAYOUTS
+   ======================================== */
+
+.grid-layout {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.grid-layout--2-cols {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-layout--3-cols {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-layout--4-cols {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .grid-layout--3-cols,
+  .grid-layout--4-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-layout--2-cols,
+  .grid-layout--3-cols,
+  .grid-layout--4-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================
+   RESPONSIVE - MOBILE
+   ======================================== */
+
+@media (max-width: 768px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .app-main {
+    margin-left: 0;
+  }
+
+  .app-content {
+    padding: var(--spacing-md);
+  }
+
+  .app-header {
+    padding: 0 var(--spacing-md);
+  }
+
+  .page-header__title {
+    font-size: var(--font-size-2xl);
+  }
+}
+
+/* ========================================
+   BACKDROP PARA MÓVIL
+   ======================================== */
+
+.app-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: calc(var(--z-fixed) - 1);
+  backdrop-filter: blur(4px);
+}
+
+@media (max-width: 768px) {
+  .app-backdrop.is-visible {
+    display: block;
+  }
+}
+
+/* ========================================
+   SECTION SPACING
+   ======================================== */
+
+.section {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.section__title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+/* ========================================
+   DIVIDER
+   ======================================== */
+
+.divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: var(--spacing-lg) 0;
+}
+
+.divider--vertical {
+  width: 1px;
+  height: auto;
+  margin: 0 var(--spacing-md);
+}
