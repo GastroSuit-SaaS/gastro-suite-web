@@ -15,7 +15,9 @@
       <p class="text-white text-lg text-center">La solución integral para la gestión de tu restaurante</p>
 
       <!--Logo GastroSuite-->
-      <img src="@/assets/images/gastro-logo-white.png" alt="GastroSuite Logo" class="w-48 mb-6"/>
+      <!-- TODO: Agregar logo en src/assets/images/gastro-logo-white.png -->
+      <!-- <img src="@/assets/images/gastro-logo-white.png" alt="GastroSuite Logo" class="w-48 mb-6"/> -->
+      <div class="text-white text-4xl font-bold mb-6">GastroSuite</div>
 
       <!--By Metasoft Solutions-->
       <div class="absolute bottom-4 text-white text-sm">

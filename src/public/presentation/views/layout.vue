@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import sidebar from ' '
+import Sidebar from '../components/sidebar.vue'
 import { menuItems } from './constants/layout.constants-ui.js'
 
 // Estado reactivo del sidebar
@@ -15,9 +15,8 @@ const handleSidebarToggle = (isOpen) => {
 <template>
   <div class="flex h-screen w-full overflow-hidden" >
     <!-- Sidebar fijo a la izquierda -->
-    <sidebar
+    <Sidebar
       :menu-items="menuItems"
-
     />
 
     <!-- Contenedor principal -->
