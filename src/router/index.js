@@ -1,4 +1,5 @@
 import {createRouter, createWebHistory} from "vue-router";
+import iamRoutes from "../iam/presentation/iam.routes.js";
 //import {authenticationGuard} from "./iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -7,33 +8,22 @@ const routes = [
 
     {
         path: '/',
-        component: layout,
-        name: 'Layout',
-        meta: { title: 'GastroSuite' }
-    },
-
-
-    /*
-    {
-        path: '/',
         redirect: '/sign-in'
     },
-    */
-
-
-    /*
+    
     {
         path: '/sign-in',
         children: iamRoutes,
         meta: { title: 'Autenticación' }
     },
+    /*
     {
         path: '/:pathMatch(.*)*',
         name: 'not-found',
         component: pageNotFound,
         meta: { title: 'Página no encontrada' }
     }
-     */
+    */
 
 ];
 
