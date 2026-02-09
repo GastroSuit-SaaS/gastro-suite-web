@@ -11,11 +11,10 @@ const routes = [
         redirect: '/sign-in'
     },
     
-    {
-        path: '/sign-in',
-        children: iamRoutes,
-        meta: { title: 'Autenticación' }
-    },
+    // IAM Routes - Rutas expandidas del módulo
+    ...iamRoutes,
+
+
     /*
     {
         path: '/:pathMatch(.*)*',
@@ -37,6 +36,7 @@ router.beforeEach((to, from, next) => {
     console.log(`Navigating from ${from.name} to ${to.name}`);
     let baseTitle = 'GastroSuite';
     document.title = to.meta.title ? `${to.meta.title} | ${baseTitle}` : baseTitle;
+    next();
     // Call authentication guard
     //authenticationGuard(to, from, next);
 });

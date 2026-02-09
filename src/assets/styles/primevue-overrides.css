@@ -8,252 +8,499 @@
  */
 
 /* ========================================
-   BUTTONS - BOTONES
+   BUTTONS - BOTONES CORPORATIVOS
    ======================================== */
 
-.p-button {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+/* Botón base - Sin clase (default PRIMARY) */
+.p-button,
+button.p-button {
+  background-color: var(--color-primary) !important;
+  border: 2px solid var(--color-primary) !important;
+  color: var(--color-white) !important;
+  padding: 0.625rem 1.5rem !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  border-radius: var(--radius-md) !important;
+  transition: all var(--transition-fast) !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
 }
 
-.p-button:enabled:hover {
-  background-color: var(--bg-hover);
-  border-color: var(--border-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+.p-button:enabled:hover,
+button.p-button:enabled:hover {
+  background-color: var(--color-info) !important;
+  border-color: var(--color-info) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
 }
 
-.p-button:enabled:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
+.p-button:enabled:active,
+button.p-button:enabled:active {
+  transform: translateY(0) !important;
+  box-shadow: none !important;
 }
 
-.p-button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(26, 107, 194, 0.2);
+.p-button:focus-visible,
+button.p-button:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.3) !important;
 }
 
-.p-button:disabled {
-  background-color: var(--bg-surface);
-  border-color: var(--border-color);
-  color: var(--text-disabled);
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
+.p-button:disabled,
+button.p-button:disabled {
+  background-color: var(--color-gray-200) !important;
+  border-color: var(--color-gray-200) !important;
+  color: var(--text-disabled) !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
 }
 
-/* Botón primario (activo) */
+/* Botón primario explícito */
 .p-button.p-button-primary,
-.p-button-primary {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white);
+button.p-button-primary {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-white) !important;
 }
 
 .p-button.p-button-primary:enabled:hover,
-.p-button-primary:enabled:hover {
-  background-color: var(--color-info);
-  border-color: var(--color-info);
+button.p-button-primary:enabled:hover {
+  background-color: var(--color-info) !important;
+  border-color: var(--color-info) !important;
 }
 
-/* Botón secundario (inactivo) */
+/* Botón secundario */
 .p-button.p-button-secondary,
-.p-button-secondary {
-  background-color: var(--bg-secondary);
-  border-color: var(--border-light);
-  color: var(--text-secondary);
+button.p-button-secondary {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
 }
 
 .p-button.p-button-secondary:enabled:hover,
-.p-button-secondary:enabled:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
+button.p-button-secondary:enabled:hover {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--bg-hover) !important;
 }
 
-/* Botones de estado */
-.p-button.p-button-success {
-  background-color: var(--color-success);
-  border-color: var(--color-success);
-  color: var(--color-white);
+/* Botón success */
+.p-button.p-button-success,
+button.p-button-success {
+  background-color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+  color: var(--color-white) !important;
 }
 
-.p-button.p-button-success:enabled:hover {
-  background-color: #059669;
-  border-color: #059669;
+.p-button.p-button-success:enabled:hover,
+button.p-button-success:enabled:hover {
+  background-color: #059669 !important;
+  border-color: #059669 !important;
 }
 
-.p-button.p-button-warning {
-  background-color: var(--color-warning);
-  border-color: var(--color-warning);
-  color: var(--color-white);
+/* Botón warning */
+.p-button.p-button-warning,
+button.p-button-warning {
+  background-color: var(--color-warning) !important;
+  border-color: var(--color-warning) !important;
+  color: var(--color-white) !important;
 }
 
-.p-button.p-button-warning:enabled:hover {
-  background-color: #D97706;
-  border-color: #D97706;
+.p-button.p-button-warning:enabled:hover,
+button.p-button-warning:enabled:hover {
+  background-color: #D97706 !important;
+  border-color: #D97706 !important;
 }
 
-.p-button.p-button-danger {
-  background-color: var(--color-error);
-  border-color: var(--color-error);
-  color: var(--color-white);
+/* Botón danger */
+.p-button.p-button-danger,
+button.p-button-danger {
+  background-color: var(--color-error) !important;
+  border-color: var(--color-error) !important;
+  color: var(--color-white) !important;
 }
 
-.p-button.p-button-danger:enabled:hover {
-  background-color: #DC2626;
-  border-color: #DC2626;
+.p-button.p-button-danger:enabled:hover,
+button.p-button-danger:enabled:hover {
+  background-color: #DC2626 !important;
+  border-color: #DC2626 !important;
 }
 
 /* Botones outlined */
-.p-button.p-button-outlined {
-  background-color: transparent;
-  border: 2px solid var(--color-primary);
-  color: var(--color-primary);
+.p-button.p-button-outlined,
+button.p-button-outlined {
+  background-color: transparent !important;
+  border: 2px solid var(--color-primary) !important;
+  color: var(--color-primary) !important;
 }
 
-.p-button.p-button-outlined:enabled:hover {
-  background-color: rgba(26, 107, 194, 0.1);
+.p-button.p-button-outlined:enabled:hover,
+button.p-button-outlined:enabled:hover {
+  background-color: rgba(26, 107, 194, 0.1) !important;
 }
 
 /* Botones text/link */
-.p-button.p-button-text {
-  background-color: transparent;
-  border-color: transparent;
-  color: var(--color-primary);
+.p-button.p-button-text,
+button.p-button-text {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--color-primary) !important;
 }
 
-.p-button.p-button-text:enabled:hover {
-  background-color: rgba(26, 107, 194, 0.1);
+.p-button.p-button-text:enabled:hover,
+button.p-button-text:enabled:hover {
+  background-color: rgba(26, 107, 194, 0.1) !important;
 }
 
 /* Iconos en botones */
-.p-button .p-button-icon {
-  color: inherit;
+.p-button .p-button-icon,
+.p-button .p-button-label {
+  color: inherit !important;
+}
+
+/* Tamaños de botones */
+.p-button.p-button-sm,
+button.p-button-sm {
+  padding: 0.375rem 1rem !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+.p-button.p-button-lg,
+button.p-button-lg,
+.p-button[size="large"],
+button[size="large"] {
+  padding: 0.625rem 1.5rem !important;
+  font-size: var(--font-size-base) !important;
 }
 
 /* ========================================
-   INPUTS - CAMPOS DE ENTRADA
+   INPUTS - CAMPOS DE ENTRADA (ESTANDARIZADOS)
    ======================================== */
 
+/* Base styles para todos los inputs */
 .p-inputtext,
 .p-inputnumber-input,
 .p-inputtextarea,
+.p-inputmask,
 .p-password-input,
-.p-autocomplete-input {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  font-size: var(--font-size-base);
+.p-password .p-password-input,
+.p-autocomplete-input,
+input.p-inputtext,
+input.p-password-input,
+input.p-inputmask {
+  background-color: var(--color-white) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  color: var(--color-gray-900) !important;
+  padding: 0.5rem 0.875rem !important;
+  border-radius: var(--radius-md) !important;
+  transition: all var(--transition-fast) !important;
+  font-size: var(--font-size-base) !important;
+  line-height: 1.5 !important;
+  width: 100%;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: 2.5rem !important;
 }
 
+/* Tamaños de inputs */
+.p-inputtext[size="large"],
+.p-password[size="large"] .p-password-input,
+input.p-inputtext[size="large"],
+input.p-password-input[size="large"] {
+  padding: 0.5rem 0.875rem !important;
+  font-size: var(--font-size-base) !important;
+  min-height: 2.5rem !important;
+}
+
+.p-inputtext[size="small"],
+.p-password[size="small"] .p-password-input,
+input.p-inputtext[size="small"],
+input.p-password-input[size="small"] {
+  padding: 0.375rem 0.75rem !important;
+  font-size: var(--font-size-sm) !important;
+  min-height: 2rem !important;
+}
+
+/* Estado Hover */
 .p-inputtext:enabled:hover,
-.p-inputnumber-input:enabled:hover {
-  border-color: var(--border-light);
+.p-inputnumber-input:enabled:hover,
+.p-inputtextarea:enabled:hover,
+.p-inputmask:enabled:hover,
+.p-password-input:enabled:hover,
+.p-password:not(.p-disabled) .p-password-input:hover,
+.p-autocomplete-input:enabled:hover,
+input.p-inputtext:enabled:hover,
+input.p-password-input:enabled:hover,
+input.p-inputmask:enabled:hover {
+  border-color: var(--color-primary) !important;
+  background-color: var(--color-white) !important;
 }
 
+/* Estado Focus - Borde azul y shadow */
 .p-inputtext:enabled:focus,
-.p-inputnumber-input:enabled:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.2);
-  background-color: var(--bg-card);
+.p-inputnumber-input:enabled:focus,
+.p-inputtextarea:enabled:focus,
+.p-inputmask:enabled:focus,
+.p-password-input:enabled:focus,
+.p-password:not(.p-disabled) .p-password-input:focus,
+.p-autocomplete-input:enabled:focus,
+input.p-inputtext:enabled:focus,
+input.p-password-input:enabled:focus,
+input.p-inputmask:enabled:focus,
+.p-inputtext:focus-visible,
+.p-inputmask:focus-visible,
+.p-password-input:focus-visible {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.2) !important;
+  background-color: var(--color-white) !important;
 }
 
+/* Estado Active - Al hacer click */
+.p-inputtext:enabled:active,
+.p-inputnumber-input:enabled:active,
+.p-inputtextarea:enabled:active,
+.p-inputmask:enabled:active,
+.p-password-input:enabled:active,
+.p-password:not(.p-disabled) .p-password-input:active,
+.p-autocomplete-input:enabled:active,
+input.p-inputtext:enabled:active,
+input.p-password-input:enabled:active,
+input.p-inputmask:enabled:active {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.25) !important;
+}
+
+/* Placeholder */
 .p-inputtext::placeholder,
-.p-inputnumber-input::placeholder {
-  color: var(--text-muted);
+.p-inputnumber-input::placeholder,
+.p-inputtextarea::placeholder,
+.p-inputmask::placeholder,
+.p-password-input::placeholder,
+.p-password .p-password-input::placeholder,
+.p-autocomplete-input::placeholder,
+input.p-inputtext::placeholder,
+input.p-password-input::placeholder,
+input.p-inputmask::placeholder {
+  color: var(--color-gray-900) !important;
+  opacity: 0.5 !important;
 }
 
+/* Estado Disabled */
 .p-inputtext:disabled,
-.p-inputnumber-input:disabled {
-  background-color: var(--bg-primary);
-  color: var(--text-disabled);
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
+.p-inputnumber-input:disabled,
+.p-inputtextarea:disabled,
+.p-inputmask:disabled,
+.p-password-input:disabled,
+.p-password.p-disabled .p-password-input,
+.p-autocomplete-input:disabled,
+input.p-inputtext:disabled,
+input.p-password-input:disabled,
+input.p-inputmask:disabled {
+  background-color: var(--color-gray-50) !important;
+  border-color: var(--color-gray-200) !important;
+  color: var(--text-disabled) !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
 }
 
 /* Input con error */
 .p-inputtext.p-invalid,
-.p-inputnumber.p-invalid > .p-inputnumber-input {
-  border-color: var(--color-error);
+.p-inputtext.p-invalid:enabled:focus,
+.p-inputnumber.p-invalid > .p-inputnumber-input,
+.p-inputnumber.p-invalid > .p-inputnumber-input:enabled:focus,
+.p-password.p-invalid > .p-password-input,
+.p-password.p-invalid > .p-password-input:enabled:focus {
+  border-color: var(--color-error) !important;
 }
 
-.p-inputtext.p-invalid:focus,
-.p-inputnumber.p-invalid > .p-inputnumber-input:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+.p-inputtext.p-invalid:enabled:focus,
+.p-inputnumber.p-invalid > .p-inputnumber-input:enabled:focus,
+.p-password.p-invalid > .p-password-input:enabled:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
 }
 
 /* ========================================
-   DROPDOWN
+   PASSWORD COMPONENT
    ======================================== */
 
-.p-dropdown {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+/* Wrapper del componente password */
+.p-password {
+  display: inline-flex !important;
+  position: relative !important;
+  width: 100% !important;
 }
 
-.p-dropdown:not(.p-disabled):hover {
-  border-color: var(--border-light);
+/* Input interno del password con padding para el icono */
+.p-password .p-password-input {
+  padding-right: 2.5rem !important;
 }
 
-.p-dropdown:not(.p-disabled).p-focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.2);
+/* Icono toggle (mostrar/ocultar) - Centrado perfectamente */
+.p-password .p-icon,
+.p-password-toggle-icon,
+.p-password .p-button,
+.p-password button,
+button.p-password-toggle-button,
+.p-password .p-inputicon {
+  position: absolute !important;
+  top: 50% !important;
+  right: 0.625rem !important;
+  transform: translateY(-50%) !important;
+  color: var(--color-gray-900) !important;
+  cursor: pointer !important;
+  transition: color var(--transition-fast) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 1 !important;
+  box-shadow: none !important;
 }
 
-.p-dropdown-label {
-  color: var(--text-primary);
-  padding: var(--spacing-sm) var(--spacing-md);
+.p-password .p-icon:hover,
+.p-password-toggle-icon:hover,
+.p-password .p-button:hover,
+.p-password button:hover,
+button.p-password-toggle-button:hover,
+.p-password .p-inputicon:hover {
+  color: var(--color-primary) !important;
+  background: transparent !important;
+  transform: translateY(-50%) !important;
 }
 
-.p-dropdown-label.p-placeholder {
-  color: var(--text-muted);
-}
-
-.p-dropdown-trigger {
-  color: var(--text-secondary);
-}
-
-/* Panel del dropdown */
-.p-dropdown-panel {
+/* Panel de medidor de fortaleza (opcional) */
+.p-password-panel {
   background-color: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-xs);
   box-shadow: var(--shadow-lg);
 }
 
-.p-dropdown-items {
-  padding: var(--spacing-xs);
+.p-password-meter {
+  height: 0.5rem;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
 }
 
-.p-dropdown-item {
-  color: var(--text-primary);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-sm);
-  margin: var(--spacing-xs) 0;
-  transition: all var(--transition-fast);
+.p-password-strength {
+  height: 100%;
+  transition: width var(--transition-base);
 }
 
-.p-dropdown-item:not(.p-highlight):not(.p-disabled):hover {
-  background-color: var(--bg-hover);
+.p-password-strength.weak {
+  background-color: var(--color-error);
 }
 
-.p-dropdown-item.p-highlight {
-  background-color: var(--color-primary);
-  color: var(--color-white);
+.p-password-strength.medium {
+  background-color: var(--color-warning);
+}
+
+.p-password-strength.strong {
+  background-color: var(--color-success);
+}
+
+/* ========================================
+   DROPDOWN / SELECT / MULTISELECT (ESTANDARIZADOS)
+   ======================================== */
+
+/* Contenedores principales */
+.p-dropdown,
+.p-select,
+.p-multiselect {
+  background-color: var(--color-white) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  border-radius: var(--radius-md) !important;
+  transition: all var(--transition-fast) !important;
+  min-height: 2.5rem !important;
+}
+
+/* Hover state */
+.p-dropdown:not(.p-disabled):hover,
+.p-select:not(.p-disabled):hover,
+.p-multiselect:not(.p-disabled):hover {
+  border-color: var(--color-primary) !important;
+}
+
+/* Focus state */
+.p-dropdown:not(.p-disabled).p-focus,
+.p-select:not(.p-disabled).p-focus,
+.p-multiselect:not(.p-disabled).p-focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(26, 107, 194, 0.2) !important;
+}
+
+/* Labels */
+.p-dropdown-label,
+.p-select-label,
+.p-multiselect-label {
+  color: var(--color-gray-900) !important;
+  padding: 0.5rem 0.875rem !important;
+  font-size: var(--font-size-base) !important;
+}
+
+.p-dropdown-label.p-placeholder,
+.p-select-label.p-placeholder,
+.p-multiselect-label.p-placeholder {
+  color: var(--color-gray-900) !important;
+  opacity: 0.5 !important;
+}
+
+/* Trigger icon */
+.p-dropdown-trigger,
+.p-select-trigger,
+.p-multiselect-trigger {
+  color: var(--color-gray-900) !important;
+}
+
+/* Panel del dropdown/select/multiselect */
+.p-dropdown-panel,
+.p-select-panel,
+.p-multiselect-panel {
+  background-color: var(--color-white) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.p-dropdown-items,
+.p-select-items,
+.p-multiselect-items {
+  padding: var(--spacing-xs) !important;
+}
+
+/* Items individuales */
+.p-dropdown-item,
+.p-select-item,
+.p-multiselect-item {
+  color: var(--color-gray-900) !important;
+  padding: 0.5rem 0.875rem !important;
+  border-radius: var(--radius-sm) !important;
+  margin: var(--spacing-xs) 0 !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.p-dropdown-item:not(.p-highlight):not(.p-disabled):hover,
+.p-select-item:not(.p-highlight):not(.p-disabled):hover,
+.p-multiselect-item:not(.p-highlight):not(.p-disabled):hover {
+  background-color: rgba(26, 107, 194, 0.1) !important;
+}
+
+.p-dropdown-item.p-highlight,
+.p-select-item.p-highlight,
+.p-multiselect-item.p-highlight {
+  background-color: var(--color-primary) !important;
+  color: var(--color-white) !important;
 }
 
 /* ========================================
@@ -261,9 +508,9 @@
    ======================================== */
 
 .p-calendar .p-inputtext {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
+  background-color: var(--color-white) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  color: var(--color-gray-900) !important;
 }
 
 .p-datepicker {

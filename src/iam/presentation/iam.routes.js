@@ -5,7 +5,7 @@ const forgotPasswordForm = () => import('./views/forgot-password.vue');
 
 const iamRoutes = [
     {
-        path: '',
+        path: '/sign-in',
         name: 'sign-in',
         component: signInForm,
         meta: {
@@ -13,7 +13,7 @@ const iamRoutes = [
         }
     },
     {
-        path: 'sign-up',
+        path: '/sign-up',
         name: 'sign-up',
         component: signUpForm,
         meta: {
@@ -21,7 +21,7 @@ const iamRoutes = [
         }
     },
     {
-        path: 'forgot-password',
+        path: '/forgot-password',
         name: 'forgot-password',
         component: forgotPasswordForm,
         meta: {
