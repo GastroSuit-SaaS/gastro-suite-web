@@ -1,5 +1,6 @@
 import {createRouter, createWebHistory} from "vue-router";
 import iamRoutes from "../iam/presentation/iam.routes.js";
+import tablesRoutes from "../tables/presentation/tables.routes.js"; 
 //import {authenticationGuard} from "./iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -13,6 +14,13 @@ const routes = [
     
     // IAM Routes - Rutas expandidas del módulo
     ...iamRoutes,
+
+    {
+        path: '/tables',
+        component: layout,
+        children: tablesRoutes,
+        meta: { title: 'Tables' }
+    },
 
 
     /*

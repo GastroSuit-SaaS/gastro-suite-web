@@ -1,5 +1,9 @@
-﻿<script setup>
+﻿<script setup> 
 import { ref } from 'vue';
+import { useRouter } from 'vue-router'
+
+// Router instance
+const router = useRouter()
 
 // Form state
 const username = ref('');
@@ -8,13 +12,17 @@ const password = ref('');
 // Methods
 const handleLogin = () => {
   console.log('Login attempt:', { username: username.value });
+
   // TODO: Implementar lógica de autenticación
+
+  router.push('/tables'); // Redirigir después de login
 };
 
 const goToForgotPassword = () => {
-  console.log('Navigate to forgot password');
-  // TODO: Navegar a recuperar contraseña
+  router.push('/forgot-password');
 };
+
+
 </script>
 
 <template>
