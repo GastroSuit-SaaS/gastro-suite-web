@@ -1,31 +1,35 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
 import Sidebar from '../components/sidebar.vue'
 import { menuItems } from './constants/layout.constants-ui.js'
-
-// Estado reactivo del sidebar
-const sidebarOpen = ref(true);
-
-// Manejadores de eventos
-const handleSidebarToggle = (isOpen) => {
-  sidebarOpen.value = isOpen;
-};
 </script>
 
 <template>
-  <div class="flex h-screen w-full overflow-hidden" >
+  <div class="app-layout">
     <!-- Sidebar fijo a la izquierda -->
-    <Sidebar
-      :menu-items="menuItems"
-    />
+    <sidebar :menu-items="menuItems" />
 
-    <!-- Contenedor principal -->
-    <main class="flex-1 overflow-hidden" >
+    <!-- Área de contenido: ocupa todo el espacio restante y permite scroll -->
+    <main class="app-content">
       <router-view />
     </main>
   </div>
 </template>
 
 <style scoped>
+.app-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
 
+.app-content {
+  flex: 1;
+  min-width: 0;        /* evita overflow en contenedores flex */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--bg-primary);
+}
 </style>
