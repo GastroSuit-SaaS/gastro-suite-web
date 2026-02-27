@@ -1,8 +1,6 @@
-import axios from "axios";
-import {authenticationInterceptor, authenticationResponseInterceptor, authenticationErrorInterceptor} from "../../tracker-mobility/security/services/authentication.interceptor.js";
+import axios from 'axios';
 
-
-const platformApi = import.meta.env.VITE_API_BASE_URL;
+const platformApi = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api';
 
 /**
  * @class BaseApi
@@ -32,13 +30,13 @@ export class BaseApi {
     );
 
     // Auth interceptor with token validation
-    this.#http.interceptors.request.use(authenticationInterceptor);
+    // TODO this.#http.interceptors.request.use(authenticationInterceptor);
     
     // Response interceptor for error handling (401/403)
-    this.#http.interceptors.response.use(
-      authenticationResponseInterceptor,
-      authenticationErrorInterceptor
-    );
+    //this.#http.interceptors.response.use(
+    //  authenticationResponseInterceptor,
+    //  authenticationErrorInterceptor
+    //);
   }
 
   get http() {
