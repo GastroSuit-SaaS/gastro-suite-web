@@ -8,23 +8,37 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class DashboardApi {
-  /**
-   * Ejemplo de método API
-   * 
-   * async getMetrics() {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/dashboard/metrics`);
-   *     if (!response.ok) throw new Error('Failed to fetch metrics');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('DashboardApi.getMetrics error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class DashboardApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_DASHBOARD_ENDPOINT ?? '/dashboard');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
 }
 
 export const dashboardApi = new DashboardApi();

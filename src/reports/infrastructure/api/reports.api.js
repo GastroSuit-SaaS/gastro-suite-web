@@ -8,27 +8,39 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class ReportsApi {
-  /**
-   * Ejemplo de métodos API
-   * 
-   * async generateReport(reportType, filters) {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/reports/generate`, {
-   *       method: 'POST',
-   *       headers: { 'Content-Type': 'application/json' },
-   *       body: JSON.stringify({ type: reportType, filters })
-   *     });
-   *     if (!response.ok) throw new Error('Failed to generate report');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('ReportsApi.generateReport error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class ReportsApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
+
+    // TODO: add reports-specific methods (generate, export, filter, etc.)
 }
 
 export const reportsApi = new ReportsApi();

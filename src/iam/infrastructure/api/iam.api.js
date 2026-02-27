@@ -8,27 +8,39 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class IamApi {
-  /**
-   * Ejemplo de métodos API
-   * 
-   * async login(credentials) {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/auth/login`, {
-   *       method: 'POST',
-   *       headers: { 'Content-Type': 'application/json' },
-   *       body: JSON.stringify(credentials)
-   *     });
-   *     if (!response.ok) throw new Error('Login failed');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('IamApi.login error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class IamApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_IAM_ENDPOINT ?? '/auth');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
+
+    // TODO: add auth-specific methods (login, logout, register, refreshToken)
 }
 
 export const iamApi = new IamApi();

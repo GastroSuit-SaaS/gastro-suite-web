@@ -8,38 +8,39 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class InventoryApi {
-  /**
-   * Ejemplo de métodos API
-   * 
-   * async getProducts() {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/inventory/products`);
-   *     if (!response.ok) throw new Error('Failed to fetch products');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('InventoryApi.getProducts error:', error);
-   *     throw error;
-   *   }
-   * }
-   * 
-   * async updateStock(productId, quantity) {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/inventory/products/${productId}/stock`, {
-   *       method: 'PATCH',
-   *       headers: { 'Content-Type': 'application/json' },
-   *       body: JSON.stringify({ quantity })
-   *     });
-   *     if (!response.ok) throw new Error('Failed to update stock');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('InventoryApi.updateStock error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class InventoryApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
+
+    // TODO: add inventory-specific methods (updateStock, getLowStock, etc.)
 }
 
 export const inventoryApi = new InventoryApi();

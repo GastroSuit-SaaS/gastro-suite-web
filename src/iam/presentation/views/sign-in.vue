@@ -1,28 +1,25 @@
 ﻿<script setup> 
 import { ref } from 'vue';
-import { useRouter } from 'vue-router'
+import { useRouter } from 'vue-router';
+import { useIamStore } from '../../application/iam.store.js';
 
-// Router instance
-const router = useRouter()
+const router   = useRouter();
+const iamStore = useIamStore();
 
 // Form state
-const username = ref('');
-const password = ref('');
+const username  = ref('');
+const password  = ref('');
 
 // Methods
-const handleLogin = () => {
-  console.log('Login attempt:', { username: username.value });
-
-  // TODO: Implementar lógica de autenticación
-
-  router.push('/tables'); // Redirigir después de login
+const handleLogin = async () => {
+    await iamStore.login({ username: username.value, password: password.value });
+    // TODO: handle iamStore.error before navigating
+    router.push('/tables');
 };
 
 const goToForgotPassword = () => {
-  router.push('/forgot-password');
+    router.push('/forgot-password');
 };
-
-
 </script>
 
 <template>

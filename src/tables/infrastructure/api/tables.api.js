@@ -8,23 +8,39 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class TablesApi {
-  /**
-   * Ejemplo de métodos API
-   * 
-   * async getTables() {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/tables`);
-   *     if (!response.ok) throw new Error('Failed to fetch tables');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('TablesApi.getTables error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class TablesApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
+
+    // TODO: add tables-specific methods (updateStatus, assign, release, etc.)
 }
 
 export const tablesApi = new TablesApi();

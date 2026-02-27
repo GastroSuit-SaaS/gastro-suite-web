@@ -8,27 +8,39 @@
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class PosApi {
-  /**
-   * Ejemplo de métodos API
-   * 
-   * async createSale(saleData) {
-   *   try {
-   *     const response = await fetch(`${API_BASE_URL}/pos/sales`, {
-   *       method: 'POST',
-   *       headers: { 'Content-Type': 'application/json' },
-   *       body: JSON.stringify(saleData)
-   *     });
-   *     if (!response.ok) throw new Error('Failed to create sale');
-   *     return await response.json();
-   *   } catch (error) {
-   *     console.error('PosApi.createSale error:', error);
-   *     throw error;
-   *   }
-   * }
-   */
+export class PosApi extends BaseApi {
+    #endpoint;
+
+    constructor() {
+        super();
+        // TODO: set the correct environment variable for this endpoint path
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales');
+    }
+
+    getAll() {
+        return this.#endpoint.getAll();
+    }
+
+    getById(id) {
+        return this.#endpoint.getById(id);
+    }
+
+    create(resource) {
+        return this.#endpoint.create(resource);
+    }
+
+    update(id, resource) {
+        return this.#endpoint.update(id, resource);
+    }
+
+    delete(id) {
+        return this.#endpoint.delete(id);
+    }
+
+    // TODO: add POS-specific methods (openSession, closeSession, addItem, etc.)
 }
 
 export const posApi = new PosApi();
