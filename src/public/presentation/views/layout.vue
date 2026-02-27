@@ -1,6 +1,6 @@
 <script setup>
 import Sidebar from '../components/sidebar.vue'
-import { menuItems } from './constants/layout.constants-ui.js'
+import { menuItems } from '../constants/layout.constants-ui.js'
 </script>
 
 <template>

@@ -29,12 +29,12 @@ export const menuItems = [
         to: '/payments',
         title: 'Gestión de Pagos',
     },
-    {
-        label: 'Caja',
-        icon: 'pi pi-fw pi-dollar',
-        to: '/cash-register',
-        title: 'Caja y Movimientos',
-    },
+    //{
+    //    label: 'Caja',
+    //    icon: 'pi pi-fw pi-dollar',
+    //    to: '/cash-register',
+    //    title: 'Caja y Movimientos',
+    //},
     {
         label: 'Inventario',
         icon: 'pi pi-fw pi-box',
