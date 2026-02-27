@@ -12,6 +12,12 @@ export const menuItems = [
         title: 'Gestión de Mesas',
     },
     {
+        label: 'Menú',
+        icon: 'pi pi-fw pi-book',
+        to: '/menu',
+        title: 'Menú del Restaurante',
+    },
+    {
         label: 'Punto de Venta',
         icon: 'pi pi-fw pi-shopping-cart',
         to: '/pos',
@@ -29,12 +35,12 @@ export const menuItems = [
         to: '/payments',
         title: 'Gestión de Pagos',
     },
-    //{
-    //    label: 'Caja',
-    //    icon: 'pi pi-fw pi-dollar',
-    //    to: '/cash-register',
-    //    title: 'Caja y Movimientos',
-    //},
+    {
+        label: 'Caja',
+        icon: 'pi pi-fw pi-dollar',
+        to: '/cash-register',
+        title: 'Caja y Movimientos',
+    },
     {
         label: 'Inventario',
         icon: 'pi pi-fw pi-box',
@@ -52,5 +58,5 @@ export const menuItems = [
         icon: 'pi pi-fw pi-users',
         to: '/users',
         title: 'Gestión de Usuarios',
-    }
+    },
 ]

@@ -1,13 +1,15 @@
 import {createRouter, createWebHistory} from "vue-router";
-import iamRoutes        from "../iam/presentation/iam.routes.js";
-import tablesRoutes     from "../tables/presentation/tables.routes.js";
-import dashboardRoutes  from "../dashboard/presentation/dashboard.routes.js";
-import inventoryRoutes  from "../inventory/presentation/inventory.routes.js";
-import kitchenRoutes    from "../kitchen/presentation/kitchen.routes.js";
-import paymentsRoutes   from "../payments/presentation/payments.routes.js";
-import posRoutes        from "../pos/presentation/pos.routes.js";
-import reportsRoutes    from "../reports/presentation/reports.routes.js";
-import usersRoutes      from "../users/presentation/users.routes.js";
+import iamRoutes            from "../iam/presentation/iam.routes.js";
+import tablesRoutes         from "../tables/presentation/tables.routes.js";
+import dashboardRoutes      from "../dashboard/presentation/dashboard.routes.js";
+import inventoryRoutes      from "../inventory/presentation/inventory.routes.js";
+import kitchenRoutes        from "../kitchen/presentation/kitchen.routes.js";
+import paymentsRoutes       from "../payments/presentation/payments.routes.js";
+import posRoutes            from "../pos/presentation/pos.routes.js";
+import reportsRoutes        from "../reports/presentation/reports.routes.js";
+import usersRoutes          from "../users/presentation/users.routes.js";
+import menuRoutes           from "../menu/presentation/menu.routes.js";
+import cashRegisterRoutes   from "../cash-register/presentation/cash-register.routes.js";
 //import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -36,6 +38,12 @@ const routes = [
         meta: { title: 'Mesas' },
     },
     {
+        path: '/menu',
+        component: layout,
+        children: menuRoutes,
+        meta: { title: 'Menú' },
+    },
+    {
         path: '/inventory',
         component: layout,
         children: inventoryRoutes,
@@ -52,6 +60,12 @@ const routes = [
         component: layout,
         children: paymentsRoutes,
         meta: { title: 'Pagos' },
+    },
+    {
+        path: '/cash-register',
+        component: layout,
+        children: cashRegisterRoutes,
+        meta: { title: 'Caja' },
     },
     {
         path: '/pos',
