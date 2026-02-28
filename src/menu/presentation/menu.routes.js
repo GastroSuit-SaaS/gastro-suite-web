@@ -7,6 +7,9 @@ const menuRoutes = [
         component: menuManagement,
         meta: {
             title: 'Menú',
+            titleModule: 'Menú del restaurante',
+            description: 'Gestión de platos y categorías del menú',
+            showBackButton: false,
         },
     },
 ];

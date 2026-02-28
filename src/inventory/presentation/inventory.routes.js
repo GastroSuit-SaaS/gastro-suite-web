@@ -7,6 +7,9 @@ const inventoryRoutes = [
         component: inventoryManagement,
         meta: {
             title: 'Inventario',
+            titleModule: 'Gestión de inventario',
+            description: 'Gestión de productos y stock',
+            showBackButton: false,
         },
     },
 ];

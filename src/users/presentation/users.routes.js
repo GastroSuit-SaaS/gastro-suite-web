@@ -7,6 +7,9 @@ const usersRoutes = [
         component: usersManagement,
         meta: {
             title: 'Usuarios',
+            titleModule: 'Gestión de usuarios',
+            description: 'Gestión de usuarios y roles del sistema',
+            showBackButton: false,
         },
     },
 ];

@@ -7,6 +7,9 @@ const cashRegisterRoutes = [
         component: cashRegisterHome,
         meta: {
             title: 'Caja',
+            titleModule: 'Control de caja',
+            description: 'Control de caja y movimientos de efectivo',
+            showBackButton: false,
         },
     },
 ];

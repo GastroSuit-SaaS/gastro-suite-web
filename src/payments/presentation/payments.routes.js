@@ -7,6 +7,9 @@ const paymentsRoutes = [
         component: paymentsManagement,
         meta: {
             title: 'Pagos',
+            titleModule: 'Gestión de pagos',
+            description: 'Gestión de pagos y transacciones',
+            showBackButton: false,
         },
     },
 ];

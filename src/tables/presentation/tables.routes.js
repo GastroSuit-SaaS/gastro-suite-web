@@ -1,4 +1,3 @@
-
 const tablesManagement = () => import('./views/tables-management.vue');
 
 
@@ -9,7 +8,10 @@ const tablesRoutes = [
         name: 'tables-management',
         component: tablesManagement,
         meta: {
-            title: 'Gestión de Mesas',
+            title: 'Mesas',
+            titleModule: 'Mesas del restaurante',
+            description: 'Gestión de mesas del restaurante',
+            showBackButton: false,
         }
     },
 ]

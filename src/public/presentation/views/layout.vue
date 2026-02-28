@@ -1,16 +1,24 @@
 <script setup>
+import { useRoute } from 'vue-router'
 import Sidebar from '../components/sidebar.vue'
+import Toolbar from '../components/toolbar.vue'
 import { menuItems } from '../constants/layout.constants-ui.js'
+
+const route = useRoute()
 </script>
 
 <template>
   <div class="app-layout">
-    <!-- Sidebar fijo a la izquierda -->
     <sidebar :menu-items="menuItems" />
-
-    <!-- Área de contenido: ocupa todo el espacio restante y permite scroll -->
     <main class="app-content">
-      <router-view />
+      <Toolbar
+        :title="route.meta.titleModule || ''"
+        :description="route.meta.description || ''"
+        :show-back-button="route.meta.showBackButton ?? false"
+      />
+      <div class="content-area">
+        <router-view />
+      </div>
     </main>
   </div>
 </template>
@@ -26,10 +34,17 @@ import { menuItems } from '../constants/layout.constants-ui.js'
 
 .app-content {
   flex: 1;
-  min-width: 0;        /* evita overflow en contenedores flex */
+  min-width: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-area {
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  background-color: var(--bg-primary);
+  background-color: whitesmoke;
 }
 </style>

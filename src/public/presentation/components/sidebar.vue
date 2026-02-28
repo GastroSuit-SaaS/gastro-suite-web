@@ -14,23 +14,24 @@ const isActive = (path) => route.path.startsWith(path)
 </script>
 
 <template>
-  <nav class="sidebar">
+  <nav class="sidebar flex flex-column h-full overflow-y-auto overflow-x-hidden">
+
     <!-- Brand / Logo -->
-    <div class="sidebar-brand">
+    <div class="flex align-items-center gap-2 px-3 py-4 border-bottom-1 brand-border">
       <i class="pi pi-shop brand-icon"></i>
-      <span class="brand-name">GastroSuite</span>
+      <span class="brand-name font-bold white-space-nowrap">GastroSuite</span>
     </div>
 
     <!-- Navigation -->
-    <ul class="menu-list">
+    <ul class="list-none m-0 py-2 flex-1">
       <li
         v-for="item in menuItems"
         :key="item.label"
         :class="['menu-item', { active: isActive(item.to) }]"
       >
-        <RouterLink :to="item.to" class="menu-link" :title="item.title">
-          <i :class="['menu-icon', item.icon]"></i>
-          <span class="menu-label">{{ item.label }}</span>
+        <RouterLink :to="item.to" class="menu-link flex align-items-center gap-3 mx-2 my-1 border-round" :title="item.title">
+          <i :class="['menu-icon text-center', item.icon]"></i>
+          <span class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
         </RouterLink>
       </li>
     </ul>
@@ -38,58 +39,20 @@ const isActive = (path) => route.path.startsWith(path)
 </template>
 
 <style scoped>
-/* ── Sidebar container ────────────────────────────────────────── */
 .sidebar {
-  display: flex;
-  flex-direction: column;
   width: 220px;
   min-width: 220px;
-  height: 100%;
-  background-color: var(--bg-surface);
+  background-color: var(--bg-primary);
   border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  overflow-x: hidden;
   user-select: none;
 }
 
-/* ── Brand area ───────────────────────────────────────────────── */
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 1.25rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
+.brand-border { border-color: var(--border-color) !important; }
+.brand-icon   { font-size: 1.35rem; color: var(--color-primary); }
+.brand-name   { font-size: var(--font-size-base); color: var(--text-primary); letter-spacing: 0.02em; }
 
-.brand-icon {
-  font-size: 1.35rem;
-  color: var(--color-primary);
-}
-
-.brand-name {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-/* ── Menu list ────────────────────────────────────────────────── */
-.menu-list {
-  list-style: none;
-  margin: 0;
-  padding: 0.5rem 0;
-  flex: 1;
-}
-
-/* ── Menu item / link ─────────────────────────────────────────── */
 .menu-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   padding: 0.625rem 1rem;
-  margin: 0.125rem 0.5rem;
-  border-radius: 6px;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: var(--font-size-sm);
@@ -102,7 +65,6 @@ const isActive = (path) => route.path.startsWith(path)
   color: var(--text-primary);
 }
 
-/* ── Active state ─────────────────────────────────────────────── */
 .menu-item.active .menu-link {
   background-color: rgba(26, 107, 194, 0.15);
   color: var(--color-primary);
@@ -111,16 +73,6 @@ const isActive = (path) => route.path.startsWith(path)
   font-weight: var(--font-weight-semibold);
 }
 
-/* ── Icons ────────────────────────────────────────────────────── */
-.menu-icon {
-  font-size: 1rem;
-  min-width: 1rem;
-  text-align: center;
-}
-
-.menu-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.menu-icon { font-size: 1rem; min-width: 1rem; }
+.menu-label { text-overflow: ellipsis; }
 </style>

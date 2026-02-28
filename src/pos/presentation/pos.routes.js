@@ -7,6 +7,9 @@ const posRoutes = [
         component: posTerminal,
         meta: {
             title: 'Punto de Venta',
+            titleModule: 'Terminal de ventas',
+            description: 'Terminal de ventas y gestión de pedidos',
+            showBackButton: false,
         },
     },
 ];

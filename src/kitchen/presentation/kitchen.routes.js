@@ -7,6 +7,9 @@ const kitchenRoutes = [
         component: kitchenDisplay,
         meta: {
             title: 'Cocina',
+            titleModule: 'Display de cocina',
+            description: 'Gestión y seguimiento de órdenes en cocina',
+            showBackButton: false,
         },
     },
 ];

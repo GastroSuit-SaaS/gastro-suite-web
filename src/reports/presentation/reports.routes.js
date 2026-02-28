@@ -7,6 +7,9 @@ const reportsRoutes = [
         component: reportsHome,
         meta: {
             title: 'Reportes',
+            titleModule: 'Centro de reportes',
+            description: 'Reportes y estadísticas del negocio',
+            showBackButton: false,
         },
     },
 ];
