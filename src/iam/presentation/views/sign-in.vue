@@ -148,8 +148,9 @@ const goToForgotPassword = () => {
 /* Panel izquierdo — gradiente con tokens custom, no expresable en PrimeFlex */
 .bg-gradient {
   position: relative;
-  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 40%, var(--bg-primary) 100%);
+  background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
 }
+
 .bg-gradient::before {
   content: '';
   position: absolute;

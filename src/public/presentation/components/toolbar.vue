@@ -92,8 +92,8 @@ const toggleUserMenu = (event) => {
         <!-- Slot for extra action buttons -->
         <slot name="actions" />
 
-        <!-- User menu trigger -->
-        <div class="toolbar__user" @click="toggleUserMenu">
+        <!-- User menu trigger: oculto en móvil, se muestra en el sidebar -->
+        <div class="toolbar__user hidden md:flex" @click="toggleUserMenu">
             <div class="toolbar__avatar">
                 <i class="pi pi-user"   ></i>
             </div>

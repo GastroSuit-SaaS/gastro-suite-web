@@ -9,8 +9,8 @@ const tablesRoutes = [
         component: tablesManagement,
         meta: {
             title: 'Mesas',
-            titleModule: 'Mesas del restaurante',
-            description: 'Gestión de mesas del restaurante',
+            titleModule: 'Gestión de Mesas',
+            description: 'Administre zonas y mesas del restaurante',
             showBackButton: false,
         }
     },
