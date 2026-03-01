@@ -12,8 +12,10 @@ const username = ref('');
 const password = ref('');
 
 async function handleLogin() {
-    const ok = await iamStore.login({ username: username.value, password: password.value });
-    if (ok) router.push('/dashboard');
+    //const ok = await iamStore.login({ username: username.value, password: password.value });
+    //if (ok) router.push('/dashboard');
+
+    router.push('/dashboard')
 }
 </script>
 
