@@ -258,8 +258,6 @@ function onZoneSaved(data) {
 
     </div>
 
-    <!-- Dialogs -->
-    <pv-confirm-dialog />
     <CreateAndEditZone
         v-model:visible="showZoneDialog"
         :zone="editingZone"

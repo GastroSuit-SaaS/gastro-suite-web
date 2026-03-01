@@ -327,3 +327,130 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* ── Input nativo oculto ──────────────────────────────────── */
+.file-uploader__input {
+    display: none;
+}
+
+/* ── Dropzone base ────────────────────────────────────────── */
+.file-uploader__dropzone {
+    border: 2px dashed #d1d5db;
+    border-radius: 10px;
+    padding: 1.5rem 1.25rem;
+    background-color: #f9fafb;
+    transition: border-color 0.2s, background-color 0.2s;
+    outline: none;
+    min-height: 110px;
+}
+
+.file-uploader__dropzone:focus-visible {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Hover (solo cuando no está lleno ni deshabilitado) */
+.file-uploader__dropzone:not(.file-uploader__dropzone--filled):not(.file-uploader__dropzone--disabled):hover {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+}
+
+/* Arrastrando encima */
+.file-uploader__dropzone--drag-over {
+    border-color: #3b82f6 !important;
+    background-color: #dbeafe !important;
+}
+
+/* Con archivo seleccionado */
+.file-uploader__dropzone--filled {
+    border-style: solid;
+    border-color: #d1d5db;
+    background-color: #ffffff;
+    cursor: default;
+}
+
+/* Deshabilitado */
+.file-uploader__dropzone--disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ── Estado vacío ─────────────────────────────────────────── */
+.file-uploader__icon {
+    font-size: 2rem;
+    color: #9ca3af;
+}
+
+.file-uploader__cta {
+    font-size: 0.875rem;
+}
+
+.file-uploader__link {
+    color: #3b82f6;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.file-uploader__muted {
+    color: #6b7280;
+}
+
+.file-uploader__hint {
+    color: #9ca3af;
+}
+
+/* ── Estado con archivo ───────────────────────────────────── */
+.file-uploader__preview {
+    width: 64px;
+    height: 64px;
+    background-color: #f3f4f6;
+}
+
+.file-uploader__file-icon {
+    width: 48px;
+    height: 48px;
+    background-color: #f3f4f6;
+}
+
+.file-uploader__type-icon {
+    font-size: 1.5rem;
+    color: #6b7280;
+}
+
+.file-uploader__filename {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* ── Links de acción (Cambiar / Eliminar) ─────────────────── */
+.file-uploader__action-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: #3b82f6;
+    transition: color 0.15s;
+}
+
+.file-uploader__action-link:hover {
+    color: #1d4ed8;
+}
+
+.file-uploader__action-link--danger {
+    color: #ef4444;
+}
+
+.file-uploader__action-link--danger:hover {
+    color: #b91c1c;
+}
+
+.file-uploader__separator {
+    color: #d1d5db;
+    font-size: 0.8rem;
+}
+</style>

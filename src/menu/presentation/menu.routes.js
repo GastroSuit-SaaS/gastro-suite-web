@@ -8,7 +8,7 @@ const menuRoutes = [
         meta: {
             title: 'Menú',
             titleModule: 'Menú del restaurante',
-            description: 'Gestión de platos y categorías del menú',
+            description: 'Administre categorías y productos de la carta',
             showBackButton: false,
         },
     },

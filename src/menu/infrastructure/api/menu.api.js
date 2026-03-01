@@ -29,3 +29,5 @@ export class MenuApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 }
+
+export const menuApi = new MenuApi();
