@@ -86,40 +86,93 @@ onMounted(() => {
 </script>
 
 <template>
-  <pv-dialog 
-    :visible="visible" 
-    :modal="true" 
-    :style="dialogStyle" 
-    class="p-fluid dialog-custom-header" 
-    :header="entityName" 
-    :closable="false"
+  <pv-dialog
+    :visible="visible"
+    :modal="true"
+    :style="dialogStyle"
+    :closable="true"
+    class="p-fluid ce-dialog"
+    @update:visible="$emit('canceled-shared')"
   >
     <template #header>
-      <div class="flex align-items-center gap-3 px-4 py-3 toolbar-gradient" style="min-height: 60px; width: 100%; border-radius: 6px 6px 0 0;">
-        <h2 class="m-0 text-white text-2xl font-bold flex-1">{{ headerTitle }}</h2>
-      </div>
+      <h2 class="m-0 font-bold" style="font-size: 1.1rem; color: #111827;">{{ headerTitle }}</h2>
+    </template>
+
+    <!-- Reemplazamos el botón close de Aura (azul por defecto) por uno propio -->
+    <template #closebutton="{ closeCallback }">
+      <button class="ce-close-btn" @click="closeCallback" aria-label="Cerrar">
+        <i class="pi pi-times" />
+      </button>
     </template>
 
     <!-- Slot para el contenido personalizado -->
     <slot name="content"></slot>
 
     <template #footer>
-      <div class="flex justify-content-end gap-2 w-full">
-        <pv-button 
-          type="button" 
-          :label="submitLabel" 
-          class="p-button-primary w-full"
-          icon="pi pi-check" 
-          @click="onSaveRequested"
-        />
-        <pv-button 
-          type="button" 
-          label="Cancelar" 
-          class="p-button-secondary w-full"
-          icon="pi pi-times"
+      <div class="flex justify-content-end align-items-center gap-2 w-full">
+        <pv-button
+          type="button"
+          label="Cancelar"
+          text
+          size="small"
           @click="onCancelRequested"
+        />
+        <pv-button
+          type="button"
+          :label="submitLabel"
+          size="small"
+          @click="onSaveRequested"
         />
       </div>
     </template>
   </pv-dialog>
 </template>
+
+<style>
+.ce-dialog .p-dialog-header,
+.ce-dialog .p-dialog-content,
+.ce-dialog .p-dialog-footer {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+.ce-dialog .p-dialog-header {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 1.5rem;
+}
+
+.ce-dialog .p-dialog-content {
+  padding: 1rem 1.5rem;
+}
+
+.ce-dialog .p-dialog-footer {
+  border-top: 1px solid #e5e7eb;
+  padding: 0.6rem 1.5rem;
+}
+
+/* Botón de cerrar personalizado — reemplaza el Button de Aura vía slot #closebutton */
+.ce-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.ce-close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.ce-close-btn .pi {
+  font-size: 0.875rem;
+}
+</style>

@@ -290,26 +290,30 @@ onMounted(() => initFilters())
             v-if="showNew"
             icon="pi pi-plus"
             :label="newButtonLabel"
-            class="p-button-success w-full md:w-auto"
+            severity="success"
+            class="w-full md:w-auto"
             @click="newItem"
         />
-        
+
         <pv-button
             v-if="showDelete && showSelection"
             :disabled="!selectedItems || !selectedItems.length"
             icon="pi pi-trash"
             :label="deleteButtonLabel"
-            class="p-button-danger w-full md:w-auto"
+            severity="danger"
+            class="w-full md:w-auto"
             @click="confirmDeleteSelected"
         />
       </div>
 
-      <pv-button 
+      <pv-button
         v-if="showExport"
-        icon="pi pi-download" 
-        :label="exportButtonLabel" 
-        class="p-button-secondary p-button-outlined w-full md:w-auto"
-        @click="exportToCsv" 
+        icon="pi pi-download"
+        :label="exportButtonLabel"
+        severity="secondary"
+        outlined
+        class="w-full md:w-auto"
+        @click="exportToCsv"
       />
     </div>
 
@@ -335,7 +339,6 @@ onMounted(() => initFilters())
         hover
         @row-select="onRowSelect"
         @row-unselect="onRowUnselect"
-        class="data-table-custom"
       >
         <!-- Selection Column -->
         <pv-column
@@ -350,11 +353,11 @@ onMounted(() => initFilters())
         <slot name="custom-columns-manager" />
 
         <!-- Dynamic Columns -->
-        <pv-column 
-          v-if="dynamic" 
+        <pv-column
+          v-if="dynamic"
           v-for="column in columns"
           :key="column.field"
-          :field="column.field" 
+          :field="column.field"
           :header="column.header"
           :sortable="column.sortable !== false"
           :style="column.style || 'min-width: 150px;'"
@@ -371,35 +374,42 @@ onMounted(() => initFilters())
           v-if="showActions"
           :exportable="false"
           header="Acciones"
-          :headerStyle="{ width: '8rem', textAlign: 'center' }"
-          :bodyStyle="{ textAlign: 'center' }"
+          :header-style="{ width: '8rem', textAlign: 'center' }"
+          :body-style="{ textAlign: 'center' }"
         >
           <template #body="slotProps">
             <div class="flex gap-1 justify-content-center">
               <pv-button
                   v-if="showViewAction && !viewActionIconOnly"
                   :label="viewButtonLabel"
-                  class="p-button-link"
+                  link
+                  size="small"
                   @click="emit('view-item-requested-manager', slotProps.data)"
               />
               <pv-button
                   v-if="showViewAction && viewActionIconOnly"
                   icon="pi pi-eye"
-                  class="action-button view-button"
+                  severity="info"
+                  text
+                  rounded
                   v-tooltip.top="viewButtonLabel"
                   @click="emit('view-item-requested-manager', slotProps.data)"
               />
               <pv-button
                   v-if="showEditAction"
                   icon="pi pi-pencil"
-                  class="action-button edit-button"
+                  severity="secondary"
+                  text
+                  rounded
                   v-tooltip.top="editButtonLabel"
                   @click="emit('edit-item-requested-manager', slotProps.data)"
               />
               <pv-button
                   v-if="showDeleteAction"
                   icon="pi pi-trash"
-                  class="action-button delete-button"
+                  severity="danger"
+                  text
+                  rounded
                   v-tooltip.top="deleteActionLabel"
                   @click="confirmDeleteItem(slotProps.data)"
               />
@@ -409,17 +419,17 @@ onMounted(() => initFilters())
 
         <!-- Empty State -->
         <template #empty>
-          <div class="text-center p-4">
-            <i class="pi pi-search text-4xl text-400 mb-3"></i>
-            <p class="text-600">No se encontraron registros</p>
+          <div class="flex flex-column align-items-center justify-content-center gap-2 p-4">
+            <i class="pi pi-search text-4xl text-400"></i>
+            <p class="text-600 m-0">No se encontraron registros</p>
           </div>
         </template>
 
         <!-- Loading State -->
         <template #loading>
-          <div class="text-center p-4">
+          <div class="flex flex-column align-items-center justify-content-center gap-3 p-4">
             <pv-progress-spinner style="width:50px;height:50px" stroke-width="4" />
-            <p class="text-600 mt-3">Cargando datos...</p>
+            <p class="text-600 m-0">Cargando datos...</p>
           </div>
         </template>
       </pv-data-table>

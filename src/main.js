@@ -79,6 +79,7 @@ import router from './router/index.js'
 
 // Pinia
 import { createPinia } from 'pinia'
+import {ColorPicker} from "primevue";
 
 // Create app
 const app = createApp(App)
@@ -171,6 +172,7 @@ app
     .component('pv-paginator', Paginator)
     .component('pv-confirm-dialog', ConfirmDialog)
     .component('pv-avatar', Avatar)
+    .component('pv-color-picker', ColorPicker)
 
 // Mount
 app.mount('#app')
