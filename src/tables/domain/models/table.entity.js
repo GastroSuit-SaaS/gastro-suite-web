@@ -17,22 +17,30 @@ export const TABLE_SHAPE = Object.freeze({
 
 export class Table {
     constructor({
-        id             = null,
-        number         = null,
-        capacity       = 0,
-        shape          = TABLE_SHAPE.SQUARE,
-        status         = TABLE_STATUS.AVAILABLE,
-        zoneId         = null,
-        currentOrderId = null,
-        reservationId  = null,
+        id            = null,
+        number        = null,
+        capacity      = 0,
+        shape         = TABLE_SHAPE.SQUARE,
+        status        = TABLE_STATUS.AVAILABLE,
+        zoneId        = null,
+        zone          = '',
+        seatedGuests  = 0,
+        orderId       = null,
+        orderAmount   = 0,
+        occupiedSince = null,
+        reservationId = null,
     } = {}) {
-        this.id             = id;
-        this.number         = number;
-        this.capacity       = capacity;
-        this.shape          = shape;
-        this.status         = status;
-        this.zoneId         = zoneId;
-        this.currentOrderId = currentOrderId;
-        this.reservationId  = reservationId;
+        this.id            = id;
+        this.number        = number;
+        this.capacity      = capacity;
+        this.shape         = shape;
+        this.status        = status;
+        this.zoneId        = zoneId;
+        this.zone          = zone;
+        this.seatedGuests  = seatedGuests;
+        this.orderId       = orderId;
+        this.orderAmount   = orderAmount;
+        this.occupiedSince = occupiedSince;
+        this.reservationId = reservationId;
     }
 }

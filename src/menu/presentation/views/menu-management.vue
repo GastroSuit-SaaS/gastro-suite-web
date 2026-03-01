@@ -201,8 +201,6 @@ function onCategorySaved(data) {
             <span class="text-color-secondary">No se encontraron productos</span>
         </div>
 
-        <!-- Dialogs -->
-        <pv-confirm-dialog />
         <CreateAndEditCategory
             v-model:visible="showCategoryDialog"
             :edit="!!editingCategory"

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useTablesStore } from '../../application/tables.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
 import CreateAndEditZone from './create-and-edit-zone.vue'
 import CreateAndEditTable from './create-and-edit-tables.vue'
 
@@ -19,13 +20,6 @@ const zoneColorMap = computed(() => {
     store.zones.forEach(z => { map[z.id] = { color: z.color, name: z.name } })
     return map
 })
-
-const STATUS_CONFIG = {
-    available: { label: 'Disponible', color: '#059669', bg: 'rgba(16,185,129,0.08)', border: null, icon: 'pi-check-circle' },
-    occupied:  { label: 'Ocupada',    color: '#dc2626', bg: 'rgba(239,68,68,0.08)',  border: '#ef4444', icon: 'pi-exclamation-circle' },
-    cleaning:  { label: 'Limpieza',   color: '#d97706', bg: 'rgba(245,158,11,0.08)', border: '#f59e0b', icon: 'pi-refresh' },
-    reserved:  { label: 'Reservada',  color: '#7c3aed', bg: 'rgba(139,92,246,0.08)', border: '#8b5cf6', icon: 'pi-calendar' },
-}
 
 function elapsedTime(since) {
     if (!since) return ''
@@ -64,6 +58,16 @@ function onZoneSaved(data) {
         store.createZone(data)
     }
     editingZone.value = null
+}
+
+function onTableSaved(table) {
+    if (editingTable.value) {
+        store.update(editingTable.value.id, table)
+    } else {
+        store.create(table)
+    }
+    editingTable.value   = null
+    showTableDialog.value = false
 }
 
 
@@ -174,9 +178,9 @@ function onZoneSaved(data) {
                 class="table-card"
                 :style="{
                     '--zone-color':   zoneColorMap[table.zoneId]?.color ?? '#6b7280',
-                    '--status-color': STATUS_CONFIG[table.status]?.color ?? '#6b7280',
-                    '--status-bg':    STATUS_CONFIG[table.status]?.bg    ?? 'transparent',
-                    '--card-border':  STATUS_CONFIG[table.status]?.border ?? zoneColorMap[table.zoneId]?.color ?? '#6b7280',
+                    '--status-color': TABLE_STATUS_CONFIG[table.status]?.color ?? '#6b7280',
+                    '--status-bg':    TABLE_STATUS_CONFIG[table.status]?.bg    ?? 'transparent',
+                    '--card-border':  TABLE_STATUS_CONFIG[table.status]?.border ?? zoneColorMap[table.zoneId]?.color ?? '#6b7280',
                 }"
             >
                 <!-- Cabecera: nombre + zona + ícono de estado -->
@@ -185,7 +189,7 @@ function onZoneSaved(data) {
                         <div class="table-card__name">Mesa {{ table.number }}</div>
                         <div class="table-card__zone-name">{{ zoneColorMap[table.zoneId]?.name ?? 'Sin zona' }}</div>
                     </div>
-                    <i :class="['pi table-card__status-icon', STATUS_CONFIG[table.status]?.icon ?? 'pi-circle']"></i>
+                    <i :class="['pi table-card__status-icon', TABLE_STATUS_CONFIG[table.status]?.icon ?? 'pi-circle']"></i>
                 </div>
 
                 <!-- Capacidad -->
@@ -202,7 +206,7 @@ function onZoneSaved(data) {
 
                 <!-- Footer -->
                 <div class="table-card__footer">
-                    <span class="table-card__status-label">{{ STATUS_CONFIG[table.status]?.label ?? table.status }}</span>
+                    <span class="table-card__status-label">{{ TABLE_STATUS_CONFIG[table.status]?.label ?? table.status }}</span>
 
                     <!-- Info extra para mesas ocupadas -->
                     <template v-if="table.status === 'occupied' && table.orderId">
@@ -269,8 +273,8 @@ function onZoneSaved(data) {
         :table="editingTable"
         :zones="store.zones"
         :edit="!!editingTable"
-        @table-saved="store.fetchAll(); editingTable = null"
-        @update:visible="v => { if (!v) editingTable = null }"
+        @table-saved="onTableSaved"
+        @update:visible="v => { if (!v) { editingTable = null } }"
     />
 
 </template>
