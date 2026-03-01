@@ -202,6 +202,13 @@ input.p-inputmask {
   min-height: 2.5rem !important;
 }
 
+/* Input con ícono — wrapper manual (ver utilities.css)
+   Especificidad 0,2,1 > 0,1,1 del bloque base: siempre gana */
+.input-icon-wrapper .p-inputtext,
+.input-icon-wrapper input.p-inputtext {
+  padding-left: 2.25rem !important;
+}
+
 /* Tamaños de inputs */
 .p-inputtext[size="large"],
 .p-password[size="large"] .p-password-input,

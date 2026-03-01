@@ -442,3 +442,33 @@
     opacity: 1;
   }
 }
+
+/* ========================================
+   INPUT CON ÍCONO — PATRÓN MANUAL
+   ========================================
+   ⚠️ NO usar pv-icon-field / pv-input-icon.
+   El mecanismo dt() de PrimeVue resuelve los tokens en runtime;
+   en rutas públicas (sin layout autenticado) las variables CSS
+   --p-form-field-padding-x y --p-icon-size pueden ser 0,
+   haciendo que el padding-inline-start calculado sea 0 y el
+   ícono quede superpuesto sobre el texto.
+   Este patrón usa CSS puro y funciona en cualquier contexto.
+   ======================================== */
+.input-icon-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.input-icon-wrapper__icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 0.875rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* padding-left del input se sobreescribe en primevue-overrides.css
+   (.input-icon-wrapper .p-inputtext) con mayor especificidad */

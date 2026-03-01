@@ -29,4 +29,9 @@ export const IAM_MESSAGES = {
   LOGIN_SUCCESS: 'Sesión iniciada correctamente',
   LOGIN_ERROR: 'Credenciales incorrectas',
   REGISTER_SUCCESS: 'Usuario registrado correctamente',
+  REGISTER_ERROR: 'Error al registrar el usuario',
+  FORGOT_PASSWORD_SUCCESS: 'Correo de recuperación enviado',
+  FORGOT_PASSWORD_ERROR: 'Error al enviar el correo de recuperación',
+  RESET_PASSWORD_SUCCESS: 'Contraseña restablecida correctamente',
+  RESET_PASSWORD_ERROR: 'Error al restablecer la contraseña'
 };
