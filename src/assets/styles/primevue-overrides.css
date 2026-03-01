@@ -209,6 +209,16 @@ input.p-inputmask {
   padding-left: 2.25rem !important;
 }
 
+/* pv-icon-field / pv-input-icon — override global
+   PrimeVue intenta aplicar padding-inline-start via dt() tokens, pero nuestro
+   bloque base (.p-inputtext { padding: ... !important }) lo sobreescribe.
+   Este selector tiene especificidad 0,2,1 y está en el mismo archivo después
+   del bloque base, por lo que siempre gana. */
+.p-iconfield .p-inputtext:not(:first-child),
+.p-iconfield input.p-inputtext:not(:first-child) {
+  padding-inline-start: 2.25rem !important;
+}
+
 /* Tamaños de inputs */
 .p-inputtext[size="large"],
 .p-password[size="large"] .p-password-input,
