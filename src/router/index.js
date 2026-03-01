@@ -10,7 +10,7 @@ import reportsRoutes        from "../reports/presentation/reports.routes.js";
 import usersRoutes          from "../users/presentation/users.routes.js";
 import menuRoutes           from "../menu/presentation/menu.routes.js";
 import cashRegisterRoutes   from "../cash-register/presentation/cash-register.routes.js";
-//import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
+import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
 
@@ -104,11 +104,9 @@ const router = createRouter({
 
 
 router.beforeEach((to, from, next) => {
-    console.log(`Navigating from ${from.name} to ${to.name}`);
     let baseTitle = 'GastroSuite';
     document.title = to.meta.title ? `${to.meta.title} | ${baseTitle}` : baseTitle;
     next();
-    // Call authentication guard
     //authenticationGuard(to, from, next);
 });
 

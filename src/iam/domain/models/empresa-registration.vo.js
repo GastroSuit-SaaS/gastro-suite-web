@@ -35,11 +35,12 @@ export class EmpresaRegistration {
      * @returns {{ ruc: boolean, razonSocial: boolean, nombreComercial: boolean, email: boolean, telefono: boolean, password: boolean, confirmPassword: boolean }}
      */
     validate() {
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         return {
             ruc:             this.ruc.trim().length !== 11,
             razonSocial:     !this.razonSocial.trim(),
             nombreComercial: !this.nombreComercial.trim(),
-            email:           !this.email.trim(),
+            email:           !EMAIL_REGEX.test(this.email.trim()),
             telefono:        !this.telefono.trim(),
             password:        this.password.length < 8,
             confirmPassword: this.password !== this.confirmPassword,

@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { IAM_ROUTES } from '../iam.routes.js'
 
 /**
  * SignUpStepFinalizado — Step 4: Resumen y confirmación.
@@ -77,7 +78,7 @@ const router = useRouter()
             icon="pi pi-arrow-right"
             icon-pos="right"
             class="w-full"
-            @click="router.push('/sign-in')"
+            @click="router.push(IAM_ROUTES.SIGN_IN)"
         />
 
     </div>

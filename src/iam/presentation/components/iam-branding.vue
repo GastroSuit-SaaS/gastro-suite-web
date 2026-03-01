@@ -17,12 +17,12 @@
         </div>
         <div class="flex align-items-center justify-content-center">
             <div class="app-logo flex align-items-center justify-content-center">
-                <i class="pi pi-shop app-logo-icon"></i>
+                <img src="@/assets/image/logo-transparente-cuadrado.png" alt="GastroSuite" class="app-logo-img" />
             </div>
         </div>
         <div class="hidden md:block absolute bottom-0 left-0 right-0 pb-3 text-center">
             <p class="text-sm text-white-alpha-70 m-0">
-                &copy; {{ new Date().getFullYear() }} Metasoft Solutions. Todos los derechos reservados.
+                &copy; {{ new Date().getFullYear() }} Metasoft Solutions SAC. Todos los derechos reservados.
             </p>
         </div>
     </div>
@@ -49,9 +49,9 @@
     backdrop-filter: blur(8px);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
-.app-logo-icon {
-    font-size: clamp(3.2rem, 7vw, 4.5rem);
-    color: var(--color-primary);
-    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.25));
+.app-logo-img {
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
 }
 </style>

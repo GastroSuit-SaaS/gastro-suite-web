@@ -1,23 +1,21 @@
 ﻿<script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import SignUpBranding        from '../components/sign-up-branding.vue'
-import SignUpStepper         from '../components/sign-up-stepper.vue'
-import SignUpStepEmpresa     from '../components/sign-up-step-empresa.vue'
-import SignUpStepSucursal    from '../components/sign-up-step-sucursal.vue'
-import SignUpStepUsuario     from '../components/sign-up-step-usuario.vue'
-import SignUpStepFinalizado  from '../components/sign-up-step-finalizado.vue'
+import { useIamStore } from '../../application/iam.store.js'
+import { IAM_ROUTES } from '../iam.routes.js'
+import { SIGN_UP_STEPS } from '../constants/iam.constants-ui.js'
+import IamBranding        from '../components/iam-branding.vue'
+import SignUpStepper      from '../components/sign-up-stepper.vue'
+import SignUpStepEmpresa  from '../components/sign-up-step-empresa.vue'
+import SignUpStepSucursal from '../components/sign-up-step-sucursal.vue'
+import SignUpStepUsuario  from '../components/sign-up-step-usuario.vue'
+import SignUpStepFinalizado from '../components/sign-up-step-finalizado.vue'
 
-const router = useRouter()
+const router   = useRouter()
+const iamStore = useIamStore()
 
 // ── Stepper ───────────────────────────────────────────────
 const currentStep = ref(1)
-const STEPS = [
-    { number: 1, label: 'Empresa'    },
-    { number: 2, label: 'Sucursal'   },
-    { number: 3, label: 'Usuario'    },
-    { number: 4, label: 'Finalizado' },
-]
 
 // ── Template refs para cada step component ────────────────
 const stepEmpresa  = ref()
@@ -29,6 +27,18 @@ async function nextStep() {
     const stepRefs = [stepEmpresa, stepSucursal, stepUsuario]
     const currentRef = stepRefs[currentStep.value - 1]
     if (currentRef?.value && !currentRef.value.validate()) return
+
+    // Step 3 → 4: registrar en el backend con todos los datos acumulados
+    if (currentStep.value === SIGN_UP_STEPS.length - 1) {
+        const payload = {
+            empresa:  stepEmpresa.value?.data,
+            sucursal: stepSucursal.value?.data,
+            usuario:  stepUsuario.value?.data,
+        }
+        const ok = await iamStore.register(payload)
+        if (!ok) return  // Si falla, quedarse en step 3 con el error visible
+    }
+
     currentStep.value++
 }
 
@@ -55,7 +65,7 @@ const summaryUsuarioNombre  = computed(() => {
     <div class="flex flex-column md:flex-row w-full min-h-screen">
 
         <!-- Panel izquierdo — Branding -->
-        <sign-up-branding />
+        <iam-branding />
 
         <!-- Panel derecho — Formulario multi-paso -->
         <div class="bg-surface flex flex-column align-items-center justify-content-start p-4 md:p-6 w-full md:w-6 md:h-screen overflow-y-auto">
@@ -69,7 +79,7 @@ const summaryUsuarioNombre  = computed(() => {
                 </div>
 
                 <!-- Stepper indicador -->
-                <sign-up-stepper :steps="STEPS" :current-step="currentStep" />
+                <sign-up-stepper :steps="SIGN_UP_STEPS" :current-step="currentStep" />
 
                 <!-- Contenido del paso actual -->
                 <div class="mb-4">
@@ -95,7 +105,7 @@ const summaryUsuarioNombre  = computed(() => {
                 </div>
 
                 <!-- Navegación (oculta en el step final) -->
-                <div v-if="currentStep < STEPS.length" class="flex gap-3 mt-4">
+                <div v-if="currentStep < SIGN_UP_STEPS.length" class="flex gap-3 mt-4">
                     <pv-button
                         v-if="currentStep > 1"
                         label="Anterior"
@@ -106,8 +116,8 @@ const summaryUsuarioNombre  = computed(() => {
                         @click="prevStep"
                     />
                     <pv-button
-                        :label="currentStep < STEPS.length - 1 ? 'Siguiente' : 'Finalizar'"
-                        :icon="currentStep < STEPS.length - 1 ? 'pi pi-arrow-right' : 'pi pi-check'"
+                        :label="currentStep < SIGN_UP_STEPS.length - 1 ? 'Siguiente' : 'Finalizar'"
+                        :icon="currentStep < SIGN_UP_STEPS.length - 1 ? 'pi pi-arrow-right' : 'pi pi-check'"
                         icon-pos="right"
                         class="flex-1"
                         @click="nextStep"
@@ -115,10 +125,10 @@ const summaryUsuarioNombre  = computed(() => {
                 </div>
 
                 <!-- Ir a iniciar sesión -->
-                <div v-if="currentStep < STEPS.length" class="text-center mt-4">
+                <div v-if="currentStep < SIGN_UP_STEPS.length" class="text-center mt-4">
                     <p class="text-sm text-color-secondary m-0">
                         ¿Ya tienes una cuenta?
-                        <a class="text-primary font-semibold cursor-pointer hover:underline" @click="router.push('/sign-in')">
+                        <a class="text-primary font-semibold cursor-pointer hover:underline" @click="router.push(IAM_ROUTES.SIGN_IN)">
                             Inicia sesión
                         </a>
                     </p>

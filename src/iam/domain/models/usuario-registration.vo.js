@@ -43,13 +43,14 @@ export class UsuarioRegistration {
      * @returns {{ nombres: boolean, apellidos: boolean, username: boolean, tipoDocumento: boolean, numeroDocumento: boolean, email: boolean, telefono: boolean, password: boolean, confirmPassword: boolean }}
      */
     validate() {
+        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         return {
             nombres:         !this.nombres.trim(),
             apellidos:       !this.apellidos.trim(),
             username:        !this.isUsernameValid(),
             tipoDocumento:   !this.tipoDocumento,
             numeroDocumento: !this.numeroDocumento.trim(),
-            email:           !this.email.trim(),
+            email:           !EMAIL_REGEX.test(this.email.trim()),
             telefono:        !this.telefono.trim(),
             password:        this.password.length < 8,
             confirmPassword: this.password !== this.confirmPassword,
