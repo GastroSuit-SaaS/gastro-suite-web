@@ -11,10 +11,28 @@
  */
 
 export const POS_ROUTES = {
-  SALES: '/pos/sales',
-  PRODUCTS: '/pos/products',
-  CART: '/pos/cart',
+    TERMINAL:    '/pos',
+    SELECT_ZONE: '/pos/select-zone',
+    ORDER:       '/pos/order',
 };
+
+/**
+ * Helper para construir la ruta de selección de mesa por zona.
+ * @param {number} zoneId
+ * @returns {string}
+ */
+export function posSelectTableRoute(zoneId) {
+    return `/pos/select-zone/${zoneId}`;
+}
+
+/**
+ * Helper para construir la ruta de la orden de una mesa.
+ * @param {number} tableId
+ * @returns {string}
+ */
+export function posOrderRoute(tableId) {
+    return `/pos/order/${tableId}`;
+}
 
 export const POS_LABELS = {
   ADD_TO_CART: 'Agregar al Carrito',

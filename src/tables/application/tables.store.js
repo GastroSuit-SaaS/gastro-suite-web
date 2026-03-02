@@ -11,9 +11,9 @@ export const useTablesStore = defineStore('tables', () => {
     // ── State ─────────────────────────────────────────────────────────────
     // Metadata de zonas (nombre, color, descripción) separada del conteo de mesas
     const zonesData = ref([
-        { id: 1, name: 'Salón Principal', color: '#3b82f6', description: '' },
-        { id: 2, name: 'Terraza',         color: '#10b981', description: '' },
-        { id: 3, name: 'Privado',         color: '#f59e0b', description: '' },
+        { id: 1, name: 'Salón Principal', color: '#3b82f6', description: 'Área principal del restaurante con vista a la calle' },
+        { id: 2, name: 'Terraza',         color: '#10b981', description: 'Zona al aire libre con ambiente relajado' },
+        { id: 3, name: 'Privado',         color: '#f59e0b', description: 'Salón privado para eventos y reuniones' },
     ]);
 
     const tables = ref([
