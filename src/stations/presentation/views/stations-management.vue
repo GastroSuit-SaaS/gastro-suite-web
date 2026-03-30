@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
@@ -70,10 +70,16 @@ function clearSearch() {
     statusFilter.value = ''
 }
 
+// ── Live clock for reactive timers ──────────────────────────────────────
+const now = ref(Date.now())
+let _timerInterval = null
+onMounted(() => { _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000) })
+onUnmounted(() => { clearInterval(_timerInterval) })
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 function elapsedMins(date) {
     if (!date) return 0
-    return Math.floor((Date.now() - new Date(date)) / 60000)
+    return Math.floor((now.value - new Date(date)) / 60000)
 }
 
 function elapsedTime(date) {
@@ -104,6 +110,9 @@ function ticketsByColumn(colKey) {
 function focusedByColumn(colKey) {
     return focusedTickets.value.filter(t => t.status === colKey)
 }
+
+const hasAnyTickets  = computed(() => searchedTickets.value.length > 0)
+const hasAnyFocused  = computed(() => focusedTickets.value.length > 0)
 
 function menuItemCountForStation(stationId) {
     // Rough count from tickets (mock) — real impl from menu store
@@ -374,17 +383,26 @@ function urgencyBorderColor(ticket) {
                 <div
                     v-for="col in TICKET_COLUMNS"
                     :key="col.key"
-                    :class="['focus-col', focusedByColumn(col.key).length === 0 && 'focus-col--empty-col']"
+                    :class="['focus-col', hasAnyFocused && focusedByColumn(col.key).length === 0 && 'focus-col--empty-col']"
                 >
                     <!-- Column header -->
                     <div class="focus-col__header" :style="{ background: col.bg, borderBottom: `2px solid ${col.color}` }">
-                        <div class="flex align-items-center gap-2">
-                            <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
-                            <span class="font-semibold" :style="{ color: col.color }">{{ col.label }}</span>
-                        </div>
-                        <span class="focus-col__count" :style="{ background: col.color }">
-                            {{ focusedByColumn(col.key).length }}
-                        </span>
+                        <template v-if="hasAnyFocused && focusedByColumn(col.key).length === 0">
+                            <div class="focus-col__header-collapsed">
+                                <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
+                                <span class="focus-col__header-collapsed__label" :style="{ color: col.color }">{{ col.label }}</span>
+                                <span class="focus-col__count" :style="{ background: col.color }">0</span>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div class="flex align-items-center gap-2">
+                                <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
+                                <span class="font-semibold" :style="{ color: col.color }">{{ col.label }}</span>
+                            </div>
+                            <span class="focus-col__count" :style="{ background: col.color }">
+                                {{ focusedByColumn(col.key).length }}
+                            </span>
+                        </template>
                     </div>
 
                     <!-- Column body -->
@@ -566,17 +584,26 @@ function urgencyBorderColor(ticket) {
                 <div
                     v-for="col in TICKET_COLUMNS"
                     :key="col.key"
-                    :class="['kanban-col', ticketsByColumn(col.key).length === 0 && 'kanban-col--empty-col']"
+                    :class="['kanban-col', hasAnyTickets && ticketsByColumn(col.key).length === 0 && 'kanban-col--empty-col']"
                 >
                     <!-- Column header -->
                     <div class="kanban-col__header" :style="{ background: col.bg, borderBottom: `2px solid ${col.color}` }">
-                        <div class="flex align-items-center gap-2">
-                            <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
-                            <span class="font-semibold" :style="{ color: col.color }">{{ col.label }}</span>
-                        </div>
-                        <span class="kanban-col__count" :style="{ background: col.color }">
-                            {{ ticketsByColumn(col.key).length }}
-                        </span>
+                        <template v-if="hasAnyTickets && ticketsByColumn(col.key).length === 0">
+                            <div class="kanban-col__header-collapsed">
+                                <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
+                                <span class="kanban-col__header-collapsed__label" :style="{ color: col.color }">{{ col.label }}</span>
+                                <span class="kanban-col__count" :style="{ background: col.color }">0</span>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div class="flex align-items-center gap-2">
+                                <i :class="['pi', TICKET_STATUS_CONFIG[col.key].icon]" :style="{ color: col.color }"></i>
+                                <span class="font-semibold" :style="{ color: col.color }">{{ col.label }}</span>
+                            </div>
+                            <span class="kanban-col__count" :style="{ background: col.color }">
+                                {{ ticketsByColumn(col.key).length }}
+                            </span>
+                        </template>
                     </div>
 
                     <!-- Ticket cards -->
@@ -1188,18 +1215,25 @@ function urgencyBorderColor(ticket) {
 /* ── Focus mode kanban ────────────────────────────────────────────────── */
 .focus-kanban {
     flex: 1; min-height: 0;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
     gap: 1rem;
     padding: 1.25rem;
     overflow: hidden;
+    align-items: flex-start;
 }
 
 .focus-col {
+    flex: 1;
+    min-width: 0;
     display: flex; flex-direction: column;
     border-radius: 10px; overflow: hidden;
     border: 1px solid #e5e7eb; background: #f9fafb;
     min-height: 0;
+    transition: flex 0.25s ease;
+}
+
+.focus-col--empty-col {
+    flex: 0 0 120px;
 }
 
 .focus-col__header {
@@ -1207,6 +1241,27 @@ function urgencyBorderColor(ticket) {
     justify-content: space-between;
     padding: 0.75rem 1rem;
     flex-shrink: 0;
+}
+
+.focus-col__header-collapsed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 0.35rem;
+    padding: 0.15rem 0;
+}
+
+.focus-col__header-collapsed__label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .focus-col__count {
@@ -1304,19 +1359,26 @@ function urgencyBorderColor(ticket) {
 
 /* ── Kanban board ─────────────────────────────────────────────────────── */
 .kanban-board {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
     gap: 1rem;
     min-height: 400px;
+    align-items: flex-start;
 }
 
 .kanban-col {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid #e5e7eb;
     background: #f9fafb;
+    transition: flex 0.25s ease;
+}
+
+.kanban-col--empty-col {
+    flex: 0 0 120px;
 }
 
 .kanban-col__header {
@@ -1325,6 +1387,27 @@ function urgencyBorderColor(ticket) {
     justify-content: space-between;
     padding: 0.65rem 0.9rem;
     flex-shrink: 0;
+}
+
+.kanban-col__header-collapsed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 0.35rem;
+    padding: 0.15rem 0;
+}
+
+.kanban-col__header-collapsed__label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .kanban-col__count {
@@ -1462,6 +1545,20 @@ function urgencyBorderColor(ticket) {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.65; }
 }
+
+/* ── New ticket flash ───────────────────────────────────────────────────── */
+.ticket-card--new {
+    animation: new-ticket-flash 0.55s ease-in-out 5;
+    outline: 2px solid #3b82f6;
+    outline-offset: -1px;
+}
+@keyframes new-ticket-flash {
+    0%, 100% { background: #fff; }
+    50%       { background: #eff6ff; }
+}
+
+/* ── Critical card tint ────────────────────────────────────────────────── */
+.ticket-card--critical { background: #fff8f8; }
 
 /* ── Order progress bar ───────────────────────────────────────────────── */
 .ticket-card__progress {
@@ -1643,6 +1740,39 @@ function urgencyBorderColor(ticket) {
     transition: background 0.12s;
 }
 .ticket-card__cancel-btn:hover { background: #fee2e2; }
+
+/* When in corner of header: hidden until hover */
+.ticket-card__cancel-btn--corner {
+    opacity: 0;
+    transition: background 0.12s, opacity 0.15s;
+}
+.ticket-card:hover .ticket-card__cancel-btn--corner,
+.focus-ticket:hover .ticket-card__cancel-btn--corner { opacity: 1; }
+
+/* ── Call waiter button ────────────────────────────────────────────────── */
+.call-waiter-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem;
+    border: 1.5px solid #fbbf24;
+    border-radius: 6px;
+    background: #fffbeb;
+    color: #d97706;
+    font-size: 0.78rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+}
+.call-waiter-btn:hover { background: #fef3c7; }
+.call-waiter-btn--called {
+    background: #d1fae5;
+    border-color: #6ee7b7;
+    color: #059669;
+    animation: waiter-called-pulse 0.7s ease-in-out 2;
+}
+@keyframes waiter-called-pulse {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.2); }
+}
 
 /* ── Cancel dialog ───────────────────────────────────────────────────── */
 .cancel-dialog {
