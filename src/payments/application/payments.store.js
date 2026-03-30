@@ -65,8 +65,8 @@ export const usePaymentsStore = defineStore('payments', () => {
             const response = await api.getAll();
             payments.value = PaymentAssembler.toEntitiesFromResponse(response);
         } catch (e) {
-            // Backend no disponible — usar mock data en DEV
-            if (import.meta.env.DEV) {
+            // Backend no disponible — usar mock data si VITE_USE_MOCK=true
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
                 payments.value = [...MOCK_PAYMENTS];
             } else {
                 error.value = e?.response?.data?.message ?? 'Error al cargar los pagos';

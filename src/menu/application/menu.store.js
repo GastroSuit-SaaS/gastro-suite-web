@@ -81,7 +81,7 @@ export const useMenuStore = defineStore('menu', () => {
             categoriesData.value = CategoryAssembler.toEntitiesFromResponse(catsResp);
             items.value          = MenuItemAssembler.toEntitiesFromResponse(itemsResp);
         } catch (e) {
-            if (import.meta.env.DEV) {
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
                 categoriesData.value = [...MOCK_CATEGORIES];
                 // items mock is already set in the initial ref
             } else {

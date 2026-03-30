@@ -74,7 +74,7 @@ export const useTablesStore = defineStore('tables', () => {
             zonesData.value = ZoneAssembler.toEntitiesFromResponse(zonesResp);
             tables.value    = TableAssembler.toEntitiesFromResponse(tablesResp);
         } catch (e) {
-            if (import.meta.env.DEV) {
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
                 zonesData.value = [...MOCK_ZONES];
                 // tables mock data is already set as initial ref value
             } else {

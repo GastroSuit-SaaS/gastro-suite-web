@@ -87,7 +87,7 @@ export const useStationsStore = defineStore('stations', () => {
             ticketHistory.value = fetched.filter(t => t.status === TICKET_STATUS.DELIVERED || t.status === TICKET_STATUS.CANCELLED);
             ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
         } catch (e) {
-            if (import.meta.env.DEV) {
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
                 // mock data already set in initial refs
             } else {
                 error.value = e?.response?.data?.message ?? 'Error al cargar las estaciones';

@@ -106,9 +106,9 @@ export const usePosStore = defineStore('pos', () => {
             const response = await api.getAll();
             sales.value = SaleAssembler.toEntitiesFromResponse(response);
         } catch (e) {
-            if (import.meta.env.DEV && sales.value.length === 0) {
+            if (import.meta.env.VITE_USE_MOCK === 'true' && sales.value.length === 0) {
                 sales.value = [...MOCK_SALES];
-            } else if (!import.meta.env.DEV) {
+            } else if (import.meta.env.VITE_USE_MOCK !== 'true') {
                 error.value = e?.response?.data?.message ?? 'Error al cargar las órdenes';
             }
         } finally {
