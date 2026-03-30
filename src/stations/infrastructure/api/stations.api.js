@@ -39,7 +39,22 @@ export class StationsApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add stations-specific methods (updateOrderStatus, assignStation, etc.)
+    // ── Tickets ───────────────────────────────────────────────────────────
+    getTickets(params = {}) {
+        return this.http.get(import.meta.env.VITE_TICKETS_ENDPOINT ?? '/stations/tickets', { params });
+    }
+
+    updateTicketStatus(id, status) {
+        return this.http.patch(`${import.meta.env.VITE_TICKETS_ENDPOINT ?? '/stations/tickets'}/${id}/status`, { status });
+    }
+
+    cancelTicket(id, reason) {
+        return this.http.patch(`${import.meta.env.VITE_TICKETS_ENDPOINT ?? '/stations/tickets'}/${id}/cancel`, { reason });
+    }
+
+    sendToStations(saleId, tickets) {
+        return this.http.post(import.meta.env.VITE_TICKETS_ENDPOINT ?? '/stations/tickets', { saleId, tickets });
+    }
 }
 
 export const stationsApi = new StationsApi();

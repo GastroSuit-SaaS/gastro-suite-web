@@ -1,8 +1,7 @@
 ﻿import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { PosApi } from '../infrastructure/api/pos.api.js';
-// SaleAssembler: reserved for API integration (fetchAll / create / update)
-// import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
+import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
 import { Sale, SALE_STATUS } from '../domain/models/sale.entity.js';
 import { SaleItem }          from '../domain/models/sale-item.entity.js';
 import { useTablesStore }    from '../../tables/application/tables.store.js';
@@ -105,7 +104,7 @@ export const usePosStore = defineStore('pos', () => {
         error.value = null;
         try {
             const response = await api.getAll();
-            // sales.value = SaleAssembler.toEntitiesFromResponse(response); // TODO
+            sales.value = SaleAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             if (import.meta.env.DEV && sales.value.length === 0) {
                 sales.value = [...MOCK_SALES];
@@ -118,19 +117,47 @@ export const usePosStore = defineStore('pos', () => {
     }
 
     async function fetchById(id) {
-        // TODO: call api.getById(id), transform via SaleAssembler.toEntityFromResource
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getById(id);
+            const sale = SaleAssembler.toEntityFromResponse(response);
+            const idx  = sales.value.findIndex(s => s.id === id);
+            if (idx !== -1) sales.value.splice(idx, 1, sale);
+            else sales.value.push(sale);
+        } catch (e) {
+            error.value = e?.response?.data?.message ?? 'Error al cargar la orden';
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     async function create(sale) {
-        // TODO: call api.create(sale), set as currentSale
+        try {
+            const response = await api.create(SaleAssembler.toResourceFromEntity(sale));
+            if (response.status === 201 || response.status === 200) {
+                const saved = SaleAssembler.toEntityFromResponse(response);
+                if (saved?.id) {
+                    // Replace the optimistic/temp sale with the persisted one
+                    const idx = sales.value.findIndex(s => s.id === sale.id);
+                    if (idx !== -1) sales.value.splice(idx, 1, saved);
+                    if (currentSale.value?.id === sale.id) currentSale.value = saved;
+                }
+            }
+        } catch { /* keep optimistic sale — retry on next sync */ }
     }
 
     async function update(id, sale) {
-        // TODO: call api.update(id, sale), refresh list
+        try {
+            await api.update(id, SaleAssembler.toResourceFromEntity(sale));
+        } catch { /* local state kept */ }
     }
 
     async function remove(id) {
-        // TODO: call api.delete(id), refresh list
+        sales.value = sales.value.filter(s => s.id !== id);
+        try {
+            await api.delete(id);
+        } catch { /* local change kept */ }
     }
 
     /**
@@ -146,14 +173,16 @@ export const usePosStore = defineStore('pos', () => {
             currentSale.value = existing;
             currentSaleIsRecovered.value = true;
         } else {
-            const id      = 1200 + sales.value.length + 1;
-            const newSale = new Sale({ id, tableId, zoneId, status: SALE_STATUS.ACTIVE });
+            // Use a temporary negative ID — replaced with backend ID after api.create()
+            const tempId  = -(Date.now());
+            const newSale = new Sale({ id: tempId, tableId, zoneId, status: SALE_STATUS.ACTIVE });
             sales.value.push(newSale);
             currentSale.value = newSale;
             currentSaleIsRecovered.value = false;
             tablesStore.assignTable(tableId, seatedGuests);
+            // Persist to backend — replaces tempId with real backend ID
+            create(newSale);
         }
-        // TODO: persist via api.create / api.getByTableId
     }
 
     // ── Orden actual — gestión de ítems ──────────────────────────────────
@@ -181,6 +210,16 @@ export const usePosStore = defineStore('pos', () => {
     function updateItemDiscount(itemId, type, value) {
         if (!currentSale.value) return;
         currentSale.value.updateDiscount(itemId, type, value);
+    }
+
+    function updateOrderDiscount(type, value) {
+        if (!currentSale.value) return;
+        currentSale.value.updateOrderDiscount(type, value);
+    }
+
+    function clearOrderDiscount() {
+        if (!currentSale.value) return;
+        currentSale.value.clearOrderDiscount();
     }
 
     function duplicateItemInCurrentSale(itemId) {
@@ -280,7 +319,7 @@ export const usePosStore = defineStore('pos', () => {
         // Orden
         openSaleForTable,
         addItemToCurrentSale, removeItemFromCurrentSale,
-        updateItemQuantity, updateItemNote, updateItemDiscount, duplicateItemInCurrentSale,
+        updateItemQuantity, updateItemNote, updateItemDiscount, updateOrderDiscount, clearOrderDiscount, duplicateItemInCurrentSale,
         sendCurrentSaleToStations, cancelCurrentSale, confirmPayment,
         // Catálogo
         setCatalogCategory, setCatalogSearch,

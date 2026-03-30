@@ -40,7 +40,35 @@ export class TablesApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add tables-specific methods (updateStatus, assign, release, etc.)
+    // ── Status transitions ────────────────────────────────────────────────
+    updateStatus(id, status) {
+        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/status`, { status });
+    }
+
+    assign(id, { seatedGuests }) {
+        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/assign`, { seatedGuests });
+    }
+
+    free(id) {
+        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/free`);
+    }
+
+    // ── Zones ─────────────────────────────────────────────────────────────
+    getZones() {
+        return this.http.get(import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones');
+    }
+
+    createZone(data) {
+        return this.http.post(import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones', data);
+    }
+
+    updateZone(id, data) {
+        return this.http.put(`${import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones'}/${id}`, data);
+    }
+
+    deleteZone(id) {
+        return this.http.delete(`${import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones'}/${id}`);
+    }
 }
 
 export const tablesApi = new TablesApi();

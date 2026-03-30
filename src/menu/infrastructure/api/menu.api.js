@@ -28,6 +28,23 @@ export class MenuApi extends BaseApi {
     delete(id) {
         return this.#endpoint.delete(id);
     }
+
+    // ── Categories ────────────────────────────────────────────────────────
+    getCategories() {
+        return this.http.get(import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories');
+    }
+
+    createCategory(data) {
+        return this.http.post(import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories', data);
+    }
+
+    updateCategory(id, data) {
+        return this.http.put(`${import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories'}/${id}`, data);
+    }
+
+    deleteCategory(id) {
+        return this.http.delete(`${import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories'}/${id}`);
+    }
 }
 
 export const menuApi = new MenuApi();

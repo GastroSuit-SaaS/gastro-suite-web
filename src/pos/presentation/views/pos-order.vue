@@ -27,6 +27,28 @@ const editingDiscountId   = ref(null)
 const discountInput       = ref(0)
 const discountType        = ref('pct')  // 'pct' | 'fixed'
 
+// ── Descuento a nivel de orden
+const editingOrderDiscount = ref(false)
+const orderDiscountInput   = ref(0)
+const orderDiscountType    = ref('fixed')
+
+function openOrderDiscount() {
+    orderDiscountInput.value   = sale.value?.discount ?? 0
+    orderDiscountType.value    = 'fixed'
+    editingOrderDiscount.value = true
+}
+function commitOrderDiscount() {
+    posStore.updateOrderDiscount(orderDiscountType.value, orderDiscountInput.value)
+    editingOrderDiscount.value = false
+}
+function cancelOrderDiscount() {
+    editingOrderDiscount.value = false
+}
+function clearOrderDiscount() {
+    posStore.clearOrderDiscount()
+    editingOrderDiscount.value = false
+}
+
 onMounted(() => {
     if (!posStore.currentSale) router.replace(POS_ROUTES.SELECT_ZONE)
 })
@@ -359,6 +381,47 @@ function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
                         <span>IGV (18%)</span>
                         <span>S/ {{ (sale?.tax ?? 0).toFixed(2) }}</span>
                     </div>
+
+                    <!-- Descuento de orden -->
+                    <div v-if="(sale?.discount ?? 0) > 0" class="totals__row totals__row--discount">
+                        <span>Descuento</span>
+                        <span class="totals__discount-value">− S/ {{ (sale.discount).toFixed(2) }}</span>
+                    </div>
+
+                    <!-- Editor de descuento de orden -->
+                    <div v-if="editingOrderDiscount" class="order-discount-editor">
+                        <select v-model="orderDiscountType" class="order-discount-editor__type">
+                            <option value="pct">%</option>
+                            <option value="fixed">S/</option>
+                        </select>
+                        <input
+                            v-model.number="orderDiscountInput"
+                            type="number"
+                            min="0"
+                            :max="orderDiscountType === 'pct' ? 100 : undefined"
+                            class="order-discount-editor__input"
+                            @keydown.enter="commitOrderDiscount"
+                            @keydown.esc="cancelOrderDiscount"
+                        />
+                        <button class="order-discount-editor__btn order-discount-editor__btn--ok" @click="commitOrderDiscount">
+                            <i class="pi pi-check"></i>
+                        </button>
+                        <button v-if="(sale?.discount ?? 0) > 0" class="order-discount-editor__btn order-discount-editor__btn--clear" @click="clearOrderDiscount">
+                            <i class="pi pi-times"></i>
+                        </button>
+                        <button class="order-discount-editor__btn order-discount-editor__btn--cancel" @click="cancelOrderDiscount">
+                            <i class="pi pi-ban"></i>
+                        </button>
+                    </div>
+                    <button
+                        v-else-if="sale"
+                        class="totals__discount-toggle"
+                        @click="openOrderDiscount"
+                    >
+                        <i class="pi pi-tag"></i>
+                        {{ (sale?.discount ?? 0) > 0 ? 'Editar descuento' : 'Agregar descuento' }}
+                    </button>
+
                     <div class="totals__row totals__row--total">
                         <span>Total</span>
                         <span>S/ {{ (sale?.total ?? 0).toFixed(2) }}</span>
@@ -807,6 +870,38 @@ function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
     margin-top: 0.25rem; padding-top: 0.4rem;
     border-top: 1px solid var(--surface-border);
 }
+.totals__row--discount { color: #16a34a; font-weight: 600; }
+.totals__discount-value { color: #16a34a; font-weight: 700; }
+.totals__discount-toggle {
+    display: flex; align-items: center; gap: 0.35rem;
+    background: none; border: 1px dashed #d1d5db; border-radius: 6px;
+    color: #6b7280; font-size: 0.78rem; cursor: pointer;
+    padding: 0.3rem 0.6rem; margin-top: 0.25rem; width: 100%;
+    transition: border-color 0.15s, color 0.15s;
+}
+.totals__discount-toggle:hover { border-color: #6366f1; color: #6366f1; }
+.order-discount-editor {
+    display: flex; align-items: center; gap: 0.35rem;
+    margin-top: 0.25rem;
+}
+.order-discount-editor__type {
+    border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 0.25rem 0.4rem; font-size: 0.82rem; background: var(--surface-card, #fff);
+    color: #374151; cursor: pointer;
+}
+.order-discount-editor__input {
+    flex: 1; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 0.25rem 0.5rem; font-size: 0.82rem; outline: none;
+    min-width: 0;
+}
+.order-discount-editor__input:focus { border-color: #6366f1; }
+.order-discount-editor__btn {
+    border: none; border-radius: 6px; cursor: pointer;
+    padding: 0.3rem 0.45rem; font-size: 0.8rem;
+}
+.order-discount-editor__btn--ok     { background: #6366f1; color: #fff; }
+.order-discount-editor__btn--clear  { background: #fee2e2; color: #dc2626; }
+.order-discount-editor__btn--cancel { background: #f3f4f6; color: #6b7280; }
 
 .action-btns { display: flex; flex-direction: column; gap: 0.55rem; }
 .action-btn {

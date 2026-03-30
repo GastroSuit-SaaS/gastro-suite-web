@@ -1,4 +1,5 @@
-import { Sale } from '../../domain/models/sale.entity.js';
+import { Sale, SALE_STATUS } from '../../domain/models/sale.entity.js';
+import { SaleItem } from '../../domain/models/sale-item.entity.js';
 
 /**
  * POS Infrastructure - Sale Assembler
@@ -10,24 +11,85 @@ export class SaleAssembler {
 
     /**
      * Transforma un recurso individual del API en una entidad Sale.
-     * @param {Object} resource - Recurso crudo del API.
+     * Soporta snake_case y camelCase.
+     * @param {Object} r - Recurso crudo del API.
      * @returns {Sale}
      */
-    static toEntityFromResource(resource) {
-        // TODO: map resource fields to Sale constructor parameters
+    static toEntityFromResource(r) {
+        const items = (r.items ?? []).map(i => new SaleItem({
+            id:           i.id            ?? null,
+            menuItemId:   i.menuItemId    ?? i.menu_item_id   ?? null,
+            menuItemName: i.menuItemName  ?? i.menu_item_name ?? '',
+            quantity:     i.quantity      ?? 1,
+            unitPrice:    i.unitPrice     ?? i.unit_price     ?? 0,
+            note:         i.note          ?? '',
+            discountType: i.discountType  ?? i.discount_type  ?? 'pct',
+            discountValue:i.discountValue ?? i.discount_value ?? 0,
+            stationId:    i.stationId     ?? i.station_id     ?? null,
+            stationName:  i.stationName   ?? i.station_name   ?? null,
+            isSent:       i.isSent        ?? i.is_sent        ?? true,
+        }));
+
         return new Sale({
-            id: resource.id,
+            id:        r.id         ?? null,
+            tableId:   r.tableId    ?? r.table_id    ?? null,
+            zoneId:    r.zoneId     ?? r.zone_id     ?? null,
+            items,
+            subtotal:  r.subtotal   ?? 0,
+            tax:       r.tax        ?? 0,
+            discount:  r.discount   ?? 0,
+            total:     r.total      ?? 0,
+            status:    r.status     ?? SALE_STATUS.ACTIVE,
+            cashierId: r.cashierId  ?? r.cashier_id  ?? null,
+            createdAt: r.createdAt  ?? r.created_at  ?? null,
         });
     }
 
     /**
-     * Valida la respuesta HTTP y transforma la colección de recursos en entidades.
-     * @param {Object} response - Respuesta Axios (response.status, response.data).
+     * Valida la respuesta HTTP y transforma la coleccion en entidades.
+     * @param {Object} response - Respuesta Axios.
      * @returns {Sale[]}
      */
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
-        // TODO: adjust extraction path if data is nested (e.g. response.data.items)
-        return response.data.map(r => SaleAssembler.toEntityFromResource(r));
+        const list = response.data?.items ?? response.data?.data ?? response.data;
+        if (!Array.isArray(list)) return [];
+        return list.map(r => SaleAssembler.toEntityFromResource(r));
+    }
+
+    /**
+     * Respuesta de un solo recurso (POST/GET by id).
+     * @param {Object} response - Respuesta Axios.
+     * @returns {Sale|null}
+     */
+    static toEntityFromResponse(response) {
+        if (response.status !== 200 && response.status !== 201) return null;
+        const data = response.data?.data ?? response.data;
+        if (!data) return null;
+        return SaleAssembler.toEntityFromResource(data);
+    }
+
+    /**
+     * Serializa una Sale a DTO para el backend.
+     * @param {Sale} sale
+     * @returns {Object}
+     */
+    static toResourceFromEntity(sale) {
+        return {
+            tableId:  sale.tableId,
+            zoneId:   sale.zoneId,
+            status:   sale.status,
+            items: sale.items.map(i => ({
+                menuItemId:    i.menuItemId,
+                menuItemName:  i.menuItemName,
+                quantity:      i.quantity,
+                unitPrice:     i.unitPrice,
+                note:          i.note,
+                discountType:  i.discountType,
+                discountValue: i.discountValue,
+                stationId:     i.stationId,
+                isSent:        i.isSent,
+            })),
+        };
     }
 }

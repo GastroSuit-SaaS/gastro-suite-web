@@ -1,19 +1,26 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { MenuApi } from '../infrastructure/api/menu.api.js';
+import { MenuItemAssembler } from '../infrastructure/assemblers/menu-item.assembler.js';
+import { CategoryAssembler } from '../infrastructure/assemblers/category.assembler.js';
 import { MenuItem } from '../domain/models/menu-item.entity.js';
 import { Category } from '../domain/models/category.entity.js';
 
+const api = new MenuApi();
+
 export const useMenuStore = defineStore('menu', () => {
 
-    // ── Mock categories (equiv. zonas) ────────────────────────────────────
-    const categoriesData = ref([
+    // ── Mock categories (DEV fallback) ────────────────────────────────────
+    const MOCK_CATEGORIES = [
         new Category({ id: 1, name: 'Entradas',           color: '#f59e0b', description: 'Primeros platos y aperitivos',   sortOrder: 1 }),
         new Category({ id: 2, name: 'Platos Principales', color: '#3b82f6', description: 'Platos fuertes del menú',        sortOrder: 2 }),
         new Category({ id: 3, name: 'Pastas',             color: '#10b981', description: 'Pastas y arroces',               sortOrder: 3 }),
         new Category({ id: 4, name: 'Postres',            color: '#ec4899', description: 'Dulces y postres',               sortOrder: 4 }),
         new Category({ id: 5, name: 'Bebidas',            color: '#8b5cf6', description: 'Bebidas frías y calientes',      sortOrder: 5 }),
         new Category({ id: 6, name: 'Especiales',         color: '#ef4444', description: 'Platos especiales del chef',     sortOrder: 6 }),
-    ]);
+    ];
+
+    const categoriesData = ref([...MOCK_CATEGORIES]);
 
     const selectedCategoryId = ref(null);
     const searchQuery         = ref('');
@@ -63,21 +70,64 @@ export const useMenuStore = defineStore('menu', () => {
     });
 
     // ── Actions ───────────────────────────────────────────────────────────
-    function fetchAll() { /* TODO: connect API */ }
-    function fetchById(id) { /* TODO */ void id; }
-
-    function create(itemData) {
-        const { imageFile, ...fields } = itemData;
-        const cat = categoriesData.value.find(c => c.id === fields.categoryId);
-        const newItem = new MenuItem({
-            ...fields,
-            id:       Date.now(),
-            category: cat?.name ?? '',
-        });
-        items.value.push(newItem);
+    async function fetchAll() {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const [itemsResp, catsResp] = await Promise.all([
+                api.getAll(),
+                api.getCategories(),
+            ]);
+            categoriesData.value = CategoryAssembler.toEntitiesFromResponse(catsResp);
+            items.value          = MenuItemAssembler.toEntitiesFromResponse(itemsResp);
+        } catch (e) {
+            if (import.meta.env.DEV) {
+                categoriesData.value = [...MOCK_CATEGORIES];
+                // items mock is already set in the initial ref
+            } else {
+                error.value = e?.response?.data?.message ?? 'Error al cargar el menú';
+            }
+        } finally {
+            isLoading.value = false;
+        }
     }
 
-    function update(id, itemData) {
+    async function fetchById(id) {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getById(id);
+            selectedItem.value = MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
+        } catch (e) {
+            error.value = e?.response?.data?.message ?? 'Error al cargar el ítem';
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function create(itemData) {
+        const { imageFile, ...fields } = itemData;
+        const cat = categoriesData.value.find(c => c.id === fields.categoryId);
+        const optimisticId = Date.now();
+        const optimistic = new MenuItem({
+            ...fields,
+            id:       optimisticId,
+            category: cat?.name ?? '',
+        });
+        items.value.push(optimistic);
+        try {
+            const response = await api.create(MenuItemAssembler.toResourceFromEntity ? MenuItemAssembler.toResourceFromEntity(fields) : fields);
+            if (response.status === 201 || response.status === 200) {
+                const saved = MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
+                if (saved?.id) {
+                    const idx = items.value.findIndex(i => i.id === optimisticId);
+                    if (idx !== -1) items.value.splice(idx, 1, saved);
+                }
+            }
+        } catch { /* optimistic entry stays */ }
+    }
+
+    async function update(id, itemData) {
         const { imageFile, ...fields } = itemData;
         const idx = items.value.findIndex(i => i.id === id);
         if (idx !== -1) {
@@ -88,10 +138,16 @@ export const useMenuStore = defineStore('menu', () => {
                 category: cat?.name ?? items.value[idx].category,
             });
         }
+        try {
+            await api.update(id, MenuItemAssembler.toResourceFromEntity ? MenuItemAssembler.toResourceFromEntity(fields) : fields);
+        } catch { /* local change kept */ }
     }
 
-    function remove(id) {
+    async function remove(id) {
         items.value = items.value.filter(i => i.id !== id);
+        try {
+            await api.delete(id);
+        } catch { /* local change kept */ }
     }
 
     function setItemAvailability(id, isAvailable) {
@@ -103,17 +159,34 @@ export const useMenuStore = defineStore('menu', () => {
         selectedCategoryId.value = selectedCategoryId.value === id ? null : id;
     }
 
-    function createCategory(data) {
-        categoriesData.value.push(new Category({ id: Date.now(), ...data }));
+    async function createCategory(data) {
+        const optimisticId = Math.max(0, ...categoriesData.value.map(c => c.id)) + 1;
+        categoriesData.value.push(new Category({ id: optimisticId, ...data }));
+        try {
+            const response = await api.createCategory(CategoryAssembler.toResourceFromEntity(data));
+            if (response.status === 201 || response.status === 200) {
+                const saved = CategoryAssembler.toEntityFromResource(response.data?.data ?? response.data);
+                if (saved?.id) {
+                    const idx = categoriesData.value.findIndex(c => c.id === optimisticId);
+                    if (idx !== -1) categoriesData.value.splice(idx, 1, saved);
+                }
+            }
+        } catch { /* optimistic entry stays */ }
     }
 
-    function updateCategory(id, data) {
+    async function updateCategory(id, data) {
         const idx = categoriesData.value.findIndex(c => c.id === id);
-        if (idx !== -1) categoriesData.value[idx] = { ...categoriesData.value[idx], ...data };
+        if (idx !== -1) categoriesData.value[idx] = new Category({ ...categoriesData.value[idx], ...data });
+        try {
+            await api.updateCategory(id, CategoryAssembler.toResourceFromEntity(data));
+        } catch { /* local change kept */ }
     }
 
-    function removeCategory(id) {
+    async function removeCategory(id) {
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
+        try {
+            await api.deleteCategory(id);
+        } catch { /* local change kept */ }
     }
 
     return {

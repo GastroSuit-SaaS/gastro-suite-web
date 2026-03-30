@@ -21,6 +21,7 @@ export class MenuItemAssembler {
             isAvailable: resource.isAvailable ?? resource.is_available ?? true,
             prepTime:    resource.prepTime    ?? resource.prep_time    ?? 0,
             station:     resource.station     ?? null,
+            stationId:   resource.stationId   ?? resource.station_id   ?? null,
             sku:         resource.sku          ?? '',
             sortOrder:   resource.sortOrder   ?? resource.sort_order   ?? 0,
         });
@@ -29,5 +30,25 @@ export class MenuItemAssembler {
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
         return response.data.map(r => MenuItemAssembler.toEntityFromResource(r));
+    }
+
+    static toEntityFromResponse(response) {
+        return MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
+    }
+
+    static toResourceFromEntity(entity) {
+        return {
+            name:         entity.name,
+            description:  entity.description,
+            price:        entity.price,
+            cost:         entity.cost,
+            category_id:  entity.categoryId,
+            image_url:    entity.imageUrl,
+            is_available: entity.isAvailable,
+            prep_time:    entity.prepTime,
+            station_id:   entity.stationId,
+            sku:          entity.sku,
+            sort_order:   entity.sortOrder,
+        };
     }
 }

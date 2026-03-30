@@ -2,19 +2,23 @@
 import { ref, computed } from 'vue';
 import { TablesApi } from '../infrastructure/api/tables.api.js';
 import { TableAssembler } from '../infrastructure/assemblers/table.assembler.js';
+import { ZoneAssembler } from '../infrastructure/assemblers/zone.assembler.js';
 import { Table, TABLE_STATUS, TABLE_SHAPE } from '../domain/models/table.entity.js';
+import { Zone } from '../domain/models/zone.entity.js';
 
 const api = new TablesApi();
 
+// ── Mock data (DEV fallback) ─────────────────────────────────────────────────────
+const MOCK_ZONES = [
+    new Zone({ id: 1, name: 'Salón Principal', color: '#3b82f6', description: 'Área principal del restaurante con vista a la calle' }),
+    new Zone({ id: 2, name: 'Terraza',         color: '#10b981', description: 'Zona al aire libre con ambiente relajado' }),
+    new Zone({ id: 3, name: 'Privado',         color: '#f59e0b', description: 'Salón privado para eventos y reuniones' }),
+];
+
 export const useTablesStore = defineStore('tables', () => {
 
-    // ── State ─────────────────────────────────────────────────────────────
-    // Metadata de zonas (nombre, color, descripción) separada del conteo de mesas
-    const zonesData = ref([
-        { id: 1, name: 'Salón Principal', color: '#3b82f6', description: 'Área principal del restaurante con vista a la calle' },
-        { id: 2, name: 'Terraza',         color: '#10b981', description: 'Zona al aire libre con ambiente relajado' },
-        { id: 3, name: 'Privado',         color: '#f59e0b', description: 'Salón privado para eventos y reuniones' },
-    ]);
+    // ── State ───────────────────────────────────────────────────
+    const zonesData = ref([...MOCK_ZONES]);
 
     const tables = ref([
         new Table({ id: 1,  number: 1,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
@@ -60,56 +64,100 @@ export const useTablesStore = defineStore('tables', () => {
 
     // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
-        // TODO: call api.getAll(), transform via TableAssembler.toEntitiesFromResponse
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const [tablesResp, zonesResp] = await Promise.all([
+                api.getAll(),
+                api.getZones(),
+            ]);
+            zonesData.value = ZoneAssembler.toEntitiesFromResponse(zonesResp);
+            tables.value    = TableAssembler.toEntitiesFromResponse(tablesResp);
+        } catch (e) {
+            if (import.meta.env.DEV) {
+                zonesData.value = [...MOCK_ZONES];
+                // tables mock data is already set as initial ref value
+            } else {
+                error.value = e?.response?.data?.message ?? 'Error al cargar las mesas';
+            }
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     async function fetchById(id) {
-        // TODO: call api.getById(id), transform via TableAssembler.toEntityFromResource
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getById(id);
+            selectedTable.value = TableAssembler.toEntityFromResource(response.data?.data ?? response.data);
+        } catch (e) {
+            error.value = e?.response?.data?.message ?? 'Error al cargar la mesa';
+        } finally {
+            isLoading.value = false;
+        }
     }
 
-    function create(tableData) {
-        const id   = Math.max(0, ...tables.value.map(t => t.id)) + 1;
+    async function create(tableData) {
         const zone = zonesData.value.find(z => z.id === tableData.zoneId);
+        const optimisticId = Math.max(0, ...tables.value.map(t => t.id)) + 1;
         tables.value.push(new Table({
             ...tableData,
-            id,
+            id:            optimisticId,
             zone:          zone?.name ?? '',
             seatedGuests:  0,
             orderId:       null,
             orderAmount:   0,
             occupiedSince: null,
         }));
-        // TODO: call api.create(tableData)
+        try {
+            const response = await api.create(TableAssembler.toResourceFromEntity(tableData));
+            if (response.status === 201 || response.status === 200) {
+                const saved = TableAssembler.toEntityFromResource(response.data?.data ?? response.data);
+                if (saved?.id) {
+                    const idx = tables.value.findIndex(t => t.id === optimisticId);
+                    if (idx !== -1) tables.value.splice(idx, 1, new Table({ ...tables.value[idx], id: saved.id }));
+                }
+            }
+        } catch { /* optimistic entry stays — will sync on next fetchAll */ }
     }
 
-    function update(id, tableData) {
+    async function update(id, tableData) {
         const zone = zonesData.value.find(z => z.id === tableData.zoneId);
         tables.value = tables.value.map(t =>
             t.id === id
                 ? new Table({ ...t, ...tableData, id, zone: zone?.name ?? t.zone })
                 : t
         );
-        // TODO: call api.update(id, tableData)
+        try {
+            await api.update(id, TableAssembler.toResourceFromEntity(tableData));
+        } catch { /* local change kept — will sync on next fetchAll */ }
     }
 
     async function remove(id) {
         tables.value = tables.value.filter(t => t.id !== id);
-        // TODO: call api.delete(id)
+        try {
+            await api.delete(id);
+        } catch { /* No revertimos — si falla, el próximo fetchAll restaurará */ }
     }
 
-    function setTableStatus(id, status) {
+    async function setTableStatus(id, status) {
         const table = tables.value.find(t => t.id === id);
         if (table) table.status = status;
-        // TODO: call api.updateStatus(id, status)
+        try {
+            await api.updateStatus(id, status);
+        } catch { /* local change kept */ }
     }
 
-    function assignTable(tableId, seatedGuests) {
+    async function assignTable(tableId, seatedGuests) {
         const table = tables.value.find(t => t.id === tableId);
         if (!table) return;
         table.status        = TABLE_STATUS.OCCUPIED;
         table.seatedGuests  = seatedGuests;
         table.occupiedSince = new Date();
-        // TODO: call api.assignTable(tableId, { seatedGuests })
+        try {
+            await api.assign(tableId, { seatedGuests });
+        } catch { /* local change kept */ }
     }
 
     function freeTable(tableId) {
@@ -120,38 +168,51 @@ export const useTablesStore = defineStore('tables', () => {
         table.orderId       = null;
         table.orderAmount   = 0;
         table.occupiedSince = null;
-        // TODO: call api.freeTable(tableId)
+        try {
+            api.free(tableId);
+        } catch { /* local change kept */ }
     }
 
     function selectZone(zoneId) {
         selectedZoneId.value = zoneId;
     }
 
-    function removeZone(zoneId) {
-        tables.value  = tables.value.filter(t => t.zoneId !== zoneId);
+    async function removeZone(zoneId) {
+        tables.value    = tables.value.filter(t => t.zoneId !== zoneId);
         zonesData.value = zonesData.value.filter(z => z.id !== zoneId);
         if (selectedZoneId.value === zoneId) selectedZoneId.value = null;
-        // TODO: call api.deleteZone(zoneId)
+        try {
+            await api.deleteZone(zoneId);
+        } catch { /* local change kept */ }
     }
 
-    function updateZone(updatedZone) {
-        // Actualiza metadata de la zona
+    async function updateZone(updatedZone) {
         zonesData.value = zonesData.value.map(z =>
-            z.id === updatedZone.id ? { ...z, ...updatedZone } : z
+            z.id === updatedZone.id ? new Zone({ ...z, ...updatedZone }) : z
         );
-        // Actualiza el nombre en las mesas que pertenecen a esta zona
         tables.value = tables.value.map(t =>
             t.zoneId === updatedZone.id
-                ? { ...t, zone: updatedZone.name }
+                ? new Table({ ...t, zone: updatedZone.name })
                 : t
         );
-        // TODO: call api.updateZone(updatedZone)
+        try {
+            await api.updateZone(updatedZone.id, ZoneAssembler.toResourceFromEntity(updatedZone));
+        } catch { /* local change kept */ }
     }
 
-    function createZone(newZone) {
-        const id = Math.max(0, ...zonesData.value.map(z => z.id)) + 1;
-        zonesData.value.push({ id, name: newZone.name, color: newZone.color ?? '#3b82f6', description: newZone.description ?? '' });
-        // TODO: call api.createZone(newZone)
+    async function createZone(newZone) {
+        const optimisticId = Math.max(0, ...zonesData.value.map(z => z.id)) + 1;
+        zonesData.value.push(new Zone({ id: optimisticId, name: newZone.name, color: newZone.color ?? '#3b82f6', description: newZone.description ?? '' }));
+        try {
+            const response = await api.createZone(ZoneAssembler.toResourceFromEntity(newZone));
+            if (response.status === 201 || response.status === 200) {
+                const saved = ZoneAssembler.toEntityFromResource(response.data?.data ?? response.data);
+                if (saved?.id) {
+                    const idx = zonesData.value.findIndex(z => z.id === optimisticId);
+                    if (idx !== -1) zonesData.value.splice(idx, 1, saved);
+                }
+            }
+        } catch { /* optimistic entry stays */ }
     }
 
     return {

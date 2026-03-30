@@ -1,9 +1,14 @@
 ﻿import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { StationsApi } from '../infrastructure/api/stations.api.js';
+import { StationAssembler } from '../infrastructure/assemblers/station.assembler.js';
+import { StationTicketAssembler } from '../infrastructure/assemblers/station-ticket.assembler.js';
 import { Station } from '../domain/models/station.entity.js';
 import { StationTicket, StationTicketItem, TICKET_STATUS } from '../domain/models/station-ticket.entity.js';
 
 export { TICKET_STATUS };
+
+const api = new StationsApi();
 
 // Statuses that are still active on the live kanban
 const ACTIVE_STATUSES = new Set([TICKET_STATUS.RECEIVED, TICKET_STATUS.PREPARING, TICKET_STATUS.READY, TICKET_STATUS.DELIVERED]);
@@ -67,24 +72,62 @@ export const useStationsStore = defineStore('stations', () => {
     );
 
     // ── Station Actions ───────────────────────────────────────────────────
-    function createStation(data) {
-        const id = Math.max(0, ...stations.value.map(s => s.id)) + 1;
-        stations.value.push(new Station({ id, ...data }));
-        // TODO: call api.createStation(data)
+    async function fetchAll() {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const [stationsResp, ticketsResp] = await Promise.all([
+                api.getAll(),
+                api.getTickets({ status: 'active' }),
+            ]);
+            stations.value = StationAssembler.toEntitiesFromResponse(stationsResp);
+            const fetched  = StationTicketAssembler.toEntitiesFromResponse(ticketsResp);
+            // Separate active kanban tickets from archived ones
+            tickets.value       = fetched.filter(t => ACTIVE_STATUSES.has(t.status) && t.status !== TICKET_STATUS.DELIVERED);
+            ticketHistory.value = fetched.filter(t => t.status === TICKET_STATUS.DELIVERED || t.status === TICKET_STATUS.CANCELLED);
+            ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
+        } catch (e) {
+            if (import.meta.env.DEV) {
+                // mock data already set in initial refs
+            } else {
+                error.value = e?.response?.data?.message ?? 'Error al cargar las estaciones';
+            }
+        } finally {
+            isLoading.value = false;
+        }
     }
 
-    function updateStation(id, data) {
+    async function createStation(data) {
+        const optimisticId = Math.max(0, ...stations.value.map(s => s.id)) + 1;
+        stations.value.push(new Station({ id: optimisticId, ...data }));
+        try {
+            const response = await api.create({ name: data.name, description: data.description, color: data.color, is_active: data.isActive });
+            if (response.status === 201 || response.status === 200) {
+                const saved = StationAssembler.toEntityFromResponse(response);
+                if (saved?.id) {
+                    const idx = stations.value.findIndex(s => s.id === optimisticId);
+                    if (idx !== -1) stations.value.splice(idx, 1, saved);
+                }
+            }
+        } catch { /* optimistic entry stays */ }
+    }
+
+    async function updateStation(id, data) {
         const idx = stations.value.findIndex(s => s.id === id);
         if (idx !== -1) stations.value[idx] = new Station({ ...stations.value[idx], ...data });
         tickets.value.forEach(t => {
             if (t.stationId === id) t.stationName = data.name ?? t.stationName;
         });
-        // TODO: call api.updateStation(id, data)
+        try {
+            await api.update(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive });
+        } catch { /* local change kept */ }
     }
 
-    function removeStation(id) {
+    async function removeStation(id) {
         stations.value = stations.value.filter(s => s.id !== id);
-        // TODO: call api.deleteStation(id)
+        try {
+            await api.delete(id);
+        } catch { /* local change kept */ }
     }
 
     function selectStation(id) {
@@ -111,7 +154,7 @@ export const useStationsStore = defineStore('stations', () => {
             // Move to history after a brief delay so the transition is visible
             setTimeout(() => archiveTicket(ticketId), 3000);
         }
-        // TODO: call api.updateTicketStatus(ticketId, ticket.status)
+        api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
     }
 
     /**
@@ -126,7 +169,7 @@ export const useStationsStore = defineStore('stations', () => {
         ticket.cancelReason = reason;
         ticketHistory.value.unshift({ ...ticket });
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
-        // TODO: call api.cancelTicket(ticketId, reason)
+        api.cancelTicket(ticketId, reason).catch(() => { /* local change kept */ });
     }
 
     /** Moves a delivered ticket to history (called internally after delay). */
@@ -153,10 +196,11 @@ export const useStationsStore = defineStore('stations', () => {
         });
 
         const baseId = Date.now();
+        const newTickets = [];
         Object.entries(groups).forEach(([key, items], idx) => {
             const sid     = key === 'unassigned' ? null : Number(key);
             const station = sid !== null ? stations.value.find(s => s.id === sid) : null;
-            tickets.value.push(new StationTicket({
+            const ticket  = new StationTicket({
                 id:          baseId + idx,
                 stationId:   sid,
                 stationName: station?.name ?? '⚠ Sin estación asignada',
@@ -170,10 +214,12 @@ export const useStationsStore = defineStore('stations', () => {
                 })),
                 status:    TICKET_STATUS.RECEIVED,
                 createdAt: new Date(),
-            }));
+            });
+            tickets.value.push(ticket);
+            newTickets.push(ticket);
             ticketCountToday.value++;
         });
-        // TODO: call api.sendToStations(sale.id, tickets)
+        api.sendToStations(sale.id, newTickets).catch(() => { /* local change kept */ });
     }
 
     /** @deprecated Use cancelTicket() instead — removeTicket hard-deletes with no history. */
@@ -189,7 +235,7 @@ export const useStationsStore = defineStore('stations', () => {
         receivedTickets, preparingTickets, readyTickets, deliveredTickets,
         totalToday, readyCount,
         // Station actions
-        createStation, updateStation, removeStation, selectStation,
+        fetchAll, createStation, updateStation, removeStation, selectStation,
         // Ticket actions
         advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket,
     };

@@ -17,13 +17,23 @@ export class StationAssembler {
         });
     }
 
-    static toEntitiesFromResponse(data) {
+    static toEntitiesFromResponse(response) {
+        const data = response?.data ?? response;
         if (!Array.isArray(data)) return [];
         return data.map(r => StationAssembler.toEntityFromResource(r));
     }
 
     static toEntityFromResponse(response) {
         if (response.status !== 200 && response.status !== 201) return null;
-        return StationAssembler.toEntityFromResource(response.data);
+        return StationAssembler.toEntityFromResource(response.data?.data ?? response.data);
+    }
+
+    static toResourceFromEntity(entity) {
+        return {
+            name:        entity.name,
+            description: entity.description,
+            color:       entity.color,
+            is_active:   entity.isActive,
+        };
     }
 }

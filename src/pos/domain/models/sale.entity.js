@@ -114,6 +114,28 @@ export class Sale {
         this._recalculate();
     }
 
+    /**
+     * Aplica o elimina un descuento a nivel de orden completa.
+     * @param {'fixed'|'pct'} type  - 'fixed' = monto fijo, 'pct' = porcentaje aplicado sobre subtotal
+     * @param {number}        value - Monto fijo (≥0) o porcentaje (0-100)
+     */
+    updateOrderDiscount(type, value) {
+        const numericValue = Math.max(0, Number(value) || 0);
+        if (type === 'fixed') {
+            this.discount = numericValue;
+        } else {
+            const pct      = Math.min(100, numericValue);
+            this.discount  = parseFloat((this.subtotal * pct / 100).toFixed(2));
+        }
+        this._recalculate();
+    }
+
+    /** Elimina el descuento a nivel de orden. */
+    clearOrderDiscount() {
+        this.discount = 0;
+        this._recalculate();
+    }
+
     /** Duplica una línea (útil para separar customizaciones). */
     duplicateItem(itemId) {
         const item = this.items.find(i => i.id === itemId);
