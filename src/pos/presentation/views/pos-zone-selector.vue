@@ -122,4 +122,10 @@ function selectZone(zone) {
     height: 1px;
     background-color: var(--surface-border);
 }
+
+/* ── Responsive: ≤ 640px ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .zone-grid { grid-template-columns: 1fr; }
+    .orders-link { width: 100%; }
+}
 </style>

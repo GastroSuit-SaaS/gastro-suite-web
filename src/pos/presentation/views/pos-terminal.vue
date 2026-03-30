@@ -324,4 +324,16 @@ onMounted(() => {
 /* ── Transitions ─────────────────────────────────────────────────────────── */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
 .fade-enter-from, .fade-leave-to       { opacity: 0; }
+
+/* ── Responsive: ≤ 640px ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    /* Stat cards: reduce min-width so 3 fit on small screens */
+    .stat-card { min-width: 100px; flex: 1 1 100px; }
+
+    /* Zone grid: single column on small phones */
+    .zone-grid { grid-template-columns: 1fr; }
+
+    /* Zone panel: hide the long subtitle text */
+    .zone-panel__header .text-color-secondary { display: none; }
+}
 </style>

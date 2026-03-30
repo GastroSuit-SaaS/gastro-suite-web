@@ -211,4 +211,12 @@ function selectTable(table) {
     font-size: 0.82rem;
     color: #374151;
 }
+
+/* ── Responsive: ≤ 640px ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    /* 2 compact columns on small phones */
+    .tables-grid { grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
+    .table-card  { padding: 0.75rem; }
+    .table-card__name { font-size: 1rem; }
+}
 </style>

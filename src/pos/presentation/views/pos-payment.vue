@@ -186,8 +186,11 @@ async function confirmPayment() {
                 <Transition name="fade-slide">
                     <div v-if="selectedMethod === 'cash'" class="cash-section">
                         <div class="cash-total-ref">
-                            <span>Total a cobrar</span>
-                            <strong>S/ {{ (sale?.total ?? 0).toFixed(2) }}</strong>
+                            <span class="cash-total-ref__label">Total a cobrar</span>
+                            <strong class="cash-total-ref__amount">
+                                <span class="cash-total-ref__currency">S/</span>
+                                {{ (sale?.total ?? 0).toFixed(2) }}
+                            </strong>
                         </div>
                         <div class="cash-row">
                             <label class="cash-row__label">Monto recibido</label>
@@ -632,6 +635,39 @@ async function confirmPayment() {
     gap: 0.75rem;
 }
 
+.cash-total-ref {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1.5px solid #86efac;
+    border-radius: 10px;
+}
+
+.cash-total-ref__label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #15803d;
+}
+
+.cash-total-ref__amount {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #15803d;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+}
+
+.cash-total-ref__currency {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #16a34a;
+    opacity: 0.8;
+}
+
 .cash-row {
     display: flex;
     align-items: center;
@@ -646,9 +682,27 @@ async function confirmPayment() {
     min-width: 10rem;
 }
 
-.cash-input {
+.cash-input-wrap {
+    position: relative;
     flex: 1;
-    padding: 0.55rem 0.85rem;
+    display: flex;
+    align-items: center;
+}
+
+.cash-input-prefix {
+    position: absolute;
+    left: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6b7280;
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+}
+
+.cash-input {
+    width: 100%;
+    padding: 0.55rem 0.85rem 0.55rem 2.1rem;
     border: 1px solid #d1d5db;
     border-radius: 8px;
     font-size: 1rem;
@@ -1101,5 +1155,69 @@ async function confirmPayment() {
 .fade-slide-leave-to {
     opacity: 0;
     transform: translateY(-6px);
+}
+
+/* ── Responsive: ≤ 768px ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Stack form on top, summary panel below */
+    .payment-layout {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+
+    /* Form takes natural height (no fixed scroll area) */
+    .payment-form {
+        overflow-y: visible;
+        padding: 1rem;
+    }
+
+    /* Summary panel: full width, no side border */
+    .payment-panel {
+        width: 100% !important;
+        flex-shrink: 1;
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+        overflow: visible;
+    }
+
+    /* Header: stack title and chips */
+    .payment-form__title-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+    }
+
+    .payment-form__chips {
+        margin-left: 0;
+    }
+
+    /* Payment methods: 2×2 grid instead of 4×1 */
+    .method-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Receipt types: keep 3 columns but smaller padding */
+    .receipt-btn {
+        padding: 0.6rem 0.25rem;
+        font-size: 0.68rem;
+    }
+
+    /* Cash row: stack label above input */
+    .cash-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cash-row__label {
+        min-width: 0;
+    }
+}
+
+/* ── Extra small: ≤ 480px ─────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .hdr-chip { font-size: 0.68rem; padding: 0.15rem 0.45rem; }
+    .form-section { padding: 1rem; }
+    .payment-panel__actions { padding: 0.75rem; }
 }
 </style>

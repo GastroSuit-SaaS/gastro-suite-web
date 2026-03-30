@@ -120,13 +120,17 @@ async function enviarEstaciones() {
 }
 function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
 function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
+
+// ── Mobile tab switcher ───────────────────────────────────────────────────
+const mobileView = ref('catalog') // 'catalog' | 'cart'
+const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 </script>
 
 <template>
     <div class="pos-order-layout">
 
         <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• LEFT: CatÃ¡logo â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div class="pos-catalog">
+        <div class="pos-catalog" :class="{ 'pos-catalog--mobile-hidden': mobileView !== 'catalog' }">
 
             <!-- Header: contexto + bÃºsqueda -->
             <div class="pos-catalog__header">
@@ -231,7 +235,7 @@ function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
         </div>
 
         <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• RIGHT: Orden â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-        <div class="pos-panel">
+        <div class="pos-panel" :class="{ 'pos-panel--mobile-hidden': mobileView !== 'cart' }">
 
             <!-- Encabezado del panel -->
             <div class="pos-panel__header">
@@ -449,7 +453,28 @@ function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
             </div>
 
         </div>
-    </div>
+        <!-- Mobile tab bar (only visible on <=768px screens) -->
+        <div class="mobile-tab-bar">
+            <button
+                class="mobile-tab-bar__tab"
+                :class="{ 'mobile-tab-bar__tab--active': mobileView === 'catalog' }"
+                @click="mobileView = 'catalog'"
+            >
+                <i class="pi pi-th-large"></i>
+                <span>Catálogo</span>
+            </button>
+            <button
+                class="mobile-tab-bar__tab"
+                :class="{ 'mobile-tab-bar__tab--active': mobileView === 'cart' }"
+                @click="mobileView = 'cart'"
+            >
+                <span class="mobile-tab-bar__icon-wrap">
+                    <i class="pi pi-shopping-cart"></i>
+                    <span v-if="itemCount > 0" class="mobile-tab-bar__badge">{{ itemCount }}</span>
+                </span>
+                <span>Orden</span>
+            </button>
+        </div>    </div>
 </template>
 
 <style scoped>
@@ -931,5 +956,143 @@ function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
     font-size: 0.7rem;
     font-weight: 700;
     padding: 0 0.25rem;
+}
+
+/* ── Mobile tab bar (hidden on desktop) ──────────────────────────────────── */
+.mobile-tab-bar { display: none; }
+
+/* ── Responsive: ≤ 768px ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Stack catalog and panel vertically */
+    .pos-order-layout {
+        flex-direction: column;
+        height: 100%;
+        padding-bottom: 4rem; /* room for fixed tab bar */
+    }
+
+    /* Each pane fills the full screen when active */
+    .pos-catalog,
+    .pos-panel {
+        flex: 1 1 auto;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+    }
+
+    /* Hide tabs based on mobileView state */
+    .pos-catalog--mobile-hidden,
+    .pos-panel--mobile-hidden {
+        display: none !important;
+    }
+
+    /* Remove fixed-width side border on panel */
+    .pos-panel {
+        width: 100% !important;
+        border-left: none;
+        border-top: 1px solid var(--surface-border);
+    }
+
+    /* Catalog header: wrap badges + search on narrow screens */
+    .pos-catalog__header {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 0.6rem 0.75rem;
+    }
+
+    .context-badges {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    /* Search full width on mobile */
+    .search-wrapper {
+        width: 100%;
+    }
+    .search-wrapper__input { width: 100%; }
+
+    /* Smaller product cards — 2 columns */
+    .product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        padding: 0.6rem;
+        gap: 0.6rem;
+    }
+
+    /* Remove tall min-height; let card grow naturally */
+    .product-card { min-height: auto; }
+
+    /* Slightly smaller image area */
+    .product-card__image { height: 110px; }
+
+    /* Show mobile tab bar */
+    .mobile-tab-bar {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 4rem;
+        background: var(--surface-card);
+        border-top: 1px solid var(--surface-border);
+        z-index: 200;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+
+    .mobile-tab-bar__tab {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.2rem;
+        border: none;
+        background: transparent;
+        color: var(--text-color-secondary);
+        font-size: 0.72rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.15s;
+    }
+    .mobile-tab-bar__tab--active {
+        color: var(--primary-color, #6366f1);
+        font-weight: 700;
+    }
+    .mobile-tab-bar__tab .pi { font-size: 1.2rem; }
+
+    .mobile-tab-bar__icon-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-tab-bar__badge {
+        position: absolute;
+        top: -0.3rem;
+        right: -0.7rem;
+        min-width: 1rem;
+        height: 1rem;
+        border-radius: 999px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 0.6rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 0.2rem;
+        line-height: 1;
+    }
+}
+
+/* ── Extra small: ≤ 480px ─────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .context-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+    }
 }
 </style>
