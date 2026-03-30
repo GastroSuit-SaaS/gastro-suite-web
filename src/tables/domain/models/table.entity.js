@@ -25,8 +25,6 @@ export class Table {
         zoneId        = null,
         zone          = '',
         seatedGuests  = 0,
-        orderId       = null,
-        orderAmount   = 0,
         occupiedSince = null,
         reservationId = null,
     } = {}) {
@@ -38,9 +36,23 @@ export class Table {
         this.zoneId        = zoneId;
         this.zone          = zone;
         this.seatedGuests  = seatedGuests;
-        this.orderId       = orderId;
-        this.orderAmount   = orderAmount;
         this.occupiedSince = occupiedSince;
         this.reservationId = reservationId;
+    }
+
+    get isOccupied()  { return this.status === TABLE_STATUS.OCCUPIED; }
+    get isAvailable() { return this.status === TABLE_STATUS.AVAILABLE; }
+
+    get occupiedMinutes() {
+        if (!this.occupiedSince) return 0;
+        return Math.floor((Date.now() - new Date(this.occupiedSince)) / 60000);
+    }
+
+    get urgencyLevel() {
+        if (!this.isOccupied || !this.occupiedSince) return 'ok';
+        const m = this.occupiedMinutes;
+        if (m >= 90) return 'critical';
+        if (m >= 60) return 'warning';
+        return 'ok';
     }
 }

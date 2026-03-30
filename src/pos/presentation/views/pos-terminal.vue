@@ -18,8 +18,8 @@ function selectZone(zone) {
     router.push(posSelectTableRoute(zone.id))
 }
 
-function openOrder(order) {
-    posStore.openSaleForTable(order.tableId, order.zoneId)
+async function openOrder(order) {
+    await posStore.openSaleForTable(order.tableId, order.zoneId)
     router.push(`/pos/order/${order.tableId}`)
 }
 

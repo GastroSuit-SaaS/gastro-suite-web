@@ -93,11 +93,9 @@ function elapsedTime(date) {
 }
 
 // Semáforo: verde <15m · amarillo 15-30m · rojo >30m
-function timeUrgency(date) {
-    const m = elapsedMins(date)
-    if (m < 15) return 'ok'
-    if (m < 30) return 'warn'
-    return 'critical'
+function timeUrgency(ticket) {
+    const _ = now.value // ensure reactivity tracked
+    return ticket.urgencyLevel
 }
 
 // Progreso de la orden: cuántos tickets del mismo saleId están listos
@@ -427,7 +425,7 @@ function urgencyBorderColor(ticket) {
                         <div
                             v-for="ticket in focusedByColumn(col.key)"
                             :key="ticket.id"
-                            :class="['focus-ticket', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket.createdAt) === 'critical' && ticket.status !== 'delivered' && ticket.status !== 'cancelled' && 'ticket-card--critical']"
+                            :class="['focus-ticket', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket) === 'critical' && 'ticket-card--critical']"
                             :style="{ borderLeft: `6px solid ${urgencyBorderColor(ticket)}` }"
                         >
                             <!-- Header -->
@@ -435,7 +433,7 @@ function urgencyBorderColor(ticket) {
                                 <div class="focus-ticket__meta">
                                     <span class="focus-ticket__table">Mesa {{ ticket.tableNumber }}</span>
                                     <span class="focus-ticket__order">#{{ ticket.saleId }}</span>
-                                    <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket.createdAt)]" style="margin-left:auto">
+                                    <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket)]" style="margin-left:auto">
                                         <i class="pi pi-clock"></i>
                                         {{ elapsedTime(ticket.createdAt) }}
                                     </span>
@@ -628,7 +626,7 @@ function urgencyBorderColor(ticket) {
                         <div
                             v-for="ticket in ticketsByColumn(col.key)"
                             :key="ticket.id"
-                            :class="['ticket-card', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket.createdAt) === 'critical' && ticket.status !== 'delivered' && ticket.status !== 'cancelled' && 'ticket-card--critical']"
+                            :class="['ticket-card', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket) === 'critical' && 'ticket-card--critical']"
                             :style="{ borderLeft: `4px solid ${urgencyBorderColor(ticket)}` }"
                         >
                             <!-- Ticket header -->
@@ -678,7 +676,7 @@ function urgencyBorderColor(ticket) {
 
                             <!-- Footer: time semaphore + action -->
                             <div class="ticket-card__footer">
-                                <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket.createdAt)]">
+                                <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket)]">
                                     <i class="pi pi-clock"></i>
                                     {{ elapsedTime(ticket.createdAt) }}
                                 </span>

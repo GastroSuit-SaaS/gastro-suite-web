@@ -8,32 +8,33 @@ import { Zone } from '../domain/models/zone.entity.js';
 
 const api = new TablesApi();
 
-// ── Mock data (DEV fallback) ─────────────────────────────────────────────────────
+// ── Mock data (DEV fallback) ────────────────────────────────────────────────
 const MOCK_ZONES = [
     new Zone({ id: 1, name: 'Salón Principal', color: '#3b82f6', description: 'Área principal del restaurante con vista a la calle' }),
     new Zone({ id: 2, name: 'Terraza',         color: '#10b981', description: 'Zona al aire libre con ambiente relajado' }),
     new Zone({ id: 3, name: 'Privado',         color: '#f59e0b', description: 'Salón privado para eventos y reuniones' }),
 ];
 
+const MOCK_TABLES = [
+    new Table({ id: 1,  number: 1,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 2,  number: 2,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 2, occupiedSince: new Date(Date.now() - 45 * 60000) }),
+    new Table({ id: 3,  number: 3,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 4,  number: 4,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 3, occupiedSince: new Date(Date.now() - 72 * 60000) }),
+    new Table({ id: 5,  number: 5,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 6,  number: 6,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 7,  number: 7,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 8,  number: 8,  capacity: 4, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.OCCUPIED,  zoneId: 2, zone: 'Terraza',         seatedGuests: 2, occupiedSince: new Date(Date.now() - 38 * 60000) }),
+    new Table({ id: 9,  number: 9,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 10, number: 10, capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 11, number: 11, capacity: 8, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 3, zone: 'Privado',         seatedGuests: 0, occupiedSince: null }),
+    new Table({ id: 12, number: 12, capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 3, zone: 'Privado',         seatedGuests: 0, occupiedSince: null }),
+];
+
 export const useTablesStore = defineStore('tables', () => {
 
     // ── State ───────────────────────────────────────────────────
-    const zonesData = ref([...MOCK_ZONES]);
-
-    const tables = ref([
-        new Table({ id: 1,  number: 1,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 2,  number: 2,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 2, orderId: 1201, orderAmount: 54.28,  occupiedSince: new Date(Date.now() - 45 * 60000) }),
-        new Table({ id: 3,  number: 3,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 4,  number: 4,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 3, orderId: 1215, orderAmount: 207.68, occupiedSince: new Date(Date.now() - 72 * 60000) }),
-        new Table({ id: 5,  number: 5,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 6,  number: 6,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 7,  number: 7,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 8,  number: 8,  capacity: 4, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.OCCUPIED,  zoneId: 2, zone: 'Terraza',         seatedGuests: 2, orderId: 1246, orderAmount: 94.40,  occupiedSince: new Date(Date.now() - 38 * 60000) }),
-        new Table({ id: 9,  number: 9,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 10, number: 10, capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 11, number: 11, capacity: 8, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 3, zone: 'Privado',         seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-        new Table({ id: 12, number: 12, capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 3, zone: 'Privado',         seatedGuests: 0, orderId: null, orderAmount: 0,      occupiedSince: null }),
-    ]);
+    const zonesData = ref([]);
+    const tables    = ref([]);
     const selectedTable  = ref(null);
     const selectedZoneId = ref(null);
     const isLoading      = ref(false);
@@ -41,20 +42,27 @@ export const useTablesStore = defineStore('tables', () => {
 
     // ── Getters ───────────────────────────────────────────────────────────
     const totalTables     = computed(() => tables.value.length);
-    const availableTables = computed(() => tables.value.filter(t => t.status === 'available'));
-    const occupiedTables  = computed(() => tables.value.filter(t => t.status === 'occupied'));
-    const cleaningTables  = computed(() => tables.value.filter(t => t.status === 'cleaning'));
+    const availableTables = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.AVAILABLE));
+    const occupiedTables  = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.OCCUPIED));
+    const cleaningTables  = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.CLEANING));
 
     const zones = computed(() => {
         const countMap = {};
         tables.value.forEach(t => {
             countMap[t.zoneId] = (countMap[t.zoneId] ?? 0) + 1;
         });
-        return zonesData.value.map(z => ({
-            ...z,
-            count: countMap[z.id] ?? 0,
-        }));
+        return zonesData.value.map(z => {
+            const zone = new Zone({ ...z });
+            zone.count = countMap[z.id] ?? 0;
+            return zone;
+        });
     });
+
+    const occupancyRate  = computed(() =>
+        tables.value.length > 0
+            ? Math.round((occupiedTables.value.length / tables.value.length) * 100)
+            : 0
+    );
 
     const filteredTables = computed(() =>
         selectedZoneId.value === null
@@ -76,7 +84,7 @@ export const useTablesStore = defineStore('tables', () => {
         } catch (e) {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
                 zonesData.value = [...MOCK_ZONES];
-                // tables mock data is already set as initial ref value
+                tables.value    = [...MOCK_TABLES];
             } else {
                 error.value = e?.response?.data?.message ?? 'Error al cargar las mesas';
             }
@@ -106,8 +114,6 @@ export const useTablesStore = defineStore('tables', () => {
             id:            optimisticId,
             zone:          zone?.name ?? '',
             seatedGuests:  0,
-            orderId:       null,
-            orderAmount:   0,
             occupiedSince: null,
         }));
         try {
@@ -160,16 +166,14 @@ export const useTablesStore = defineStore('tables', () => {
         } catch { /* local change kept */ }
     }
 
-    function freeTable(tableId) {
+    async function freeTable(tableId) {
         const table = tables.value.find(t => t.id === tableId);
         if (!table) return;
         table.status        = TABLE_STATUS.AVAILABLE;
         table.seatedGuests  = 0;
-        table.orderId       = null;
-        table.orderAmount   = 0;
         table.occupiedSince = null;
         try {
-            api.free(tableId);
+            await api.free(tableId);
         } catch { /* local change kept */ }
     }
 
@@ -178,12 +182,17 @@ export const useTablesStore = defineStore('tables', () => {
     }
 
     async function removeZone(zoneId) {
+        const snapshotTables = [...tables.value];
+        const snapshotZones  = [...zonesData.value];
         tables.value    = tables.value.filter(t => t.zoneId !== zoneId);
         zonesData.value = zonesData.value.filter(z => z.id !== zoneId);
         if (selectedZoneId.value === zoneId) selectedZoneId.value = null;
         try {
             await api.deleteZone(zoneId);
-        } catch { /* local change kept */ }
+        } catch {
+            tables.value    = snapshotTables;
+            zonesData.value = snapshotZones;
+        }
     }
 
     async function updateZone(updatedZone) {
@@ -218,7 +227,7 @@ export const useTablesStore = defineStore('tables', () => {
     return {
         tables, zonesData, selectedTable, selectedZoneId, isLoading, error,
         totalTables, availableTables, occupiedTables, cleaningTables,
-        zones, filteredTables,
+        zones, filteredTables, occupancyRate,
         fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, selectZone, removeZone, updateZone, createZone,
     };
 });

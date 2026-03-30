@@ -18,7 +18,8 @@ export class StationAssembler {
     }
 
     static toEntitiesFromResponse(response) {
-        const data = response?.data ?? response;
+        if (!response || (response.status !== undefined && response.status !== 200)) return [];
+        const data = response.data?.items ?? response.data?.data ?? response.data ?? response;
         if (!Array.isArray(data)) return [];
         return data.map(r => StationAssembler.toEntityFromResource(r));
     }

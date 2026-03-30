@@ -10,37 +10,35 @@ export { TICKET_STATUS };
 
 const api = new StationsApi();
 
-// Statuses that are still active on the live kanban
-const ACTIVE_STATUSES = new Set([TICKET_STATUS.RECEIVED, TICKET_STATUS.PREPARING, TICKET_STATUS.READY, TICKET_STATUS.DELIVERED]);
+const MOCK_STATIONS = [
+    new Station({ id: 1, name: 'Cocina Caliente', description: 'Platos salteados, fritos y a la plancha', color: '#ef4444', isActive: true }),
+    new Station({ id: 2, name: 'Cocina Fría',     description: 'Ceviches, ensaladas y entradas frías',   color: '#10b981', isActive: true }),
+    new Station({ id: 3, name: 'Pastelería',      description: 'Postres, pasteles y repostería',         color: '#ec4899', isActive: true }),
+    new Station({ id: 4, name: 'Bar',             description: 'Bebidas frías, calientes y cócteles',    color: '#8b5cf6', isActive: true }),
+    new Station({ id: 5, name: 'Pastas',          description: 'Pastas, arroces y risottos',             color: '#f59e0b', isActive: true }),
+];
+
+const MOCK_TICKETS = [
+    new StationTicket({ id: 1, stationId: 1, stationName: 'Cocina Caliente', saleId: 1201, tableNumber: 2, items: [{ menuItemId: 3, menuItemName: 'Lomo Saltado',     quantity: 2, note: '' }, { menuItemId: 4, menuItemName: 'Pollo a la Brasa', quantity: 1, note: 'Bien cocido' }], status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 30 * 60000) }),
+    new StationTicket({ id: 2, stationId: 2, stationName: 'Cocina Fría',     saleId: 1201, tableNumber: 2, items: [{ menuItemId: 1, menuItemName: 'Ceviche Clásico',  quantity: 2, note: '' }],                                                                                             status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 38 * 60000), readyAt: new Date(Date.now() - 22 * 60000) }),
+    new StationTicket({ id: 3, stationId: 4, stationName: 'Bar',             saleId: 1201, tableNumber: 2, items: [{ menuItemId: 10, menuItemName: 'Limonada de la Casa', quantity: 2, note: 'Sin azúcar' }],                                                                              status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 42 * 60000), readyAt: new Date(Date.now() - 38 * 60000) }),
+    new StationTicket({ id: 4, stationId: 1, stationName: 'Cocina Caliente', saleId: 1215, tableNumber: 4, items: [{ menuItemId: 3, menuItemName: 'Lomo Saltado',     quantity: 1, note: '' }, { menuItemId: 5, menuItemName: 'Salmón al Limón', quantity: 2, note: '' }],               status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 70 * 60000), startedAt: new Date(Date.now() - 65 * 60000), readyAt: new Date(Date.now() - 45 * 60000) }),
+    new StationTicket({ id: 5, stationId: 5, stationName: 'Pastas',          saleId: 1215, tableNumber: 4, items: [{ menuItemId: 6, menuItemName: 'Pasta Alfredo',    quantity: 2, note: '' }, { menuItemId: 7, menuItemName: 'Lasagna Boloñesa', quantity: 1, note: '' }],              status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() - 70 * 60000), startedAt: new Date(Date.now() - 50 * 60000) }),
+    new StationTicket({ id: 6, stationId: 1, stationName: 'Cocina Caliente', saleId: 1246, tableNumber: 8, items: [{ menuItemId: 4, menuItemName: 'Pollo a la Brasa', quantity: 2, note: '' }],                                                                                           status: TICKET_STATUS.RECEIVED,  createdAt: new Date(Date.now() -  5 * 60000) }),
+    new StationTicket({ id: 7, stationId: 4, stationName: 'Bar',             saleId: 1246, tableNumber: 8, items: [{ menuItemId: 10, menuItemName: 'Limonada de la Casa', quantity: 3, note: '' }],                                                                                       status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() -  5 * 60000), startedAt: new Date(Date.now() -  3 * 60000) }),
+];
 
 export const useStationsStore = defineStore('stations', () => {
 
     // ── State ─────────────────────────────────────────────────────────────
-    const stations          = ref([
-        new Station({ id: 1, name: 'Cocina Caliente', description: 'Platos salteados, fritos y a la plancha', color: '#ef4444', isActive: true }),
-        new Station({ id: 2, name: 'Cocina Fría',     description: 'Ceviches, ensaladas y entradas frías',   color: '#10b981', isActive: true }),
-        new Station({ id: 3, name: 'Pastelería',      description: 'Postres, pasteles y repostería',         color: '#ec4899', isActive: true }),
-        new Station({ id: 4, name: 'Bar',             description: 'Bebidas frías, calientes y cócteles',    color: '#8b5cf6', isActive: true }),
-        new Station({ id: 5, name: 'Pastas',          description: 'Pastas, arroces y risottos',             color: '#f59e0b', isActive: true }),
-    ]);
+    const stations          = ref([]);
 
-    const tickets           = ref([
-        // Mesa 2 — Orden 1201 (45 min)
-        new StationTicket({ id: 1, stationId: 1, stationName: 'Cocina Caliente', saleId: 1201, tableNumber: 2, items: [{ menuItemId: 3, menuItemName: 'Lomo Saltado',     quantity: 2, note: '' }, { menuItemId: 4, menuItemName: 'Pollo a la Brasa', quantity: 1, note: 'Bien cocido' }], status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 30 * 60000) }),
-        new StationTicket({ id: 2, stationId: 2, stationName: 'Cocina Fría',     saleId: 1201, tableNumber: 2, items: [{ menuItemId: 1, menuItemName: 'Ceviche Clásico',  quantity: 2, note: '' }],                                                                                             status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 38 * 60000), readyAt: new Date(Date.now() - 22 * 60000) }),
-        new StationTicket({ id: 3, stationId: 4, stationName: 'Bar',             saleId: 1201, tableNumber: 2, items: [{ menuItemId: 10, menuItemName: 'Limonada de la Casa', quantity: 2, note: 'Sin azúcar' }],                                                                              status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 43 * 60000), startedAt: new Date(Date.now() - 42 * 60000), readyAt: new Date(Date.now() - 38 * 60000) }),
-        // Mesa 4 — Orden 1215 (72 min)
-        new StationTicket({ id: 4, stationId: 1, stationName: 'Cocina Caliente', saleId: 1215, tableNumber: 4, items: [{ menuItemId: 3, menuItemName: 'Lomo Saltado',     quantity: 1, note: '' }, { menuItemId: 5, menuItemName: 'Salmón al Limón', quantity: 2, note: '' }],               status: TICKET_STATUS.READY,     createdAt: new Date(Date.now() - 70 * 60000), startedAt: new Date(Date.now() - 65 * 60000), readyAt: new Date(Date.now() - 45 * 60000) }),
-        new StationTicket({ id: 5, stationId: 5, stationName: 'Pastas',          saleId: 1215, tableNumber: 4, items: [{ menuItemId: 6, menuItemName: 'Pasta Alfredo',    quantity: 2, note: '' }, { menuItemId: 7, menuItemName: 'Lasagna Boloñesa', quantity: 1, note: '' }],              status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() - 70 * 60000), startedAt: new Date(Date.now() - 50 * 60000) }),
-        // Mesa 8 — Orden 1246 (38 min)
-        new StationTicket({ id: 6, stationId: 1, stationName: 'Cocina Caliente', saleId: 1246, tableNumber: 8, items: [{ menuItemId: 4, menuItemName: 'Pollo a la Brasa', quantity: 2, note: '' }],                                                                                           status: TICKET_STATUS.RECEIVED,  createdAt: new Date(Date.now() -  5 * 60000) }),
-        new StationTicket({ id: 7, stationId: 4, stationName: 'Bar',             saleId: 1246, tableNumber: 8, items: [{ menuItemId: 10, menuItemName: 'Limonada de la Casa', quantity: 3, note: '' }],                                                                                       status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() -  5 * 60000), startedAt: new Date(Date.now() -  3 * 60000) }),
-    ]);
+    const tickets           = ref([]);
 
     // ── History (delivered + cancelled — never deleted) ───────────────────
     const ticketHistory     = ref([]);
     // Persistent counter so totalToday never decreases
-    const ticketCountToday  = ref(tickets.value.length);
+    const ticketCountToday  = ref(0);
 
     const selectedStationId = ref(null);
     const isLoading         = ref(false);
@@ -88,7 +86,9 @@ export const useStationsStore = defineStore('stations', () => {
             ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
         } catch (e) {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // mock data already set in initial refs
+                stations.value = [...MOCK_STATIONS];
+                tickets.value  = [...MOCK_TICKETS];
+                ticketCountToday.value = Math.max(ticketCountToday.value, MOCK_TICKETS.length);
             } else {
                 error.value = e?.response?.data?.message ?? 'Error al cargar las estaciones';
             }
@@ -167,7 +167,7 @@ export const useStationsStore = defineStore('stations', () => {
         ticket.status       = TICKET_STATUS.CANCELLED;
         ticket.cancelledAt  = new Date();
         ticket.cancelReason = reason;
-        ticketHistory.value.unshift({ ...ticket });
+        ticketHistory.value.unshift(new StationTicket({ ...ticket }));
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
         api.cancelTicket(ticketId, reason).catch(() => { /* local change kept */ });
     }
@@ -176,7 +176,7 @@ export const useStationsStore = defineStore('stations', () => {
     function archiveTicket(ticketId) {
         const ticket = tickets.value.find(t => t.id === ticketId);
         if (!ticket) return;
-        ticketHistory.value.unshift({ ...ticket });
+        ticketHistory.value.unshift(new StationTicket({ ...ticket }));
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
     }
 

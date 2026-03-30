@@ -24,8 +24,6 @@ export class TableAssembler {
             zoneId:        r.zoneId        ?? r.zone_id        ?? null,
             zone:          r.zone          ?? r.zone_name      ?? '',
             seatedGuests:  r.seatedGuests  ?? r.seated_guests  ?? 0,
-            orderId:       r.orderId       ?? r.order_id       ?? null,
-            orderAmount:   r.orderAmount   ?? r.order_amount   ?? 0,
             occupiedSince: r.occupiedSince ?? r.occupied_since ?? null,
             reservationId: r.reservationId ?? r.reservation_id ?? null,
         });
@@ -41,6 +39,11 @@ export class TableAssembler {
         const list = response.data?.items ?? response.data?.data ?? response.data;
         if (!Array.isArray(list)) return [];
         return list.map(r => TableAssembler.toEntityFromResource(r));
+    }
+
+    static toEntityFromResponse(response) {
+        if (response.status !== 200 && response.status !== 201) return null;
+        return TableAssembler.toEntityFromResource(response.data?.data ?? response.data);
     }
 
     /**

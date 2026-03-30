@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
 import { usePosStore }    from '../../../pos/application/pos.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useDateFormatter }  from '../../../shared/composables/use-date-formatter.js'
 import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
 import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
 import CreateAndEditZone       from './create-and-edit-zone.vue'
@@ -15,6 +16,7 @@ const store    = useTablesStore()
 const posStore = usePosStore()
 const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
+const { elapsedTime }   = useDateFormatter()
 
 onMounted(() => store.fetchAll())
 
@@ -35,12 +37,8 @@ const zoneColorMap = computed(() => {
 
 const tableSearch       = ref('')
 const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning'
-const activeConsumption = computed(() =>
-    store.occupiedTables.reduce((sum, t) => sum + (t.orderAmount ?? 0), 0)
-)
-const occupancyRate = computed(() =>
-    store.totalTables > 0 ? Math.round((store.occupiedTables.length / store.totalTables) * 100) : 0
-)
+const activeConsumption = computed(() => posStore.totalInProcess)
+const occupancyRate = computed(() => store.occupancyRate)
 const filteredAndSearched = computed(() => {
     let base = store.filteredTables
     if (selectedStatus.value) base = base.filter(t => t.status === selectedStatus.value)
@@ -54,19 +52,10 @@ function toggleStatus(status) {
 }
 
 function urgencyClass(table) {
-    if (table.status !== 'occupied' || !table.occupiedSince) return ''
-    const mins = Math.floor((Date.now() - new Date(table.occupiedSince)) / 60000)
-    if (mins >= 90) return 'table-card--critical'
-    if (mins >= 60) return 'table-card--warning'
-    return ''
+    const level = table.urgencyLevel
+    return level !== 'ok' ? `table-card--${level}` : ''
 }
 
-function elapsedTime(since) {
-    if (!since) return ''
-    const mins = Math.floor((Date.now() - new Date(since)) / 60000)
-    if (mins < 60) return `${mins}m`
-    return `${Math.floor(mins / 60)}h ${mins % 60}m`
-}
 
 function openCreateZone() {
     editingZone.value = null
@@ -97,15 +86,15 @@ function openAssignTable(table) {
     showAssignDialog.value = true
 }
 
-function onAssignConfirm({ guests }) {
+async function onAssignConfirm({ guests }) {
     const table = assigningTable.value
-    posStore.openSaleForTable(table.id, table.zoneId, guests)
+    await posStore.openSaleForTable(table.id, table.zoneId, guests)
     router.push(posOrderRoute(table.id))
     assigningTable.value = null
 }
 
-function openOrderForTable(table) {
-    posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests)
+async function openOrderForTable(table) {
+    await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests)
     router.push(posOrderRoute(table.id))
 }
 
@@ -260,11 +249,11 @@ function onTableSaved(table) {
                     <div class="table-card__divider"></div>
                     <div class="table-card__footer">
                         <span class="table-card__status-label">{{ TABLE_STATUS_CONFIG[table.status]?.label ?? table.status }}</span>
-                        <template v-if="table.status === 'occupied' && table.orderId">
+                        <template v-if="table.status === 'occupied' && posStore.saleByTableId(table.id)">
                             <div class="table-card__order-info">
                                 <div class="table-card__order-row">
                                     <span class="table-card__order-time">{{ elapsedTime(table.occupiedSince) }}</span>
-                                    <span class="table-card__order-amount">S/ {{ table.orderAmount.toFixed(2) }}</span>
+                                    <span class="table-card__order-amount">S/ {{ (posStore.saleByTableId(table.id)?.total ?? 0).toFixed(2) }}</span>
                                 </div>
                             </div>
                         </template>
@@ -343,7 +332,7 @@ function onTableSaved(table) {
                         <button
                             :class="['zone-mgmt-btn', zone.isActive ? 'zone-mgmt-btn--deactivate' : 'zone-mgmt-btn--activate']"
                             :title="zone.isActive ? 'Desactivar zona' : 'Activar zona'"
-                            @click="store.updateZone(zone.id, { ...zone, isActive: !zone.isActive })"
+                            @click="store.updateZone({ ...zone, isActive: !zone.isActive })"
                         >
                             <i :class="['pi', zone.isActive ? 'pi-ban' : 'pi-check-circle']"></i>
                         </button>

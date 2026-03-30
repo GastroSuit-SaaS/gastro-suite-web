@@ -60,24 +60,34 @@ export const usePosStore = defineStore('pos', () => {
     const currentSaleIsRecovered  = ref(false); // true si la orden ya existía (Pendiente)
     const isLoading               = ref(false);
     const error                   = ref(null);
+    const _posSearch              = ref('');
+    const _posCategoryId          = ref(null);
 
     // ── Getters ───────────────────────────────────────────────────────────
     const activeOrders   = computed(() => sales.value.filter(s => s.status === SALE_STATUS.ACTIVE));
     const totalInProcess = computed(() => activeOrders.value.reduce((sum, s) => sum + s.total, 0));
     const currentTotal   = computed(() => currentSale.value?.total ?? 0);
 
-    // Catálogo — delegado al módulo de menú (fuente de verdad)
-    // filteredCatalog filtra además por isAvailable: el POS solo ofrece ítems disponibles
+    // Catálogo — filtrado local; POS gestiona su propio search/category sin mutar menuStore
     const menuCategories  = computed(() => menuStore.categories);
-    const filteredCatalog = computed(() => menuStore.filteredItems.filter(i => i.isAvailable));
-    const catalogSearch   = computed(() => menuStore.searchQuery);
-    const catalogCategory = computed(() => menuStore.selectedCategoryId);
+    const filteredCatalog = computed(() => {
+        const q    = _posSearch.value.trim().toLowerCase();
+        const catId = _posCategoryId.value;
+        return menuStore.items.filter(i => {
+            if (!i.isAvailable) return false;
+            if (catId !== null && i.categoryId !== catId) return false;
+            if (q && !i.name.toLowerCase().includes(q) && !i.description.toLowerCase().includes(q)) return false;
+            return true;
+        });
+    });
+    const catalogSearch   = computed(() => _posSearch.value);
+    const catalogCategory = computed(() => _posCategoryId.value);
 
     function setCatalogSearch(q) {
-        menuStore.searchQuery = q;
+        _posSearch.value = q;
     }
     function setCatalogCategory(categoryId) {
-        menuStore.selectedCategoryId = categoryId === null ? null : categoryId;
+        _posCategoryId.value = categoryId === null ? null : categoryId;
     }
 
     // Delegación de Tables — POS accede a zonas y mesas a través de su propio store
@@ -165,7 +175,7 @@ export const usePosStore = defineStore('pos', () => {
      * Si la mesa ya tiene una orden activa la asigna como currentSale;
      * si no, crea una nueva Sale en estado ACTIVE y marca la mesa como ocupada.
      */
-    function openSaleForTable(tableId, zoneId, seatedGuests = 0) {
+    async function openSaleForTable(tableId, zoneId, seatedGuests = 0) {
         const existing = sales.value.find(
             s => s.tableId === tableId && s.status === SALE_STATUS.ACTIVE
         );
@@ -180,8 +190,8 @@ export const usePosStore = defineStore('pos', () => {
             currentSale.value = newSale;
             currentSaleIsRecovered.value = false;
             tablesStore.assignTable(tableId, seatedGuests);
-            // Persist to backend — replaces tempId with real backend ID
-            create(newSale);
+            // Persist to backend — await ensures real ID is set before any dispatch to stations
+            await create(newSale);
         }
     }
 
@@ -287,7 +297,7 @@ export const usePosStore = defineStore('pos', () => {
 
         // Registrar en el módulo de pagos (lazy — evita problemas de orden de init)
         const paymentsStore = usePaymentsStore();
-        paymentsStore.registerPayment({
+        await paymentsStore.registerPayment({
             saleId:         saleId,
             tableNumber:    table?.number ?? null,
             zoneName:       zone?.name   ?? null,

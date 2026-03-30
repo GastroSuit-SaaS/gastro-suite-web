@@ -150,11 +150,24 @@ export function useDateFormatter() {
     }
   }
 
+  /**
+   * Devuelve el tiempo transcurrido desde una fecha de forma legible (e.g. "45m", "1h 20m").
+   * @param {Date|string} date
+   * @returns {string}
+   */
+  const elapsedTime = (date) => {
+    if (!date) return ''
+    const mins = Math.floor((Date.now() - new Date(date)) / 60000)
+    if (mins < 60) return `${mins}m`
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`
+  }
+
   return {
     formatFromBackend,
     formatToBackend,
     formatToReadable,
     parseFromDisplay,
-    formatTimeToBackend
+    formatTimeToBackend,
+    elapsedTime,
   }
 }

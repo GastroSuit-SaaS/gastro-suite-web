@@ -29,7 +29,9 @@ export class MenuItemAssembler {
 
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
-        return response.data.map(r => MenuItemAssembler.toEntityFromResource(r));
+        const list = response.data?.items ?? response.data?.data ?? response.data;
+        if (!Array.isArray(list)) return [];
+        return list.map(r => MenuItemAssembler.toEntityFromResource(r));
     }
 
     static toEntityFromResponse(response) {

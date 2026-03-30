@@ -57,4 +57,17 @@ export class StationTicket {
         this.cancelledAt  = cancelledAt ? new Date(cancelledAt) : null;
         this.cancelReason = cancelReason;
     }
+
+    get elapsedMinutes() {
+        if (!this.createdAt) return 0;
+        return Math.floor((Date.now() - new Date(this.createdAt)) / 60000);
+    }
+
+    get urgencyLevel() {
+        if (this.status === TICKET_STATUS.DELIVERED || this.status === TICKET_STATUS.CANCELLED) return 'ok';
+        const m = this.elapsedMinutes;
+        if (m < 15) return 'ok';
+        if (m < 30) return 'warn';
+        return 'critical';
+    }
 }
