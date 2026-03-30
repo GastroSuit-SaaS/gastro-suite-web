@@ -30,6 +30,34 @@ const zoneColorMap = computed(() => {
     return map
 })
 
+const tableSearch       = ref('')
+const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning'
+const activeConsumption = computed(() =>
+    store.occupiedTables.reduce((sum, t) => sum + (t.orderAmount ?? 0), 0)
+)
+const occupancyRate = computed(() =>
+    store.totalTables > 0 ? Math.round((store.occupiedTables.length / store.totalTables) * 100) : 0
+)
+const filteredAndSearched = computed(() => {
+    let base = store.filteredTables
+    if (selectedStatus.value) base = base.filter(t => t.status === selectedStatus.value)
+    if (!tableSearch.value.trim()) return base
+    const q = tableSearch.value.trim().toLowerCase()
+    return base.filter(t => String(t.number).includes(q))
+})
+
+function toggleStatus(status) {
+    selectedStatus.value = selectedStatus.value === status ? null : status
+}
+
+function urgencyClass(table) {
+    if (table.status !== 'occupied' || !table.occupiedSince) return ''
+    const mins = Math.floor((Date.now() - new Date(table.occupiedSince)) / 60000)
+    if (mins >= 90) return 'table-card--critical'
+    if (mins >= 60) return 'table-card--warning'
+    return ''
+}
+
 function elapsedTime(since) {
     if (!since) return ''
     const mins = Math.floor((Date.now() - new Date(since)) / 60000)
@@ -127,32 +155,35 @@ function onTableSaved(table) {
         <!-- ══════════════════ TAB: PLANO DEL SALÓN ══════════════════════ -->
         <div v-if="activeTab === 'floor'" class="p-4 flex flex-column gap-4 floor-tab">
 
-            <!-- Stat cards -->
-            <div class="flex flex-wrap gap-3">
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <span class="text-sm text-color-secondary">Total Mesas</span>
-                    <span class="text-4xl font-bold text-color">{{ store.totalTables }}</span>
+            <!-- Stat chips (los de estado actúan como filtro toggle) -->
+            <div class="stat-row">
+                <div class="stat-chip">
+                    <span class="stat-chip__label">Total Mesas</span>
+                    <span class="stat-chip__value">{{ store.totalTables }}</span>
                 </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <div class="flex align-items-center gap-2">
-                        <span class="status-dot bg-green-500"></span>
-                        <span class="text-sm text-color-secondary">Disponibles</span>
+                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'available' && 'stat-chip--active-green']" @click="toggleStatus('available')">
+                    <span class="stat-chip__dot" style="background:#22c55e"></span>
+                    <span class="stat-chip__label">Disponibles</span>
+                    <span class="stat-chip__value text-green-500">{{ store.availableTables.length }}</span>
+                </button>
+                <button :class="['stat-chip', 'stat-chip--btn', 'stat-chip--bar', selectedStatus === 'occupied' && 'stat-chip--active-red']" @click="toggleStatus('occupied')">
+                    <span class="stat-chip__dot" style="background:#ef4444"></span>
+                    <span class="stat-chip__label">Ocupadas</span>
+                    <span class="stat-chip__value text-red-500">{{ store.occupiedTables.length }}<span class="stat-chip__sub">/{{ store.totalTables }}</span></span>
+                    <div class="occupancy-bar">
+                        <div class="occupancy-bar__fill" :style="{ width: occupancyRate + '%' }"></div>
                     </div>
-                    <span class="text-4xl font-bold text-green-500">{{ store.availableTables.length }}</span>
-                </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <div class="flex align-items-center gap-2">
-                        <span class="status-dot bg-red-500"></span>
-                        <span class="text-sm text-color-secondary">Ocupadas</span>
-                    </div>
-                    <span class="text-4xl font-bold text-red-500">{{ store.occupiedTables.length }}</span>
-                </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <div class="flex align-items-center gap-2">
-                        <span class="status-dot bg-blue-500"></span>
-                        <span class="text-sm text-color-secondary">En Limpieza</span>
-                    </div>
-                    <span class="text-4xl font-bold text-blue-500">{{ store.cleaningTables.length }}</span>
+                    <span class="stat-chip__pct">{{ occupancyRate }}%</span>
+                </button>
+                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'cleaning' && 'stat-chip--active-blue']" @click="toggleStatus('cleaning')">
+                    <span class="stat-chip__dot" style="background:#3b82f6"></span>
+                    <span class="stat-chip__label">En Limpieza</span>
+                    <span class="stat-chip__value text-blue-500">{{ store.cleaningTables.length }}</span>
+                </button>
+                <div class="stat-chip">
+                    <span class="stat-chip__dot" style="background:#059669"></span>
+                    <span class="stat-chip__label">Consumo activo</span>
+                    <span class="stat-chip__value" style="color:#059669">S/ {{ activeConsumption.toFixed(2) }}</span>
                 </div>
             </div>
 
@@ -181,12 +212,21 @@ function onTableSaved(table) {
                 </div>
             </div>
 
+            <!-- Búsqueda por número de mesa -->
+            <div class="table-search">
+                <i class="pi pi-search"></i>
+                <input v-model="tableSearch" type="text" placeholder="Buscar mesa..." />
+                <button v-if="tableSearch" class="table-search__clear" @click="tableSearch = ''">
+                    <i class="pi pi-times"></i>
+                </button>
+            </div>
+
             <!-- Grilla de mesas -->
-            <div v-if="store.filteredTables.length > 0" class="tables-grid">
+            <div v-if="filteredAndSearched.length > 0" class="tables-grid">
                 <div
-                    v-for="table in store.filteredTables"
+                    v-for="table in filteredAndSearched"
                     :key="table.id"
-                    class="table-card"
+                    :class="['table-card', urgencyClass(table)]"
                     :style="{
                         '--zone-color':   zoneColorMap[table.zoneId]?.color ?? '#6b7280',
                         '--status-color': TABLE_STATUS_CONFIG[table.status]?.color ?? '#6b7280',
@@ -237,7 +277,7 @@ function onTableSaved(table) {
                         class="table-card__cta table-card__cta--limpiar"
                         @click.stop="store.setTableStatus(table.id, 'available')"
                     >
-                        <i class="pi pi-check"></i> Marcar como Disponible
+                        <i class="pi pi-check"></i> Lista
                     </button>
                 </div>
             </div>
@@ -413,9 +453,129 @@ function onTableSaved(table) {
     overflow-y: auto;
 }
 
-/* ── Stat cards ───────────────────────────────────────────────────────── */
+/* ── Stat row (compact chips) ────────────────────────────────────────── */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
+}
+.stat-chip--bar {
+    border-radius: 10px;
+    gap: 0.45rem;
+}
+.stat-chip__dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.stat-chip--btn {
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.stat-chip--btn:hover { background: #f3f4f6; }
+.stat-chip--active-green {
+    background: #dcfce7 !important;
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 2px #bbf7d0;
+}
+.stat-chip--active-red {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px #fecaca;
+}
+.stat-chip--active-blue {
+    background: #dbeafe !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.stat-chip__label {
+    font-size: 0.78rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+.stat-chip__value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+}
+.stat-chip__sub {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: #9ca3af;
+}
+.stat-chip__pct {
+    font-size: 0.7rem;
+    color: #9ca3af;
+}
 .stat-card { min-width: 130px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.occupancy-bar {
+    height: 6px;
+    background: #fee2e2;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 0.1rem;
+}
+.occupancy-bar__fill {
+    height: 100%;
+    background: #ef4444;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+
+/* ── Table search ─────────────────────────────────────────────────────── */
+.table-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    max-width: 240px;
+    transition: border-color 0.15s;
+}
+.table-search:focus-within { border-color: #6366f1; }
+.table-search input {
+    border: none;
+    outline: none;
+    font-size: 0.85rem;
+    color: #111827;
+    background: transparent;
+    width: 100%;
+}
+.table-search input::placeholder { color: #9ca3af; }
+.table-search .pi { color: #9ca3af; font-size: 0.82rem; }
+.table-search__clear {
+    border: none; background: transparent; cursor: pointer;
+    color: #9ca3af; padding: 0; display: flex; align-items: center;
+}
+.table-search__clear:hover { color: #6b7280; }
+
+/* ── Urgency borders ─────────────────────────────────────────────────── */
+.table-card--warning  { border-color: #f59e0b !important; }
+.table-card--critical {
+    border-color: #ef4444 !important;
+    animation: pulse-urgent 2s infinite;
+}
+@keyframes pulse-urgent {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25); }
+    50%       { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
 
 /* Zone filter pills → uses global .filter-pill from utilities.css */
 

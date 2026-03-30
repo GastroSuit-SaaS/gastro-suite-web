@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useMenuStore } from '../../application/menu.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import CreateAndEditCategory from './create-and-edit-category.vue'
@@ -7,6 +7,17 @@ import CreateAndEditMenuItem  from './create-and-edit-menu-item.vue'
 
 const store = useMenuStore()
 const { confirmDelete } = useConfirmDialog()
+
+const selectedAvailability = ref(null) // null | true | false
+
+const visibleItems = computed(() => {
+    if (selectedAvailability.value === null) return store.filteredItems
+    return store.filteredItems.filter(i => i.isAvailable === selectedAvailability.value)
+})
+
+function toggleAvailability(val) {
+    selectedAvailability.value = selectedAvailability.value === val ? null : val
+}
 
 const showCategoryDialog = ref(false)
 const editingCategory    = ref(null)
@@ -85,29 +96,26 @@ function onCategorySaved(data) {
         <!-- ══════════════════ TAB: CATÁLOGO ═════════════════════════════ -->
         <div v-if="activeTab === 'catalog'" class="p-4 flex flex-column gap-4 catalog-tab">
 
-            <!-- Stat cards -->
-            <div class="flex flex-wrap gap-3">
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <span class="text-sm text-color-secondary">Total Productos</span>
-                    <span class="text-4xl font-bold text-color">{{ store.totalItems }}</span>
+            <!-- Stat chips -->
+            <div class="stat-row">
+                <div class="stat-chip">
+                    <span class="stat-chip__label">Total Productos</span>
+                    <span class="stat-chip__value">{{ store.totalItems }}</span>
                 </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <div class="flex align-items-center gap-2">
-                        <span class="status-dot bg-green-500"></span>
-                        <span class="text-sm text-color-secondary">Disponibles</span>
-                    </div>
-                    <span class="text-4xl font-bold text-green-500">{{ store.availableItems }}</span>
-                </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <div class="flex align-items-center gap-2">
-                        <span class="status-dot bg-red-500"></span>
-                        <span class="text-sm text-color-secondary">No Disponibles</span>
-                    </div>
-                    <span class="text-4xl font-bold text-red-500">{{ store.unavailableItems }}</span>
-                </div>
-                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                    <span class="text-sm text-color-secondary">Categorías</span>
-                    <span class="text-4xl font-bold text-color">{{ store.totalCategories }}</span>
+                <button :class="['stat-chip', 'stat-chip--btn', selectedAvailability === true && 'stat-chip--active-green']" @click="toggleAvailability(true)">
+                    <span class="stat-chip__dot" style="background:#22c55e"></span>
+                    <span class="stat-chip__label">Disponibles</span>
+                    <span class="stat-chip__value text-green-500">{{ store.availableItems }}</span>
+                </button>
+                <button :class="['stat-chip', 'stat-chip--btn', selectedAvailability === false && 'stat-chip--active-red']" @click="toggleAvailability(false)">
+                    <span class="stat-chip__dot" style="background:#ef4444"></span>
+                    <span class="stat-chip__label">No Disponibles</span>
+                    <span class="stat-chip__value text-red-500">{{ store.unavailableItems }}</span>
+                </button>
+                <div class="stat-chip">
+                    <span class="stat-chip__dot" style="background:#6366f1"></span>
+                    <span class="stat-chip__label">Categorías</span>
+                    <span class="stat-chip__value">{{ store.totalCategories }}</span>
                 </div>
             </div>
 
@@ -150,9 +158,9 @@ function onCategorySaved(data) {
             </div>
 
             <!-- Items grid -->
-            <div v-if="store.filteredItems.length > 0" class="menu-grid">
+            <div v-if="visibleItems.length > 0" class="menu-grid">
                 <div
-                    v-for="item in store.filteredItems"
+                    v-for="item in visibleItems"
                     :key="item.id"
                     class="menu-card"
                 >
@@ -298,9 +306,53 @@ function onCategorySaved(data) {
     overflow-y: auto;
 }
 
-/* ── Stat cards ───────────────────────────────────────────────────────── */
-.stat-card {
-    min-width: 160px;
+/* ── Stat chips ───────────────────────────────────────────────────────── */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+.stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
+}
+.stat-chip__dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.stat-chip__label {
+    font-size: 0.78rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+.stat-chip__value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.stat-chip--btn {
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.stat-chip--btn:hover { background: #f3f4f6; }
+.stat-chip--active-green {
+    background: #dcfce7 !important;
+    border: 1px solid #22c55e !important;
+    box-shadow: 0 0 0 2px #bbf7d0;
+}
+.stat-chip--active-red {
+    background: #fee2e2 !important;
+    border: 1px solid #ef4444 !important;
+    box-shadow: 0 0 0 2px #fecaca;
 }
 
 .status-dot {

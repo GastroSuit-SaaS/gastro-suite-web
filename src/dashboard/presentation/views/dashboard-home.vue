@@ -61,14 +61,6 @@ const topItems = computed(() => {
 <template>
     <div class="dash-layout">
 
-        <!-- Header -->
-        <div class="dash-header">
-            <div>
-                <h1 class="dash-header__title">Dashboard</h1>
-                <p class="dash-header__sub">Resumen operacional del día</p>
-            </div>
-        </div>
-
         <!-- ── Row 1: KPI cards ──────────────────────────────────── -->
         <div class="kpi-row">
             <div class="kpi-card kpi-card--green">
