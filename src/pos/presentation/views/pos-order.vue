@@ -18,7 +18,7 @@ const sale    = computed(() => posStore.currentSale)
 // Ítems pendientes de enviar a cocina
 const pendingItems = computed(() => sale.value?.items.filter(i => !i.isSent) ?? [])
 
-// â”€â”€ Nota editable por Ã­tem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Nota editable por ítem ───────────────────────────────────────────────────────────────
 const editingNoteId     = ref(null)
 const noteInput         = ref('')
 
@@ -53,7 +53,7 @@ onMounted(() => {
     if (!posStore.currentSale) router.replace(POS_ROUTES.SELECT_ZONE)
 })
 
-// â”€â”€ CatÃ¡logo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Catálogo ───────────────────────────────────────────────────────────────
 function selectCategory(catId) {
     // null = "Todos"
     posStore.setCatalogCategory(catId === 'all' ? null : catId)
@@ -62,12 +62,12 @@ function addItem(menuItem) {
     posStore.addItemToCurrentSale(menuItem)
 }
 
-// â”€â”€ Ãtems de la orden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Funciones para modificar ítems en la orden
 function increment(item) {
     posStore.updateItemQuantity(item.id, item.quantity + 1)
 }
 function decrement(item) {
-    // updateQuantity con qty<=0 elimina la lÃ­nea automÃ¡ticamente (Sale.updateQuantity)
+    // updateQuantity con qty<=0 elimina la línea automáticamente (Sale.updateQuantity)
     posStore.updateItemQuantity(item.id, item.quantity - 1)
 }
 function removeItem(item) {
@@ -129,17 +129,17 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 <template>
     <div class="pos-order-layout">
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• LEFT: CatÃ¡logo â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ── LEFT: Catálogo ─────────────────────────────────────────────────────────────── -->
         <div class="pos-catalog" :class="{ 'pos-catalog--mobile-hidden': mobileView !== 'catalog' }">
 
-            <!-- Header: contexto + bÃºsqueda -->
+            <!-- Header: contexto + búsqueda -->
             <div class="pos-catalog__header">
 
                 <!-- Badges de contexto (izquierda) -->
                 <div class="context-badges">
                     <div class="context-badge context-badge--blue">
                         <span class="context-badge__label">Mesa</span>
-                        <strong class="context-badge__value">Mesa {{ table?.number ?? 'â€”' }}</strong>
+                        <strong class="context-badge__value">Mesa {{ table?.number ?? '—' }}</strong>
                     </div>
                     <div
                         v-if="zone"
@@ -234,7 +234,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 
         </div>
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• RIGHT: Orden â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ── RIGHT: Orden ─────────────────────────────────────────────────────────────── -->    
         <div class="pos-panel" :class="{ 'pos-panel--mobile-hidden': mobileView !== 'cart' }">
 
             <!-- Encabezado del panel -->
@@ -253,7 +253,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                 <!-- Empty state -->
                 <div v-if="!sale || sale.items.length === 0" class="panel-empty">
                     <i class="pi pi-shopping-cart text-4xl text-color-secondary"></i>
-                    <span class="text-sm text-color-secondary">Selecciona productos del menÃº</span>
+                    <span class="text-sm text-color-secondary">Selecciona productos del menú</span>
                 </div>
 
                 <!-- Ãtems -->
@@ -373,7 +373,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                 </div>
             </div>
 
-            <!-- Footer: totales + botones de acciÃ³n -->
+            <!-- Footer: totales + botones de acción -->
             <div class="pos-panel__footer">
                 <!-- Totales -->
                 <div class="totals">
@@ -478,7 +478,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 </template>
 
 <style scoped>
-/* â”€â”€ Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Layout ─────────────────────────────────────────────────────────────── */
 .pos-order-layout {
     display: flex;
     height: 100%;
@@ -486,7 +486,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     background: #f3f4f6;
 }
 
-/* â”€â”€ Columna izquierda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Columna izquierda ─────────────────────────────────────────────────────────────── */
 .pos-catalog {
     flex: 1;
     min-width: 0;
@@ -505,7 +505,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     border-bottom: 1px solid var(--surface-border);
 }
 
-/* â”€â”€ Context badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Context badges ─────────────────────────────────────────────────────────────── */
 .context-badges {
     display: flex;
     gap: 0.5rem;
@@ -529,7 +529,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 }
 .context-badge__value { font-size: 0.82rem; color: #1e3a8a; }
 
-/* â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Search ─────────────────────────────────────────────────────────────── */
 .search-wrapper {
     position: relative;
     flex: 1;
@@ -566,7 +566,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     white-space: nowrap;
 }
 
-/* â”€â”€ Category bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Category bar ─────────────────────────────────────────────────────────────── */
 .cat-bar {
     display: flex;
     align-items: center;
@@ -603,7 +603,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     color: #111827;
 }
 
-/* â”€â”€ Product grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Product grid ─────────────────────────────────────────────────────────────── */
 .product-grid {
     flex: 1;
     overflow-y: auto;
@@ -623,7 +623,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     padding: 3rem 0;
 }
 
-/* â”€â”€ Product card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Product card ─────────────────────────────────────────────────────────────── */
 .product-card {
     background: #fff;
     border-radius: 12px;
@@ -726,7 +726,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 .product-card__price  { font-size: 1rem; font-weight: 700; color: #2563eb; }
 .product-card__sku    { font-size: 0.68rem; color: #9ca3af; }
 
-/* â”€â”€ Panel derecho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Panel derecho ─────────────────────────────────────────────────────────────── */
 .pos-panel {
     width: 370px;
     flex-shrink: 0;
@@ -762,7 +762,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     opacity: 0.5;
 }
 
-/* â”€â”€ Order item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Order item ─────────────────────────────────────────────────────────────── */
 .order-item {
     background: #f9fafb;
     border: 1px solid var(--surface-border);
@@ -801,7 +801,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 .icon-btn--has-discount { color: #059669; }
 .icon-btn--has-note { color: #d97706; }
 
-/* â”€â”€ Note â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Note ─────────────────────────────────────────────────────────────── */
 .note-editor { display: flex; gap: 0.35rem; margin-top: 0.35rem; }
 .note-editor__input {
     flex: 1; padding: 0.28rem 0.5rem; font-size: 0.76rem;
@@ -875,7 +875,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     font-size: 0.72rem;
 }
 
-/* â”€â”€ Qty stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Qty stepper ─────────────────────────────────────────────────────────────── */
 .qty-stepper { display: flex; align-items: center; border: 1px solid var(--surface-border); border-radius: 6px; overflow: hidden; }
 .qty-btn {
     width: 1.7rem; height: 1.7rem; border: none; background: #f3f4f6;
@@ -886,7 +886,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 .qty-btn:hover { background: #e5e7eb; }
 .qty-value { min-width: 2rem; text-align: center; font-size: 0.85rem; font-weight: 600; color: #111827; }
 
-/* â”€â”€ Panel footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Panel footer ─────────────────────────────────────────────────────────────── */
 .pos-panel__footer { flex-shrink: 0; border-top: 1px solid var(--surface-border); padding: 0.85rem 1.25rem 1rem; }
 .totals { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.85rem; }
 .totals__row { display: flex; justify-content: space-between; font-size: 0.84rem; color: #6b7280; }
@@ -967,7 +967,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     .pos-order-layout {
         flex-direction: column;
         height: 100%;
-        padding-bottom: 4rem; /* room for fixed tab bar */
+        padding-bottom: 4.25rem; /* room for fixed tab bar */
     }
 
     /* Each pane fills the full screen when active */
@@ -1030,11 +1030,11 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
         bottom: 0;
         left: 0;
         right: 0;
-        height: 4rem;
-        background: var(--surface-card);
-        border-top: 1px solid var(--surface-border);
+        height: 4.25rem;
+        background: #1e1e2e;
+        border-top: 1px solid rgba(255,255,255,0.08);
         z-index: 200;
-        box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
     }
 
     .mobile-tab-bar__tab {
@@ -1043,20 +1043,49 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.2rem;
+        gap: 0.25rem;
         border: none;
         background: transparent;
-        color: var(--text-color-secondary);
+        color: #6b7280;
         font-size: 0.72rem;
         font-weight: 500;
         cursor: pointer;
-        transition: color 0.15s;
+        position: relative;
+        transition: color 0.2s;
     }
+
+    /* Indicador superior — línea activa */
+    .mobile-tab-bar__tab::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 25%;
+        right: 25%;
+        height: 2.5px;
+        border-radius: 0 0 3px 3px;
+        background: transparent;
+        transition: background 0.2s;
+    }
+
     .mobile-tab-bar__tab--active {
-        color: var(--primary-color, #6366f1);
+        color: #fff;
         font-weight: 700;
     }
-    .mobile-tab-bar__tab .pi { font-size: 1.2rem; }
+
+    /* Línea indicadora activa */
+    .mobile-tab-bar__tab--active::before {
+        background: #6366f1;
+    }
+
+    /* Pill de fondo en ícono activo */
+    .mobile-tab-bar__tab--active .pi,
+    .mobile-tab-bar__tab--active .mobile-tab-bar__icon-wrap {
+        background: rgba(99,102,241,0.18);
+        border-radius: 8px;
+        padding: 0.3rem 0.75rem;
+    }
+
+    .mobile-tab-bar__tab .pi { font-size: 1.15rem; }
 
     .mobile-tab-bar__icon-wrap {
         position: relative;
@@ -1067,20 +1096,21 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 
     .mobile-tab-bar__badge {
         position: absolute;
-        top: -0.3rem;
-        right: -0.7rem;
-        min-width: 1rem;
-        height: 1rem;
+        top: -0.45rem;
+        right: -0.55rem;
+        min-width: 1.1rem;
+        height: 1.1rem;
         border-radius: 999px;
         background: #ef4444;
         color: #fff;
-        font-size: 0.6rem;
+        font-size: 0.62rem;
         font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 0 0.2rem;
+        padding: 0 0.25rem;
         line-height: 1;
+        border: 1.5px solid #1e1e2e;
     }
 }
 

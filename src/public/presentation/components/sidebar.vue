@@ -25,6 +25,13 @@ const userRole = computed(() => iamStore.currentUser?.roles?.[0] || 'Usuario')
 
 const isActive = (path) => route.path.startsWith(path)
 
+function handleNavClick() {
+  // En mobile el sidebar actúa como drawer — cerrarlo tras navegar
+  if (window.innerWidth < 768 && !props.collapsed) {
+    emit('toggle')
+  }
+}
+
 const handleSignOut = async () => {
   await iamStore.logout()
   router.push({ name: 'sign-in' })
@@ -55,6 +62,7 @@ const handleSignOut = async () => {
           :class="['menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
                    { 'justify-content-center': collapsed }]"
           :title="item.label"
+          @click="handleNavClick"
         >
           <i :class="['menu-icon text-center flex-shrink-0', item.icon]"></i>
           <span v-show="!collapsed" class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
