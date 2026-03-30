@@ -125,7 +125,6 @@ function onDeleteStation(station) {
                         :style="{ borderLeft: `4px solid ${st.color}` }"
                         @click="store.selectStation(st.id)"
                     >
-                        <i :class="['pi', st.icon, 'filter-pill__icon']" :style="{ color: st.color }"></i>
                         {{ st.name }} ({{ store.tickets.filter(t => t.stationId === st.id).length }})
                     </button>
                 </div>
@@ -238,7 +237,7 @@ function onDeleteStation(station) {
                     <!-- Body -->
                     <div class="station-card__body">
                         <div class="station-card__icon-wrap" :style="{ background: station.color + '22' }">
-                            <i :class="['pi', station.icon]" :style="{ color: station.color }"></i>
+                            <span class="station-card__initial" :style="{ color: station.color }">{{ station.name.charAt(0).toUpperCase() }}</span>
                         </div>
                         <div class="station-card__info">
                             <div class="station-card__name">{{ station.name }}</div>
@@ -542,7 +541,13 @@ function onDeleteStation(station) {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    font-size: 1.3rem;
+}
+
+.station-card__initial {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
 }
 
 .station-card__info {

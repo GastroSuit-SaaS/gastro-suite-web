@@ -35,13 +35,4 @@ export const TICKET_COLUMNS = [
     { key: 'ready',     label: 'Listo',           color: '#10b981', bg: '#f0fdf4' },
 ];
 
-export const STATION_ICON_OPTIONS = [
-    { label: 'Rayo',     value: 'pi-bolt'   },
-    { label: 'Fuego',    value: 'pi-fire'   },
-    { label: 'Nube',     value: 'pi-cloud'  },
-    { label: 'Estrella', value: 'pi-star'   },
-    { label: 'Lista',    value: 'pi-list'   },
-    { label: 'Caja',     value: 'pi-box'    },
-    { label: 'Globo',    value: 'pi-globe'  },
-    { label: 'Copa',     value: 'pi-heart'  },
-];
+

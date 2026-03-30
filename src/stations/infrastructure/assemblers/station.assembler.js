@@ -13,7 +13,6 @@ export class StationAssembler {
             name:        resource.name        ?? '',
             description: resource.description ?? '',
             color:       resource.color       ?? '#3b82f6',
-            icon:        resource.icon        ?? 'pi-bolt',
             isActive:    resource.isActive    ?? true,
         });
     }

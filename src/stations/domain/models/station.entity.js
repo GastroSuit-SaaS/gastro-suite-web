@@ -10,14 +10,12 @@ export class Station {
         name        = '',
         description = '',
         color       = '#3b82f6',
-        icon        = 'pi-bolt',
         isActive    = true,
     } = {}) {
         this.id          = id;
         this.name        = name;
         this.description = description;
         this.color       = color;
-        this.icon        = icon;
         this.isActive    = isActive;
     }
 }

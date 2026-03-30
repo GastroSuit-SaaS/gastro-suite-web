@@ -9,11 +9,11 @@ export const useStationsStore = defineStore('stations', () => {
 
     // ── State ─────────────────────────────────────────────────────────────
     const stations          = ref([
-        new Station({ id: 1, name: 'Cocina Caliente', description: 'Platos salteados, fritos y a la plancha', color: '#ef4444', icon: 'pi-fire',      isActive: true }),
-        new Station({ id: 2, name: 'Cocina Fría',     description: 'Ceviches, ensaladas y entradas frías',   color: '#10b981', icon: 'pi-cloud',     isActive: true }),
-        new Station({ id: 3, name: 'Pastelería',      description: 'Postres, pasteles y repostería',         color: '#ec4899', icon: 'pi-star',      isActive: true }),
-        new Station({ id: 4, name: 'Bar',             description: 'Bebidas frías, calientes y cócteles',    color: '#8b5cf6', icon: 'pi-bolt',      isActive: true }),
-        new Station({ id: 5, name: 'Pastas',          description: 'Pastas, arroces y risottos',             color: '#f59e0b', icon: 'pi-list',      isActive: true }),
+        new Station({ id: 1, name: 'Cocina Caliente', description: 'Platos salteados, fritos y a la plancha', color: '#ef4444', isActive: true }),
+        new Station({ id: 2, name: 'Cocina Fría',     description: 'Ceviches, ensaladas y entradas frías',   color: '#10b981', isActive: true }),
+        new Station({ id: 3, name: 'Pastelería',      description: 'Postres, pasteles y repostería',         color: '#ec4899', isActive: true }),
+        new Station({ id: 4, name: 'Bar',             description: 'Bebidas frías, calientes y cócteles',    color: '#8b5cf6', isActive: true }),
+        new Station({ id: 5, name: 'Pastas',          description: 'Pastas, arroces y risottos',             color: '#f59e0b', isActive: true }),
     ]);
 
     const tickets           = ref([
