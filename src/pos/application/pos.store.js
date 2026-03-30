@@ -4,9 +4,10 @@ import { PosApi } from '../infrastructure/api/pos.api.js';
 // SaleAssembler: reserved for API integration (fetchAll / create / update)
 // import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
 import { Sale, SALE_STATUS } from '../domain/models/sale.entity.js';
-import { useTablesStore }   from '../../tables/application/tables.store.js';
-import { useMenuStore }     from '../../menu/application/menu.store.js';
-import { useStationsStore } from '../../stations/application/stations.store.js';
+import { useTablesStore }    from '../../tables/application/tables.store.js';
+import { useMenuStore }      from '../../menu/application/menu.store.js';
+import { useStationsStore }  from '../../stations/application/stations.store.js';
+import { usePaymentsStore }  from '../../payments/application/payments.store.js';
 
 const api = new PosApi();
 
@@ -159,6 +160,62 @@ export const usePosStore = defineStore('pos', () => {
         return pending.length;
     }
 
+    /**
+     * Cancela la orden activa: marca como CANCELLED y libera la mesa.
+     */
+    function cancelCurrentSale() {
+        if (!currentSale.value) return;
+        const tableId = currentSale.value.tableId;
+        currentSale.value.status = SALE_STATUS.CANCELLED;
+        tablesStore.freeTable(tableId);
+        currentSale.value = null;
+        currentSaleIsRecovered.value = false;
+        // TODO: persist via api.cancel(sale.id)
+    }
+
+    /**
+     * Confirma el cobro de la orden activa.
+     * Registra el pago en el módulo de pagos, marca la venta como PAID,
+     * libera la mesa y limpia el estado local.
+     * @param {{ method: string, amountReceived: number, receiptType: string, receiptData: object }} paymentData
+     * @returns {boolean}
+     */
+    function confirmPayment({ method, amountReceived, receiptType, receiptData }) {
+        if (!currentSale.value) return false;
+        const sale    = currentSale.value;
+        const tableId = sale.tableId;
+        const table   = tablesStore.tables.find(t => t.id === tableId);
+        const zone    = tablesStore.zones.find(z => z.id === sale.zoneId);
+
+        // Registrar en el módulo de pagos (lazy — evita problemas de orden de init)
+        const paymentsStore = usePaymentsStore();
+        paymentsStore.registerPayment({
+            saleId:         sale.id,
+            tableNumber:    table?.number ?? null,
+            zoneName:       zone?.name   ?? null,
+            items:          sale.items.map(i => ({
+                name:     i.menuItemName,
+                qty:      i.quantity,
+                subtotal: i.subtotal,
+            })),
+            subtotal:       sale.subtotal,
+            tax:            sale.tax,
+            discount:       sale.discount,
+            total:          sale.total,
+            method,
+            amountReceived,
+            change:         parseFloat((amountReceived - sale.total).toFixed(2)),
+            receiptType,
+            receiptData,
+        });
+
+        sale.status = SALE_STATUS.PAID;
+        tablesStore.freeTable(tableId);
+        currentSale.value = null;
+        currentSaleIsRecovered.value = false;
+        return true;
+    }
+
     return {
         // State
         sales, currentSale, currentSaleIsRecovered, isLoading, error,
@@ -173,7 +230,7 @@ export const usePosStore = defineStore('pos', () => {
         openSaleForTable,
         addItemToCurrentSale, removeItemFromCurrentSale,
         updateItemQuantity, updateItemNote, updateItemDiscount, duplicateItemInCurrentSale,
-        sendCurrentSaleToStations,
+        sendCurrentSaleToStations, cancelCurrentSale, confirmPayment,
         // Catálogo
         setCatalogCategory, setCatalogSearch,
     };

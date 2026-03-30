@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast }            from 'primevue/usetoast'
 import { usePosStore }         from '../../application/pos.store.js'
-import { POS_ROUTES }          from '../constants/pos.constants-ui.js'
+import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
 
 const route         = useRoute()
 const router        = useRouter()
@@ -97,7 +97,7 @@ function enviarEstaciones() {
     }
 }
 function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
-function procederPago()     { /* TODO: navigate to payment view */ }
+function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
 </script>
 
 <template>

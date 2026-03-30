@@ -17,6 +17,11 @@ export class BaseApi {
 
     this.#http.interceptors.request.use(
       (config) => {
+        const token = localStorage.getItem('gs_token');
+        if (token) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
+
         if (config.data instanceof FormData) {
           // Let the browser set multipart/form-data + boundary
           delete config.headers['Content-Type'];
@@ -29,14 +34,17 @@ export class BaseApi {
       (error) => Promise.reject(error)
     );
 
-    // Auth interceptor with token validation
-    // TODO this.#http.interceptors.request.use(authenticationInterceptor);
-    
-    // Response interceptor for error handling (401/403)
-    //this.#http.interceptors.response.use(
-    //  authenticationResponseInterceptor,
-    //  authenticationErrorInterceptor
-    //);
+    // Response interceptor — handle 401 globally
+    this.#http.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          localStorage.removeItem('gs_token');
+          window.location.href = '/sign-in';
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   get http() {

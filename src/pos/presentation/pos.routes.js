@@ -2,6 +2,7 @@ const posTerminal      = () => import('./views/pos-terminal.vue');
 const posZoneSelector  = () => import('./views/pos-zone-selector.vue');
 const posTableSelector = () => import('./views/pos-table-selector.vue');
 const posOrder         = () => import('./views/pos-order.vue');
+const posPayment       = () => import('./views/pos-payment.vue');
 
 const posRoutes = [
     {
@@ -45,6 +46,17 @@ const posRoutes = [
             title: 'Orden de Mesa',
             titleModule: 'Punto de venta',
             description: '',
+            showBackButton: false,
+        },
+    },
+    {
+        path: 'payment/:tableId',
+        name: 'pos-payment',
+        component: posPayment,
+        meta: {
+            title: 'Procesar Pago',
+            titleModule: 'Punto de venta',
+            description: 'Seleccione el método de pago y tipo de comprobante',
             showBackButton: false,
         },
     },

@@ -1,4 +1,4 @@
-import { Payment } from '../../domain/models/payment.entity.js';
+﻿import { Payment, PAYMENT_STATUS, PAYMENT_METHOD, RECEIPT_TYPE } from '../../domain/models/payment.entity.js';
 
 /**
  * Payments Infrastructure - Payment Assembler
@@ -8,26 +8,59 @@ import { Payment } from '../../domain/models/payment.entity.js';
  */
 export class PaymentAssembler {
 
-    /**
-     * Transforma un recurso individual del API en una entidad Payment.
-     * @param {Object} resource - Recurso crudo del API.
-     * @returns {Payment}
-     */
-    static toEntityFromResource(resource) {
-        // TODO: map resource fields to Payment constructor parameters
+    static toEntityFromResource(r) {
         return new Payment({
-            id: resource.id,
+            id:             r.id             ?? null,
+            saleId:         r.saleId         ?? r.sale_id         ?? null,
+            tableNumber:    r.tableNumber     ?? r.table_number    ?? null,
+            zoneName:       r.zoneName        ?? r.zone_name       ?? null,
+            items:          r.items           ?? [],
+            subtotal:       r.subtotal        ?? 0,
+            tax:            r.tax             ?? 0,
+            discount:       r.discount        ?? 0,
+            total:          r.total           ?? 0,
+            method:         r.method          ?? PAYMENT_METHOD.CASH,
+            amountReceived: r.amountReceived  ?? r.amount_received ?? r.total ?? 0,
+            change:         r.change          ?? 0,
+            receiptType:    r.receiptType     ?? r.receipt_type    ?? RECEIPT_TYPE.NOTA,
+            receiptData:    r.receiptData     ?? r.receipt_data    ?? {},
+            status:         r.status          ?? PAYMENT_STATUS.COMPLETED,
+            cashierId:      r.cashierId       ?? r.cashier_id      ?? null,
+            processedAt:    r.processedAt     ?? r.processed_at    ?? null,
         });
     }
 
-    /**
-     * Valida la respuesta HTTP y transforma la colección de recursos en entidades.
-     * @param {Object} response - Respuesta Axios (response.status, response.data).
-     * @returns {Payment[]}
-     */
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
-        // TODO: adjust extraction path if data is nested (e.g. response.data.items)
-        return response.data.map(r => PaymentAssembler.toEntityFromResource(r));
+        const list = response.data?.items ?? response.data?.data ?? response.data;
+        if (!Array.isArray(list)) return [];
+        return list.map(r => PaymentAssembler.toEntityFromResource(r));
+    }
+
+    static toEntityFromResponse(response) {
+        if (response.status !== 200 && response.status !== 201) return null;
+        const data = response.data?.data ?? response.data;
+        if (!data) return null;
+        return PaymentAssembler.toEntityFromResource(data);
+    }
+
+    static toResourceFromEntity(payment) {
+        return {
+            saleId:         payment.saleId,
+            tableNumber:    payment.tableNumber,
+            zoneName:       payment.zoneName,
+            items:          payment.items,
+            subtotal:       payment.subtotal,
+            tax:            payment.tax,
+            discount:       payment.discount,
+            total:          payment.total,
+            method:         payment.method,
+            amountReceived: payment.amountReceived,
+            change:         payment.change,
+            receiptType:    payment.receiptType,
+            receiptData:    payment.receiptData,
+            status:         payment.status,
+            cashierId:      payment.cashierId,
+        };
     }
 }
