@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
 import { usePosStore }    from '../../../pos/application/pos.store.js'
@@ -14,6 +14,8 @@ const store    = useTablesStore()
 const posStore = usePosStore()
 const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
+
+onMounted(() => store.fetchAll())
 
 const activeTab        = ref('floor')   // 'floor' | 'manage'
 const showZoneDialog   = ref(false)
@@ -155,6 +157,21 @@ function onTableSaved(table) {
         <!-- ══════════════════ TAB: PLANO DEL SALÓN ══════════════════════ -->
         <div v-if="activeTab === 'floor'" class="p-4 flex flex-column gap-4 floor-tab">
 
+            <!-- Error banner -->
+            <div v-if="store.error" class="tables-error-banner">
+                <i class="pi pi-exclamation-circle"></i>
+                {{ store.error }}
+                <button class="tables-error-banner__retry" @click="store.fetchAll()">
+                    <i class="pi pi-refresh"></i> Reintentar
+                </button>
+            </div>
+
+            <!-- Loading overlay -->
+            <div v-if="store.isLoading" class="tables-loading">
+                <i class="pi pi-spin pi-spinner" style="font-size:1.5rem; color:#6366f1"></i>
+                <span>Cargando mesas…</span>
+            </div>
+
             <!-- Stat chips (los de estado actúan como filtro toggle) -->
             <div class="stat-row">
                 <div class="stat-chip">
@@ -278,6 +295,13 @@ function onTableSaved(table) {
                         @click.stop="store.setTableStatus(table.id, 'available')"
                     >
                         <i class="pi pi-check"></i> Lista
+                    </button>
+                    <button
+                        v-else-if="table.status === 'reserved'"
+                        class="table-card__cta table-card__cta--reservada"
+                        @click.stop="store.setTableStatus(table.id, 'available')"
+                    >
+                        <i class="pi pi-calendar-times"></i> Cancelar Reserva
                     </button>
                 </div>
             </div>
@@ -695,6 +719,44 @@ function onTableSaved(table) {
 .table-card__cta--asignar:hover { filter: brightness(1.1); }
 .table-card__cta--limpiar { background: #d97706; color: #fff; }
 .table-card__cta--limpiar:hover { filter: brightness(1.1); }
+.table-card__cta--reservada { background: #7c3aed; color: #fff; }
+.table-card__cta--reservada:hover { filter: brightness(1.1); }
+
+/* ── Loading / Error ─────────────────────────────────────────────────── */
+.tables-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1rem;
+    color: #6366f1;
+    font-size: 0.9rem;
+}
+.tables-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #dc2626;
+    font-size: 0.85rem;
+}
+.tables-error-banner__retry {
+    margin-left: auto;
+    background: none;
+    border: 1px solid #dc2626;
+    border-radius: 6px;
+    color: #dc2626;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.2rem 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.tables-error-banner__retry:hover { background: rgba(239,68,68,0.08); }
 
 /* ── Zone cards (manage tab) ─────────────────────────────────────────── */
 .zones-grid {

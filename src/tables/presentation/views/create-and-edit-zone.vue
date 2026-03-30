@@ -14,6 +14,7 @@ const form = reactive({
     name:        '',
     description: '',
     color:       '3B82F6',
+    isActive:    true,
 })
 
 // Reset form each time the dialog opens
@@ -22,6 +23,7 @@ watch(() => props.visible, (val) => {
         form.name        = props.zone?.name        ?? ''
         form.description = props.zone?.description ?? ''
         form.color       = (props.zone?.color ?? '#3B82F6').replace('#', '')
+        form.isActive    = props.zone?.isActive    ?? true
     }
 })
 
@@ -29,7 +31,7 @@ const onCancel = () => emit('update:visible', false)
 
 const onSave = () => {
     if (!form.name.trim()) return
-    emit('zone-saved', { name: form.name, description: form.description, color: '#' + form.color })
+    emit('zone-saved', { name: form.name, description: form.description, color: '#' + form.color, isActive: form.isActive })
     emit('update:visible', false)
 }
 </script>
@@ -79,6 +81,15 @@ const onSave = () => {
                             @input="form.color = $event.target.value.replace('#', '')"
                         />
                     </div>
+                </div>
+
+                <!-- Zona activa -->
+                <div class="flex align-items-center justify-content-between p-3 border-round-lg" style="background: var(--surface-ground);">
+                    <div class="flex flex-column gap-1">
+                        <span class="text-sm font-medium" style="color: #374151;">Zona activa</span>
+                        <span class="text-xs text-color-secondary">Las zonas inactivas no aparecen en el plano del salón</span>
+                    </div>
+                    <pv-toggle-switch v-model="form.isActive" />
                 </div>
 
             </div>
