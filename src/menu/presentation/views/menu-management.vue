@@ -132,7 +132,7 @@ function onCategorySaved(data) {
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button
-                        :class="['cat-pill', store.selectedCategoryId === null && 'cat-pill--active']"
+                        :class="['filter-pill', store.selectedCategoryId === null && 'filter-pill--active']"
                         @click="store.selectCategory(null)"
                     >
                         Todas ({{ store.totalItems }})
@@ -140,8 +140,8 @@ function onCategorySaved(data) {
                     <button
                         v-for="cat in store.categories"
                         :key="cat.id"
-                        :class="['cat-pill', store.selectedCategoryId === cat.id && 'cat-pill--active']"
-                        :style="store.selectedCategoryId !== cat.id ? { borderLeft: `4px solid ${cat.color}` } : {}"
+                        :class="['filter-pill', store.selectedCategoryId === cat.id && 'filter-pill--active']"
+                        :style="{ borderLeft: `4px solid ${cat.color}` }"
                         @click="store.selectCategory(cat.id)"
                     >
                         {{ cat.name }} ({{ cat.count }})
@@ -330,25 +330,7 @@ function onCategorySaved(data) {
     padding-left: 2.25rem !important;
 }
 
-/* ── Category filter pills (catalog tab, read-only) ───────────────────── */
-.cat-pill {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    padding: 0.4rem 0.9rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: #374151;
-    white-space: nowrap;
-    transition: background 0.12s;
-}
-.cat-pill--active {
-    background: var(--p-primary-color, #6366f1);
-    color: #fff;
-    border-color: var(--p-primary-color, #6366f1);
-}
-.cat-pill:not(.cat-pill--active):hover { background: #f3f4f6; }
+/* Category filter pills → uses global .filter-pill from utilities.css */
 
 /* ── Menu item cards grid ───────────────────────────────────── */
 .menu-grid {

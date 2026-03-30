@@ -164,7 +164,7 @@ function onTableSaved(table) {
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button
-                        :class="['zone-pill', store.selectedZoneId === null && 'zone-pill--active']"
+                        :class="['filter-pill', store.selectedZoneId === null && 'filter-pill--active']"
                         @click="store.selectZone(null)"
                     >
                         Todas las Zonas ({{ store.totalTables }})
@@ -172,8 +172,8 @@ function onTableSaved(table) {
                     <button
                         v-for="zone in store.zones"
                         :key="zone.id"
-                        :class="['zone-pill', store.selectedZoneId === zone.id && 'zone-pill--active']"
-                        :style="store.selectedZoneId !== zone.id ? { borderLeft: `4px solid ${zone.color}` } : {}"
+                        :class="['filter-pill', store.selectedZoneId === zone.id && 'filter-pill--active']"
+                        :style="{ borderLeft: `4px solid ${zone.color}` }"
                         @click="store.selectZone(zone.id)"
                     >
                         {{ zone.name }} ({{ zone.count }})
@@ -417,24 +417,7 @@ function onTableSaved(table) {
 .stat-card { min-width: 130px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-/* ── Zone filter pills (floor tab) ───────────────────────────────────── */
-.zone-pill {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    padding: 0.4rem 0.9rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: #374151;
-    transition: background 0.12s;
-}
-.zone-pill--active {
-    background: var(--p-primary-color, #6366f1);
-    color: #fff;
-    border-color: var(--p-primary-color, #6366f1);
-}
-.zone-pill:not(.zone-pill--active):hover { background: #f3f4f6; }
+/* Zone filter pills → uses global .filter-pill from utilities.css */
 
 /* ── Grilla de mesas (floor) ─────────────────────────────────────────── */
 .tables-grid {

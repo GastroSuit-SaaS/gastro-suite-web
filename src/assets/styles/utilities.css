@@ -472,3 +472,59 @@
 
 /* padding-left del input se sobreescribe en primevue-overrides.css
    (.input-icon-wrapper .p-inputtext) con mayor especificidad */
+
+/* ========================================
+   FILTER PILL — COMPONENTE GLOBAL
+   ========================================
+   Uso:
+     <button class="filter-pill [filter-pill--active]"
+             [:style="{ borderLeft: '4px solid <color>' }"]>
+       Etiqueta (n)
+     </button>
+
+   Con ícono interno:
+     <button class="filter-pill [filter-pill--active]">
+       <i class="pi pi-bolt filter-pill__icon" [:style="{color}"]></i>
+       Etiqueta
+     </button>
+
+   Nota: aplica el borderLeft en estado INACTIVO vía :style para
+   mantener el color de zona/categoría/estación como indicador visual.
+   El estado activo lo sobreescribe con el color primario global.
+   ======================================== */
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.filter-pill--active {
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  border-color: var(--color-primary, #3b82f6);
+  /* border-left-color se mantiene desde el :style inline para conservar
+     el color de zona/categoría/estación como acento visual */
+}
+
+.filter-pill--active .filter-pill__icon {
+  color: #fff !important;
+}
+
+.filter-pill:not(.filter-pill--active):hover {
+  background: #f3f4f6;
+}
+
+.filter-pill__icon {
+  font-size: 0.82rem;
+  line-height: 1;
+}

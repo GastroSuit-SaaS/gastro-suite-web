@@ -113,7 +113,7 @@ function onDeleteStation(station) {
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button
-                        :class="['station-pill', store.selectedStationId === null && 'station-pill--active']"
+                        :class="['filter-pill', store.selectedStationId === null && 'filter-pill--active']"
                         @click="store.selectStation(null)"
                     >
                         Todas ({{ store.totalToday }})
@@ -121,11 +121,11 @@ function onDeleteStation(station) {
                     <button
                         v-for="st in store.activeStations"
                         :key="st.id"
-                        :class="['station-pill', store.selectedStationId === st.id && 'station-pill--active']"
-                        :style="store.selectedStationId !== st.id ? { borderLeft: `4px solid ${st.color}` } : {}"
+                        :class="['filter-pill', store.selectedStationId === st.id && 'filter-pill--active']"
+                        :style="{ borderLeft: `4px solid ${st.color}` }"
                         @click="store.selectStation(st.id)"
                     >
-                        <i :class="['pi', st.icon]" :style="{ color: st.color }"></i>
+                        <i :class="['pi', st.icon, 'filter-pill__icon']" :style="{ color: st.color }"></i>
                         {{ st.name }} ({{ store.tickets.filter(t => t.stationId === st.id).length }})
                     </button>
                 </div>
@@ -329,29 +329,7 @@ function onDeleteStation(station) {
 .stat-card { min-width: 130px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-/* ── Station filter pills ─────────────────────────────────────────────── */
-.station-pill {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    padding: 0.4rem 0.9rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: #374151;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    transition: background 0.12s;
-}
-.station-pill--active {
-    background: var(--p-primary-color, #6366f1);
-    color: #fff;
-    border-color: var(--p-primary-color, #6366f1);
-}
-.station-pill--active .pi { color: #fff !important; }
-.station-pill:not(.station-pill--active):hover { background: #f3f4f6; }
+/* Station filter pills → uses global .filter-pill from utilities.css */
 
 /* ── Kanban board ─────────────────────────────────────────────────────── */
 .kanban-board {
