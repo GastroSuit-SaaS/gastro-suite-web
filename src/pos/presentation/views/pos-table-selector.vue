@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePosStore }       from '../../application/pos.store.js'
 import { TABLE_STATUS_CONFIG } from '../../../shared/presentation/constants/table-status.constants.js'
@@ -8,6 +8,10 @@ import { posOrderRoute }     from '../constants/pos.constants-ui.js'
 const route    = useRoute()
 const router   = useRouter()
 const posStore = usePosStore()
+
+onMounted(() => {
+    if (posStore.sales.length === 0) posStore.fetchAll()
+})
 
 const zoneId = computed(() => Number(route.params.zoneId))
 

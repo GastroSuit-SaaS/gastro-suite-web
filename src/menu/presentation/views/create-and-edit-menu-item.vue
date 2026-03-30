@@ -35,6 +35,8 @@ const form = reactive({
     categoryId:  null,
     sku:         '',
     price:       0,
+    cost:        0,
+    prepTime:    0,
     stationId:   null,
     isAvailable: true,
 })
@@ -54,6 +56,8 @@ watch(() => props.visible, (val) => {
         form.categoryId  = src?.categoryId  ?? null
         form.sku         = src?.sku         ?? ''
         form.price       = src?.price       ?? 0
+        form.cost        = src?.cost        ?? 0
+        form.prepTime    = src?.prepTime    ?? 0
         form.stationId   = src?.stationId   ?? null
         form.isAvailable = src?.isAvailable ?? true
         imageFile.value  = null
@@ -83,6 +87,8 @@ function onSave() {
         categoryId:  form.categoryId,
         sku:         form.sku.trim(),
         price:       form.price,
+        cost:        form.cost,
+        prepTime:    form.prepTime,
         stationId:   form.stationId,
         station:     selectedStation?.id !== null ? selectedStation?.name ?? null : null,
         isAvailable: form.isAvailable,
@@ -175,6 +181,29 @@ function onClose() {
                         />
                         <small v-if="errors.price" class="text-red-500">Ingrese un precio válido</small>
                     </div>
+                    <div class="flex flex-column gap-1 flex-1">
+                        <label class="field-label">Costo</label>
+                        <pv-input-number
+                            v-model="form.cost"
+                            prefix="S/  "
+                            :min-fraction-digits="2"
+                            :max-fraction-digits="2"
+                            :min="0"
+                            class="w-full"
+                        />
+                    </div>
+                </div>
+
+                <!-- Tiempo de Preparación -->
+                <div class="flex flex-column gap-1">
+                    <label class="field-label">Tiempo de Preparación</label>
+                    <pv-input-number
+                        v-model="form.prepTime"
+                        :min="0"
+                        suffix=" min"
+                        class="w-full"
+                    />
+                    <small class="text-color-secondary">Tiempo estimado hasta que el plato esté listo</small>
                 </div>
 
                 <!-- Estación de Preparación -->

@@ -30,6 +30,20 @@ onMounted(() => {
 <template>
     <div class="p-4 flex flex-column gap-4">
 
+        <!-- ══ Loading ═══════════════════════════════════════════════════════ -->
+        <div v-if="posStore.isLoading" class="flex align-items-center justify-content-center py-6">
+            <pv-progress-spinner style="width:2.5rem;height:2.5rem" stroke-width="4" />
+        </div>
+
+        <!-- ══ Error banner ══════════════════════════════════════════════════ -->
+        <div v-else-if="posStore.error" class="pos-error-banner">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{{ posStore.error }}</span>
+            <button class="pos-error-banner__retry" @click="posStore.fetchAll()">Reintentar</button>
+        </div>
+
+        <template v-else>
+
         <!-- ── Stat cards (siempre visibles) ───────────────────────────── -->
         <div class="flex flex-wrap gap-3">
             <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
@@ -183,11 +197,41 @@ onMounted(() => {
 
         </transition>
 
+        </template>
+
     </div>
 </template>
 
 <style scoped>
 .stat-card { min-width: 160px; }
+
+/* Error banner */
+.pos-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: #dc2626;
+}
+.pos-error-banner .pi { font-size: 1rem; flex-shrink: 0; }
+.pos-error-banner span { flex: 1; }
+.pos-error-banner__retry {
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s;
+    flex-shrink: 0;
+}
+.pos-error-banner__retry:hover { background: #b91c1c; }
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 .empty-state { min-height: 180px; }

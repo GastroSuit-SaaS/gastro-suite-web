@@ -119,7 +119,7 @@ export const usePaymentsStore = defineStore('payments', () => {
         const payment = new Payment({ id: tempId, status: PAYMENT_STATUS.COMPLETED, ...data });
         payments.value.unshift(payment);            // optimistic insert — más reciente primero
         try {
-            const response = await api.create(PaymentAssembler.toResourceFromEntity(payment));
+            const response = await api.processPayment(PaymentAssembler.toResourceFromEntity(payment));
             if (response.status === 201 || response.status === 200) {
                 const saved = PaymentAssembler.toEntityFromResponse(response);
                 if (saved) {
@@ -134,9 +134,24 @@ export const usePaymentsStore = defineStore('payments', () => {
         return payment;
     }
 
+    /**
+     * Marca un pago existente como reembolsado.
+     * @param {number} id     - ID del pago a reembolsar
+     * @param {string} reason - Motivo del reembolso
+     */
+    async function refund(id, reason = '') {
+        const idx = payments.value.findIndex(p => p.id === id);
+        if (idx !== -1) payments.value[idx] = new Payment({ ...payments.value[idx], status: PAYMENT_STATUS.REFUNDED });
+        try {
+            await api.refund(id, reason);
+        } catch {
+            // Cambio local se mantiene; se sincronizará en el próximo fetchAll
+        }
+    }
+
     return {
         payments, selectedPayment, isLoading, error,
         todaysPayments, todayTotal, totalAmount, todayByMethod, todayCount,
-        fetchAll, fetchById, remove, registerPayment,
+        fetchAll, fetchById, remove, registerPayment, refund,
     };
 });

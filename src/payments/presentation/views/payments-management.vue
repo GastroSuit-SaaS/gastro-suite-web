@@ -2,6 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { usePaymentsStore }         from '../../application/payments.store.js'
 import { PAYMENT_STATUS }           from '../../domain/models/payment.entity.js'
+import {
+    METHOD_LABELS, METHOD_COLORS, METHOD_FILTER_OPTIONS,
+    RECEIPT_LABELS, RECEIPT_COLORS,
+    PAYMENT_STATUS_CONFIG,
+} from '../constants/payments.constants-ui.js'
 
 const store = usePaymentsStore()
 
@@ -13,22 +18,10 @@ onMounted(() => {
 const filterMethod  = ref('all')
 const filterReceipt = ref('all')
 const searchQuery   = ref('')
-
-const METHODS = [
-    { key: 'all',  label: 'Todos',    icon: 'pi-list' },
-    { key: 'cash', label: 'Efectivo', icon: 'pi-money-bill' },
-    { key: 'card', label: 'Tarjeta',  icon: 'pi-credit-card' },
-    { key: 'yape', label: 'Yape',     icon: 'pi-mobile' },
-    { key: 'plin', label: 'Plin',     icon: 'pi-send' },
-]
-
-const RECEIPT_LABELS = { nota: 'Nota de Venta', boleta: 'Boleta', factura: 'Factura' }
-const METHOD_LABELS  = { cash: 'Efectivo', card: 'Tarjeta', yape: 'Yape', plin: 'Plin' }
-const METHOD_COLORS  = { cash: '#10b981', card: '#6366f1', yape: '#8b5cf6', plin: '#3b82f6' }
-const RECEIPT_COLORS = { nota: '#6b7280', boleta: '#f59e0b', factura: '#3b82f6' }
+const showAll       = ref(false)   // false = sólo hoy | true = historial completo
 
 const filteredPayments = computed(() => {
-    let list = store.todaysPayments
+    let list = showAll.value ? store.payments : store.todaysPayments
     if (filterMethod.value  !== 'all') list = list.filter(p => p.method      === filterMethod.value)
     if (filterReceipt.value !== 'all') list = list.filter(p => p.receiptType === filterReceipt.value)
     if (searchQuery.value.trim()) {
@@ -50,6 +43,16 @@ const detailPayment = ref(null)
 function openDetail(p)  { detailPayment.value = p }
 function closeDetail()  { detailPayment.value = null }
 
+const confirmRefundId = ref(null)
+function openRefundConfirm(id) { confirmRefundId.value = id }
+function cancelRefund()        { confirmRefundId.value = null }
+async function confirmRefund() {
+    if (!confirmRefundId.value) return
+    await store.refund(confirmRefundId.value)
+    confirmRefundId.value = null
+    closeDetail()
+}
+
 function formatTime(date) {
     return new Date(date).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
 }
@@ -60,6 +63,13 @@ function formatDate(date) {
 
 <template>
     <div class="pay-history">
+
+        <!-- ══ Error banner ══════════════════════════════════════════════ -->
+        <div v-if="store.error" class="pay-error-banner">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{{ store.error }}</span>
+            <button class="pay-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
+        </div>
 
         <!-- ══ Stat cards ═════════════════════════════════════════════════ -->
         <div class="stat-strip">
@@ -114,7 +124,7 @@ function formatDate(date) {
             <div class="filter-group">
                 <span class="filter-group__label">Método</span>
                 <button
-                    v-for="m in METHODS"
+                    v-for="m in METHOD_FILTER_OPTIONS"
                     :key="m.key"
                     :class="['filter-pill', filterMethod === m.key ? 'filter-pill--active' : '']"
                     @click="filterMethod = m.key"
@@ -140,6 +150,17 @@ function formatDate(date) {
                     @click="filterReceipt = key"
                 >{{ label }}</button>
             </div>
+
+            <span class="filter-divider"></span>
+
+            <!-- Hoy / Historial -->
+            <button
+                :class="['filter-pill', showAll && 'filter-pill--active']"
+                @click="showAll = !showAll"
+            >
+                <i class="pi pi-history"></i>
+                {{ showAll ? 'Historial completo' : 'Solo hoy' }}
+            </button>
         </div>
 
         <!-- ══ Loading ════════════════════════════════════════════════════ -->
@@ -236,6 +257,14 @@ function formatDate(date) {
                                 class="badge"
                                 :style="{ background: RECEIPT_COLORS[detailPayment.receiptType] + '22', color: RECEIPT_COLORS[detailPayment.receiptType], border: '1px solid ' + RECEIPT_COLORS[detailPayment.receiptType] + '66' }"
                             >{{ RECEIPT_LABELS[detailPayment.receiptType] }}</span>
+                            <span
+                                v-if="PAYMENT_STATUS_CONFIG[detailPayment.status]"
+                                class="badge"
+                                :style="{ background: PAYMENT_STATUS_CONFIG[detailPayment.status].bg, color: PAYMENT_STATUS_CONFIG[detailPayment.status].color, border: '1px solid ' + PAYMENT_STATUS_CONFIG[detailPayment.status].color + '66' }"
+                            >
+                                <i :class="['pi', PAYMENT_STATUS_CONFIG[detailPayment.status].icon]" style="font-size:.7rem"></i>
+                                {{ PAYMENT_STATUS_CONFIG[detailPayment.status].label }}
+                            </span>
                         </div>
                         <button class="dlg-close" @click="closeDetail" aria-label="Cerrar">
                             <i class="pi pi-times"></i>
@@ -337,7 +366,25 @@ function formatDate(date) {
 
                     <!-- Footer -->
                     <div class="dlg-footer">
-                        <button class="dlg-btn dlg-btn--primary" @click="closeDetail">Cerrar</button>
+                        <!-- Confirmación de reembolso -->
+                        <template v-if="confirmRefundId === detailPayment.id">
+                            <span class="dlg-refund-confirm-text">
+                                <i class="pi pi-exclamation-circle"></i>
+                                ¿Confirmar reembolso?
+                            </span>
+                            <button class="dlg-btn dlg-btn--danger" @click="confirmRefund">Sí, reembolsar</button>
+                            <button class="dlg-btn" @click="cancelRefund">Cancelar</button>
+                        </template>
+                        <template v-else>
+                            <button
+                                v-if="detailPayment.status === PAYMENT_STATUS.COMPLETED"
+                                class="dlg-btn dlg-btn--danger"
+                                @click="openRefundConfirm(detailPayment.id)"
+                            >
+                                <i class="pi pi-replay"></i> Reembolsar
+                            </button>
+                            <button class="dlg-btn dlg-btn--primary" @click="closeDetail">Cerrar</button>
+                        </template>
                     </div>
 
                 </div>
@@ -669,6 +716,62 @@ function formatDate(date) {
     border-color: #6366f1;
 }
 .dlg-btn--primary:hover { background: #4f46e5; }
+.dlg-btn--danger {
+    background: #fee2e2;
+    color: #dc2626;
+    border-color: #fca5a5;
+    margin-right: auto;
+}
+.dlg-btn--danger:hover { background: #fecaca; }
+
+.dlg-footer { gap: 0.5rem; align-items: center; }
+.dlg-refund-confirm-text {
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #dc2626;
+}
+
+/* Error banner */
+.pay-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: #dc2626;
+    margin-bottom: 0.5rem;
+}
+.pay-error-banner .pi { font-size: 1rem; flex-shrink: 0; }
+.pay-error-banner span { flex: 1; }
+.pay-error-banner__retry {
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s;
+    flex-shrink: 0;
+}
+.pay-error-banner__retry:hover { background: #b91c1c; }
+
+/* History toggle */
+.filter-divider {
+    width: 1px;
+    height: 1.5rem;
+    background: #e5e7eb;
+    align-self: center;
+    flex-shrink: 0;
+}
 
 /* Transition */
 .dlg-fade-enter-active,

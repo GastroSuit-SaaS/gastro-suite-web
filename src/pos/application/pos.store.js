@@ -233,7 +233,7 @@ export const usePosStore = defineStore('pos', () => {
      * para que rondas posteriores solo despachen el delta nuevo.
      * @returns {number} Cantidad de ítems despachados (0 si no había nada pendiente)
      */
-    function sendCurrentSaleToStations() {
+    async function sendCurrentSaleToStations() {
         if (!currentSale.value) return 0;
         const pending = currentSale.value.items.filter(i => !i.isSent);
         if (pending.length === 0) return 0;
@@ -246,21 +246,28 @@ export const usePosStore = defineStore('pos', () => {
             table?.number ?? null,
         );
         pending.forEach(item => { item.isSent = true; });
-        // TODO: persist via api.update(currentSale.value.id, ...)
+        // Persist updated isSent flags to backend
+        try {
+            await api.update(currentSale.value.id, SaleAssembler.toResourceFromEntity(currentSale.value));
+        } catch { /* local state kept — stations already notified */ }
         return pending.length;
     }
 
     /**
      * Cancela la orden activa: marca como CANCELLED y libera la mesa.
      */
-    function cancelCurrentSale() {
+    async function cancelCurrentSale() {
         if (!currentSale.value) return;
+        const saleId  = currentSale.value.id;
         const tableId = currentSale.value.tableId;
         currentSale.value.status = SALE_STATUS.CANCELLED;
         tablesStore.freeTable(tableId);
         currentSale.value = null;
         currentSaleIsRecovered.value = false;
-        // TODO: persist via api.cancel(sale.id)
+        // Persist cancellation — fire-and-forget, local state already updated
+        try {
+            await api.cancel(saleId);
+        } catch { /* local state kept */ }
     }
 
     /**
@@ -270,9 +277,10 @@ export const usePosStore = defineStore('pos', () => {
      * @param {{ method: string, amountReceived: number, receiptType: string, receiptData: object }} paymentData
      * @returns {boolean}
      */
-    function confirmPayment({ method, amountReceived, receiptType, receiptData }) {
+    async function confirmPayment({ method, amountReceived, receiptType, receiptData }) {
         if (!currentSale.value) return false;
         const sale    = currentSale.value;
+        const saleId  = sale.id;
         const tableId = sale.tableId;
         const table   = tablesStore.tables.find(t => t.id === tableId);
         const zone    = tablesStore.zones.find(z => z.id === sale.zoneId);
@@ -280,7 +288,7 @@ export const usePosStore = defineStore('pos', () => {
         // Registrar en el módulo de pagos (lazy — evita problemas de orden de init)
         const paymentsStore = usePaymentsStore();
         paymentsStore.registerPayment({
-            saleId:         sale.id,
+            saleId:         saleId,
             tableNumber:    table?.number ?? null,
             zoneName:       zone?.name   ?? null,
             items:          sale.items.map(i => ({
@@ -299,10 +307,17 @@ export const usePosStore = defineStore('pos', () => {
             receiptData,
         });
 
+        // Optimistic update — mark paid locally first
         sale.status = SALE_STATUS.PAID;
         tablesStore.freeTable(tableId);
         currentSale.value = null;
         currentSaleIsRecovered.value = false;
+
+        // Persist PAID status to backend
+        try {
+            await api.pay(saleId, { method, amountReceived, receiptType });
+        } catch { /* local + payments state kept — payment already registered */ }
+
         return true;
     }
 

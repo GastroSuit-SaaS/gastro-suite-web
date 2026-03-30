@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useMenuStore } from '../../application/menu.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import CreateAndEditCategory from './create-and-edit-category.vue'
@@ -7,6 +7,8 @@ import CreateAndEditMenuItem  from './create-and-edit-menu-item.vue'
 
 const store = useMenuStore()
 const { confirmDelete } = useConfirmDialog()
+
+onMounted(() => store.fetchAll())
 
 const selectedAvailability = ref(null) // null | true | false
 
@@ -56,7 +58,7 @@ function openCreateCategory() {
 }
 
 function openEditCategory(cat) {
-    editingCategory.value = { id: cat.id, name: cat.name, color: cat.color, description: cat.description ?? '' }
+    editingCategory.value = { id: cat.id, name: cat.name, color: cat.color, description: cat.description ?? '', isActive: cat.isActive ?? true }
     showCategoryDialog.value = true
 }
 
@@ -76,6 +78,19 @@ function onCategorySaved(data) {
 
 <template>
     <div class="menu-layout">
+
+        <!-- ── Loading ────────────────────────────────────────────────── -->
+        <div v-if="store.isLoading" class="menu-loading">
+            <pv-progress-spinner style="width:40px;height:40px" stroke-width="4" />
+            <span>Cargando menú...</span>
+        </div>
+
+        <!-- ── Error banner ───────────────────────────────────────────── -->
+        <div v-if="store.error" class="menu-error-banner">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{{ store.error }}</span>
+            <button class="menu-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
+        </div>
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
         <div class="menu-tabs">
@@ -175,6 +190,13 @@ function onCategorySaved(data) {
                             <button class="menu-card__action-btn menu-card__action-btn--edit" title="Editar" @click.stop="openEditItem(item)">
                                 <i class="pi pi-pencil"></i>
                             </button>
+                            <button
+                                class="menu-card__action-btn menu-card__action-btn--toggle"
+                                :title="item.isAvailable ? 'Marcar no disponible' : 'Marcar disponible'"
+                                @click.stop="store.setItemAvailability(item.id, !item.isAvailable)"
+                            >
+                                <i :class="['pi', item.isAvailable ? 'pi-eye-slash' : 'pi-eye']"></i>
+                            </button>
                             <button class="menu-card__action-btn menu-card__action-btn--delete" title="Eliminar" @click.stop="onDeleteItem(item)">
                                 <i class="pi pi-trash"></i>
                             </button>
@@ -222,7 +244,12 @@ function onCategorySaved(data) {
                             <div class="cat-card__name">{{ cat.name }}</div>
                             <div class="cat-card__desc">{{ cat.description || 'Sin descripción' }}</div>
                         </div>
-                        <div class="cat-card__badge">{{ cat.count }} producto{{ cat.count !== 1 ? 's' : '' }}</div>
+                        <div class="flex flex-column align-items-end gap-1">
+                            <div class="cat-card__badge">{{ cat.count }} producto{{ cat.count !== 1 ? 's' : '' }}</div>
+                            <span :class="['cat-card__active-badge', cat.isActive ? 'cat-card__active-badge--on' : 'cat-card__active-badge--off']">
+                                {{ cat.isActive !== false ? 'Activa' : 'Inactiva' }}
+                            </span>
+                        </div>
                     </div>
                     <div class="cat-card__actions">
                         <button class="mgmt-btn mgmt-btn--edit" title="Editar" @click="openEditCategory(cat)">
@@ -481,6 +508,11 @@ function onCategorySaved(data) {
     color: #fff;
 }
 
+.menu-card__action-btn--toggle {
+    background-color: #f59e0b;
+    color: #fff;
+}
+
 .menu-card__action-btn--delete {
     background-color: #ef4444;
     color: #fff;
@@ -510,6 +542,7 @@ function onCategorySaved(data) {
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -590,6 +623,16 @@ function onCategorySaved(data) {
     flex-shrink: 0;
 }
 
+.cat-card__active-badge {
+    font-size: 0.63rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.15rem 0.5rem;
+    flex-shrink: 0;
+}
+.cat-card__active-badge--on  { background: #dcfce7; color: #15803d; }
+.cat-card__active-badge--off { background: #fee2e2; color: #b91c1c; }
+
 .cat-card__actions {
     display: flex;
     gap: 0.4rem;
@@ -617,4 +660,43 @@ function onCategorySaved(data) {
 }
 .mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
 .mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+/* ── Loading ──────────────────────────────────────────────────────────── */
+.menu-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    background: #f0f9ff;
+    border-bottom: 1px solid #bae6fd;
+    color: #0369a1;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+/* ── Error banner ─────────────────────────────────────────────────────── */
+.menu-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.25rem;
+    background: #fef2f2;
+    border-bottom: 1px solid #fca5a5;
+    color: #dc2626;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+.menu-error-banner i { font-size: 1rem; }
+.menu-error-banner__retry {
+    margin-left: auto;
+    padding: 0.3rem 0.9rem;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.menu-error-banner__retry:hover { background: #b91c1c; }
 </style>

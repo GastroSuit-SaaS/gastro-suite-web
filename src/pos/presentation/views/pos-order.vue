@@ -106,9 +106,9 @@ function cancelDiscount() {
     editingDiscountId.value = null
 }
 
-// â”€â”€ Acciones de orden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function enviarEstaciones() {
-    const count = posStore.sendCurrentSaleToStations()
+
+async function enviarEstaciones() {
+    const count = await posStore.sendCurrentSaleToStations()
     if (count > 0) {
         toast.add({
             severity: 'success',

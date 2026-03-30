@@ -88,8 +88,8 @@ function goBack() {
     router.push(`${POS_ROUTES.ORDER}/${tableId.value}`)
 }
 
-function cancelOrder() {
-    posStore.cancelCurrentSale()
+async function cancelOrder() {
+    await posStore.cancelCurrentSale()
     toast.add({
         severity: 'warn',
         summary:  'Orden cancelada',
@@ -109,9 +109,9 @@ function printPreCuenta() {
     })
 }
 
-function confirmPayment() {
+async function confirmPayment() {
     if (!canConfirm.value) return
-    posStore.confirmPayment({
+    await posStore.confirmPayment({
         method:         selectedMethod.value,
         amountReceived: cashParsed.value ?? sale.value.total,
         receiptType:    receiptType.value,

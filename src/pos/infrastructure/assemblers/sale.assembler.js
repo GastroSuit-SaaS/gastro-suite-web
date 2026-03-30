@@ -76,9 +76,15 @@ export class SaleAssembler {
      */
     static toResourceFromEntity(sale) {
         return {
-            tableId:  sale.tableId,
-            zoneId:   sale.zoneId,
-            status:   sale.status,
+            id:        sale.id,
+            tableId:   sale.tableId,
+            zoneId:    sale.zoneId,
+            status:    sale.status,
+            subtotal:  sale.subtotal,
+            tax:       sale.tax,
+            discount:  sale.discount,
+            total:     sale.total,
+            cashierId: sale.cashierId,
             items: sale.items.map(i => ({
                 menuItemId:    i.menuItemId,
                 menuItemName:  i.menuItemName,

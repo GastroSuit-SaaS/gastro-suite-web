@@ -14,6 +14,7 @@ const form = reactive({
     name:        '',
     description: '',
     color:       '3B82F6',
+    isActive:    true,
 })
 
 watch(() => props.visible, (val) => {
@@ -21,6 +22,7 @@ watch(() => props.visible, (val) => {
         form.name        = props.category?.name        ?? ''
         form.description = props.category?.description ?? ''
         form.color       = (props.category?.color ?? '#3B82F6').replace('#', '')
+        form.isActive    = props.category?.isActive    ?? true
     }
 })
 
@@ -28,7 +30,7 @@ const onCancel = () => emit('update:visible', false)
 
 const onSave = () => {
     if (!form.name.trim()) return
-    emit('category-saved', { name: form.name, description: form.description, color: '#' + form.color })
+    emit('category-saved', { name: form.name, description: form.description, color: '#' + form.color, isActive: form.isActive })
     emit('update:visible', false)
 }
 </script>
@@ -77,6 +79,19 @@ const onSave = () => {
                             class="flex-1"
                             @input="form.color = $event.target.value.replace('#', '')"
                         />
+                    </div>
+                </div>
+
+                <!-- Categoría activa -->
+                <div class="flex align-items-center gap-3">
+                    <pv-toggle-switch v-model="form.isActive" input-id="cat-active" />
+                    <div class="flex flex-column gap-0">
+                        <label for="cat-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
+                            Categoría activa
+                        </label>
+                        <span class="text-xs" style="color: #6b7280;">
+                            {{ form.isActive ? 'Visible en el menú del POS' : 'Oculta en el menú del POS' }}
+                        </span>
                     </div>
                 </div>
 

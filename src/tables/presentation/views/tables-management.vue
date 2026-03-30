@@ -337,9 +337,21 @@ function onTableSaved(table) {
                             <div class="zone-card__name">{{ zone.name }}</div>
                             <div class="zone-card__desc">{{ zone.description || 'Sin descripción' }}</div>
                         </div>
-                        <div class="zone-card__badge">{{ zone.count }} mesa{{ zone.count !== 1 ? 's' : '' }}</div>
+                        <div class="flex flex-column align-items-end gap-1">
+                            <div class="zone-card__badge">{{ zone.count }} mesa{{ zone.count !== 1 ? 's' : '' }}</div>
+                            <span :class="['zone-card__active-badge', zone.isActive ? 'zone-card__active-badge--on' : 'zone-card__active-badge--off']">
+                                {{ zone.isActive ? 'Activa' : 'Inactiva' }}
+                            </span>
+                        </div>
                     </div>
                     <div class="zone-card__actions">
+                        <button
+                            :class="['zone-mgmt-btn', zone.isActive ? 'zone-mgmt-btn--deactivate' : 'zone-mgmt-btn--activate']"
+                            :title="zone.isActive ? 'Desactivar zona' : 'Activar zona'"
+                            @click="store.updateZone(zone.id, { ...zone, isActive: !zone.isActive })"
+                        >
+                            <i :class="['pi', zone.isActive ? 'pi-ban' : 'pi-check-circle']"></i>
+                        </button>
                         <button class="zone-mgmt-btn zone-mgmt-btn--edit" title="Editar" @click="openEditZone(zone)">
                             <i class="pi pi-pencil"></i>
                         </button>
@@ -938,6 +950,18 @@ function onTableSaved(table) {
     color: #6b7280;
     transition: background 0.12s, color 0.12s;
 }
-.zone-mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
-.zone-mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+.zone-mgmt-btn--edit:hover       { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
+.zone-mgmt-btn--delete:hover     { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+.zone-mgmt-btn--deactivate:hover { background: #fffbeb; color: #d97706; border-color: #fcd34d; }
+.zone-mgmt-btn--activate:hover   { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+
+.zone-card__active-badge {
+    font-size: 0.63rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.15rem 0.5rem;
+    flex-shrink: 0;
+}
+.zone-card__active-badge--on  { background: #dcfce7; color: #15803d; }
+.zone-card__active-badge--off { background: #fee2e2; color: #b91c1c; }
 </style>

@@ -17,7 +17,7 @@ export class MenuItem {
         categoryId  = 'otros',
         category    = '',
         imageUrl    = null,
-        available   = true,
+        isAvailable = true,
     } = {}) {
         this.id          = id;
         this.name        = name;
@@ -26,6 +26,6 @@ export class MenuItem {
         this.categoryId  = categoryId;
         this.category    = category;
         this.imageUrl    = imageUrl;
-        this.available   = available;
+        this.isAvailable = isAvailable;
     }
 }

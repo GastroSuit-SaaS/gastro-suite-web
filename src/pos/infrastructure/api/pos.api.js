@@ -13,11 +13,12 @@ import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class PosApi extends BaseApi {
     #endpoint;
+    #path;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales');
+        this.#path     = import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales';
+        this.#endpoint = new BaseEndpoint(this, this.#path);
     }
 
     getAll() {
@@ -40,7 +41,15 @@ export class PosApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add POS-specific methods (openSession, closeSession, addItem, etc.)
+    /** PATCH /pos/sales/:id/cancel — cierra la venta por cancelación. */
+    cancel(id) {
+        return this.http.patch(`${this.#path}/${id}/cancel`);
+    }
+
+    /** PATCH /pos/sales/:id/pay — marca la venta como PAID en el backend. */
+    pay(id, paymentSummary) {
+        return this.http.patch(`${this.#path}/${id}/pay`, paymentSummary);
+    }
 }
 
 export const posApi = new PosApi();

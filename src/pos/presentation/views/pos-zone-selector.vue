@@ -1,10 +1,15 @@
 <script setup>
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePosStore }         from '../../application/pos.store.js'
 import { posSelectTableRoute } from '../constants/pos.constants-ui.js'
 
 const router   = useRouter()
 const posStore = usePosStore()
+
+onMounted(() => {
+    if (posStore.sales.length === 0) posStore.fetchAll()
+})
 
 function selectZone(zone) {
     router.push(posSelectTableRoute(zone.id))

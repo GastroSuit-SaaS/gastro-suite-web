@@ -73,7 +73,10 @@ function clearSearch() {
 // ── Live clock for reactive timers ──────────────────────────────────────
 const now = ref(Date.now())
 let _timerInterval = null
-onMounted(() => { _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000) })
+onMounted(() => {
+    store.fetchAll()
+    _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000)
+})
 onUnmounted(() => { clearInterval(_timerInterval) })
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -204,6 +207,19 @@ function urgencyBorderColor(ticket) {
 
 <template>
     <div class="stations-layout">
+
+        <!-- ── Loading ────────────────────────────────────────────────── -->
+        <div v-if="store.isLoading" class="stations-loading">
+            <pv-progress-spinner style="width:40px;height:40px" stroke-width="4" />
+            <span>Cargando estaciones...</span>
+        </div>
+
+        <!-- ── Error banner ───────────────────────────────────────────── -->
+        <div v-if="store.error" class="stations-error-banner">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>{{ store.error }}</span>
+            <button class="stations-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
+        </div>
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
         <div class="stations-tabs">
@@ -739,6 +755,13 @@ function urgencyBorderColor(ticket) {
 
                     <!-- Actions -->
                     <div class="station-card__actions">
+                        <button
+                            :class="['station-action-btn', station.isActive ? 'station-action-btn--deactivate' : 'station-action-btn--activate']"
+                            :title="station.isActive ? 'Desactivar estación' : 'Activar estación'"
+                            @click="store.updateStation(station.id, { ...station, isActive: !station.isActive })"
+                        >
+                            <i :class="['pi', station.isActive ? 'pi-ban' : 'pi-check-circle']"></i>
+                        </button>
                         <button class="station-action-btn station-action-btn--edit" title="Editar" @click="openEditStation(station)">
                             <i class="pi pi-pencil"></i>
                         </button>
@@ -838,6 +861,47 @@ function urgencyBorderColor(ticket) {
     height: 100%;
     min-height: 0;
 }
+
+/* ── Loading ──────────────────────────────────────────────────────────── */
+.stations-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    background: #f0f9ff;
+    border-bottom: 1px solid #bae6fd;
+    color: #0369a1;
+    font-size: 0.88rem;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+/* ── Error banner ─────────────────────────────────────────────────────── */
+.stations-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.25rem;
+    background: #fef2f2;
+    border-bottom: 1px solid #fca5a5;
+    color: #dc2626;
+    font-size: 0.88rem;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+.stations-error-banner i { font-size: 1rem; }
+.stations-error-banner__retry {
+    margin-left: auto;
+    padding: 0.3rem 0.9rem;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.stations-error-banner__retry:hover { background: #b91c1c; }
 
 /* ── Compact stat bar ─────────────────────────────────────────────────── */
 .stat-bar {
@@ -1723,8 +1787,10 @@ function urgencyBorderColor(ticket) {
     color: #6b7280;
     transition: background 0.12s, color 0.12s;
 }
-.station-action-btn--edit:hover  { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
-.station-action-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+.station-action-btn--edit:hover       { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
+.station-action-btn--delete:hover     { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+.station-action-btn--deactivate:hover { background: #fffbeb; color: #d97706; border-color: #fcd34d; }
+.station-action-btn--activate:hover   { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
 
 /* ── Cancel ticket button (icon-only, on ticket cards) ───────────────── */
 .ticket-card__cancel-btn {

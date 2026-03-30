@@ -14,6 +14,7 @@ const form = reactive({
     name:        '',
     description: '',
     color:       '3B82F6',
+    isActive:    true,
 })
 
 watch(() => props.visible, (val) => {
@@ -21,6 +22,7 @@ watch(() => props.visible, (val) => {
         form.name        = props.station?.name        ?? ''
         form.description = props.station?.description ?? ''
         form.color       = (props.station?.color ?? '#3B82F6').replace('#', '')
+        form.isActive    = props.station?.isActive    ?? true
     }
 })
 
@@ -32,7 +34,7 @@ const onSave = () => {
         name:        form.name,
         description: form.description,
         color:       '#' + form.color,
-        isActive:    props.station?.isActive ?? true,
+        isActive:    form.isActive,
     })
     emit('update:visible', false)
 }
@@ -83,6 +85,19 @@ const onSave = () => {
                             class="flex-1"
                             @input="form.color = $event.target.value.replace('#', '')"
                         />
+                    </div>
+                </div>
+
+                <!-- Estación activa -->
+                <div class="flex align-items-center gap-3">
+                    <pv-toggle-switch v-model="form.isActive" input-id="station-active" />
+                    <div class="flex flex-column gap-0">
+                        <label for="station-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
+                            Estación activa
+                        </label>
+                        <span class="text-xs" style="color: #6b7280;">
+                            {{ form.isActive ? 'Recibe tickets desde el POS' : 'No recibe tickets nuevos' }}
+                        </span>
                     </div>
                 </div>
 
