@@ -85,7 +85,7 @@ export const usePosStore = defineStore('pos', () => {
      * Si la mesa ya tiene una orden activa la asigna como currentSale;
      * si no, crea una nueva Sale en estado ACTIVE y marca la mesa como ocupada.
      */
-    function openSaleForTable(tableId, zoneId) {
+    function openSaleForTable(tableId, zoneId, seatedGuests = 0) {
         const existing = sales.value.find(
             s => s.tableId === tableId && s.status === SALE_STATUS.ACTIVE
         );
@@ -98,7 +98,7 @@ export const usePosStore = defineStore('pos', () => {
             sales.value.push(newSale);
             currentSale.value = newSale;
             currentSaleIsRecovered.value = false;
-            tablesStore.setTableStatus(tableId, 'occupied');
+            tablesStore.assignTable(tableId, seatedGuests);
         }
         // TODO: persist via api.create / api.getByTableId
     }

@@ -99,6 +99,12 @@ function onCategorySaved(data) {
 
         </div>
 
+        <!-- Action buttons -->
+        <div class="flex justify-content-end gap-2">
+            <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
+            <pv-button label="Nuevo Producto"  icon="pi pi-plus" size="small" severity="success" @click="openCreateItem" />
+        </div>
+
         <!-- Search bar -->
         <div class="search-wrapper">
             <i class="pi pi-search search-wrapper__icon"></i>
@@ -109,17 +115,16 @@ function onCategorySaved(data) {
             />
         </div>
 
+        
+
         <!-- Category filter label -->
         <div class="flex align-items-center gap-2">
             <i class="pi pi-tag text-color-secondary"></i>
             <span class="text-sm text-color-secondary font-medium">Filtrar por Categoría:</span>
         </div>
 
-        <!-- Category filter pills + action buttons -->
-        <div class="flex align-items-center justify-content-between gap-2">
-
-            <!-- Pills (left, scrollable) -->
-            <div class="flex flex-wrap align-items-center gap-2 flex-1">
+        <!-- Category filter pills -->
+        <div class="flex flex-wrap align-items-center gap-2">
                 <button
                     :class="['cat-btn border-round-xl px-3 py-2 cursor-pointer text-sm font-medium border-1',
                              store.selectedCategoryId === null ? 'cat-btn--active' : 'cat-btn--inactive']"
@@ -148,14 +153,6 @@ function onCategorySaved(data) {
                 </div>
             </div>
 
-            <!-- Action buttons (right) -->
-            <div class="flex gap-2 flex-shrink-0">
-                <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
-                <pv-button label="Nuevo Producto"  icon="pi pi-plus" size="small" severity="success" @click="openCreateItem" />
-            </div>
-
-        </div>
-
         <!-- Items grid -->
         <div v-if="store.filteredItems.length > 0" class="menu-grid">
             <div
@@ -165,7 +162,13 @@ function onCategorySaved(data) {
             >
                 <!-- Image area -->
                 <div class="menu-card__image flex align-items-center justify-content-center">
-                    <i class="pi pi-prime menu-card__placeholder-icon"></i>
+                    <img
+                        v-if="item.imageUrl"
+                        :src="item.imageUrl"
+                        :alt="item.name"
+                        class="menu-card__img"
+                    />
+                    <i v-else class="pi pi-prime menu-card__placeholder-icon"></i>
                     <!-- Availability badge -->
                     <div :class="['menu-card__badge flex align-items-center', item.isAvailable ? 'menu-card__badge--available' : 'menu-card__badge--unavailable']">
                         <i :class="['pi', item.isAvailable ? 'pi-check-circle' : 'pi-times-circle']"></i>
@@ -358,6 +361,14 @@ function onCategorySaved(data) {
     position: relative;
     height: 180px;
     background-color: #f3f4f6;
+    overflow: hidden;
+}
+
+.menu-card__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .menu-card__placeholder-icon {
@@ -439,14 +450,14 @@ function onCategorySaved(data) {
 .menu-card__name {
     margin: 0;
     font-size: 0.95rem;
-    color: var(--text-primary, #111827);
+    color: #111827;
     line-height: 1.3;
 }
 
 .menu-card__description {
     margin: 2px 0 6px;
     font-size: 0.78rem;
-    color: #6366f1;
+    color: #6b7280;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;

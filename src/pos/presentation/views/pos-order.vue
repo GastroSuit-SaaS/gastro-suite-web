@@ -81,7 +81,6 @@ function cancelDiscount() {
 
 // â”€â”€ Acciones de orden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function enviarEstaciones() { /* TODO: emit to stations */ }
-function enviarCocina()     { /* TODO: emit to kitchen display */ }
 function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
 function procederPago()     { /* TODO: navigate to payment view */ }
 </script>
@@ -112,8 +111,8 @@ function procederPago()     { /* TODO: navigate to payment view */ }
                     <div class="context-badge context-badge--blue">
                         <span class="context-badge__label">Orden</span>
                         <div style="display:flex;align-items:center;gap:0.35rem">
-                            <strong class="context-badge__value">#{{ sale?.id ?? '\u2014' }}</strong>
-                            <span v-if="!posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
+                            <strong v-if="posStore.currentSaleIsRecovered" class="context-badge__value">#{{ sale?.id ?? '—' }}</strong>
+                            <span class="pending-chip">PENDIENTE</span>
                         </div>
                     </div>
                 </div>
@@ -350,9 +349,6 @@ function procederPago()     { /* TODO: navigate to payment view */ }
                 <div class="action-btns">
                     <button class="action-btn action-btn--stations" @click="enviarEstaciones">
                         <i class="pi pi-send"></i> Enviar a Estaciones
-                    </button>
-                    <button class="action-btn action-btn--kitchen" @click="enviarCocina">
-                        <i class="pi pi-send"></i> Enviar Todo a Cocina
                     </button>
                     <button class="action-btn action-btn--split" @click="dividirCuenta">
                         <i class="pi pi-sliders-h"></i> Dividir Cuenta
@@ -781,7 +777,6 @@ function procederPago()     { /* TODO: navigate to payment view */ }
 }
 .action-btn:hover { opacity: 0.88; }
 .action-btn--stations { background: #059669; }
-.action-btn--kitchen  { background: #ea580c; }
 .action-btn--split    { background: #7c3aed; }
 .action-btn--pay      { background: #2563eb; }
 </style>

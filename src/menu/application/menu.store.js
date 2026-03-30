@@ -18,20 +18,22 @@ export const useMenuStore = defineStore('menu', () => {
     const selectedCategoryId = ref(null);
     const searchQuery         = ref('');
 
+    const PLACEHOLDER_IMG = 'https://img.freepik.com/vector-gratis/kawaii-comida-rapida-lindo-hot-dog-comida-rapida-hamburguesas-papas-fritas-bebida-ilustracion-salsa-tomate_24908-60601.jpg?semt=ais_incoming&w=740&q=80';
+
     // ── Mock items ────────────────────────────────────────────────────────
     const items = ref([
-        new MenuItem({ id: 1,  name: 'Ceviche Clásico',        description: 'Pescado fresco marinado en limón con cebolla y ají', price: 28.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 15, sku: 'ENT-CEV-001' }),
-        new MenuItem({ id: 2,  name: 'Tequeños de Queso',       description: 'Palitos de masa rellenos de queso blanco',           price: 18.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 10, sku: 'ENT-TEQ-001' }),
-        new MenuItem({ id: 3,  name: 'Lomo Saltado',            description: 'Carne de res salteada con verduras y papas fritas',  price: 45.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 20, sku: 'PRI-LOM-001' }),
-        new MenuItem({ id: 4,  name: 'Pollo a la Brasa',        description: 'Pollo entero asado con especias peruanas',           price: 52.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 40, sku: 'PRI-POL-001' }),
-        new MenuItem({ id: 5,  name: 'Salmón al Limón',         description: 'Filete de salmón a la plancha con salsa de limón',   price: 58.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 25, sku: 'PRI-SAL-001' }),
-        new MenuItem({ id: 6,  name: 'Pasta Alfredo',           description: 'Fettuccine con salsa cremosa de queso parmesano',   price: 32.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 18, sku: 'PAS-ALF-001' }),
-        new MenuItem({ id: 7,  name: 'Lasagna Boloñesa',        description: 'Capas de pasta con carne molida y bechamel',        price: 38.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 22, sku: 'PAS-LAS-001' }),
-        new MenuItem({ id: 8,  name: 'Tiramisú',                description: 'Postre italiano con mascarpone y café expreso',      price: 22.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-TIR-001' }),
-        new MenuItem({ id: 9,  name: 'Cheesecake de Fresa',     description: 'Tarta de queso con coulis de fresa',                price: 20.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-CHE-001' }),
-        new MenuItem({ id: 10, name: 'Limonada de la Casa',     description: 'Limonada fresca con hierbas y jengibre',            price: 12.00, categoryId: 5, category: 'Bebidas',            isAvailable: true,  prepTime: 3,  sku: 'BEB-LIM-001' }),
-        new MenuItem({ id: 11, name: 'Tabla del Chef',          description: 'Selección de embutidos y quesos importados',        price: 65.00, categoryId: 6, category: 'Especiales',         isAvailable: true,  prepTime: 10, sku: 'ESP-TAB-001' }),
-        new MenuItem({ id: 12, name: 'Risotto de Hongos',       description: 'Arroz cremoso con hongos porcini y trufa negra',    price: 48.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 30, sku: 'PAS-RIS-001' }),
+        new MenuItem({ id: 1,  name: 'Ceviche Clásico',        description: 'Pescado fresco marinado en limón con cebolla y ají', price: 28.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 15, sku: 'ENT-CEV-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 2,  name: 'Tequeños de Queso',       description: 'Palitos de masa rellenos de queso blanco',           price: 18.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 10, sku: 'ENT-TEQ-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 3,  name: 'Lomo Saltado',            description: 'Carne de res salteada con verduras y papas fritas',  price: 45.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 20, sku: 'PRI-LOM-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 4,  name: 'Pollo a la Brasa',        description: 'Pollo entero asado con especias peruanas',           price: 52.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 40, sku: 'PRI-POL-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 5,  name: 'Salmón al Limón',         description: 'Filete de salmón a la plancha con salsa de limón',   price: 58.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 25, sku: 'PRI-SAL-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 6,  name: 'Pasta Alfredo',           description: 'Fettuccine con salsa cremosa de queso parmesano',   price: 32.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 18, sku: 'PAS-ALF-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 7,  name: 'Lasagna Boloñesa',        description: 'Capas de pasta con carne molida y bechamel',        price: 38.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 22, sku: 'PAS-LAS-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 8,  name: 'Tiramisú',                description: 'Postre italiano con mascarpone y café expreso',      price: 22.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-TIR-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 9,  name: 'Cheesecake de Fresa',     description: 'Tarta de queso con coulis de fresa',                price: 20.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-CHE-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 10, name: 'Limonada de la Casa',     description: 'Limonada fresca con hierbas y jengibre',            price: 12.00, categoryId: 5, category: 'Bebidas',            isAvailable: true,  prepTime: 3,  sku: 'BEB-LIM-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 11, name: 'Tabla del Chef',          description: 'Selección de embutidos y quesos importados',        price: 65.00, categoryId: 6, category: 'Especiales',         isAvailable: true,  prepTime: 10, sku: 'ESP-TAB-001', imageUrl: PLACEHOLDER_IMG }),
+        new MenuItem({ id: 12, name: 'Risotto de Hongos',       description: 'Arroz cremoso con hongos porcini y trufa negra',    price: 48.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 30, sku: 'PAS-RIS-001', imageUrl: PLACEHOLDER_IMG }),
     ]);
 
     const isLoading    = ref(false);
@@ -65,13 +67,27 @@ export const useMenuStore = defineStore('menu', () => {
     function fetchById(id) { /* TODO */ void id; }
 
     function create(itemData) {
-        const newItem = { ...itemData, id: Date.now() };
+        const { imageFile, ...fields } = itemData;
+        const cat = categoriesData.value.find(c => c.id === fields.categoryId);
+        const newItem = new MenuItem({
+            ...fields,
+            id:       Date.now(),
+            category: cat?.name ?? '',
+        });
         items.value.push(newItem);
     }
 
     function update(id, itemData) {
+        const { imageFile, ...fields } = itemData;
         const idx = items.value.findIndex(i => i.id === id);
-        if (idx !== -1) items.value[idx] = { ...items.value[idx], ...itemData };
+        if (idx !== -1) {
+            const cat = categoriesData.value.find(c => c.id === fields.categoryId);
+            items.value[idx] = new MenuItem({
+                ...items.value[idx],
+                ...fields,
+                category: cat?.name ?? items.value[idx].category,
+            });
+        }
     }
 
     function remove(id) {

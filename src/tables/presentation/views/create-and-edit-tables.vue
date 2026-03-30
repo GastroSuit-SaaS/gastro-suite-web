@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import { Table, TABLE_STATUS } from '../../domain/models/table.entity.js'
 
@@ -19,11 +19,22 @@ const SHAPES = [
 ]
 
 const form = reactive({
-    zoneId:   props.table?.zoneId   ?? null,
-    number:   props.table?.number   ?? null,
-    capacity: props.table?.capacity ?? 4,
-    shape:    props.table?.shape    ?? 'square',
-    status:   props.table?.status   ?? TABLE_STATUS.AVAILABLE,
+    zoneId:   null,
+    number:   null,
+    capacity: 4,
+    shape:    'square',
+    status:   TABLE_STATUS.AVAILABLE,
+})
+
+// Repopulate (edit) or reset (create) every time the dialog opens
+watch(() => props.visible, (val) => {
+    if (val) {
+        form.zoneId   = props.table?.zoneId   ?? null
+        form.number   = props.table?.number   ?? null
+        form.capacity = props.table?.capacity ?? 4
+        form.shape    = props.table?.shape    ?? 'square'
+        form.status   = props.table?.status   ?? TABLE_STATUS.AVAILABLE
+    }
 })
 
 const zoneOptions = computed(() =>
@@ -45,7 +56,7 @@ const onSave = () => {
         :visible="visible"
         :edit="edit"
         entity-name="Mesa"
-        custom-button-label="Crear Mesa"
+        :custom-button-label="edit ? 'Actualizar Mesa' : 'Crear Mesa'"
         @canceled-shared="onCancel"
         @saved-shared="onSave"
     >

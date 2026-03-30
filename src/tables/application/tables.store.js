@@ -103,6 +103,15 @@ export const useTablesStore = defineStore('tables', () => {
         // TODO: call api.updateStatus(id, status)
     }
 
+    function assignTable(tableId, seatedGuests) {
+        const table = tables.value.find(t => t.id === tableId);
+        if (!table) return;
+        table.status        = TABLE_STATUS.OCCUPIED;
+        table.seatedGuests  = seatedGuests;
+        table.occupiedSince = new Date();
+        // TODO: call api.assignTable(tableId, { seatedGuests })
+    }
+
     function selectZone(zoneId) {
         selectedZoneId.value = zoneId;
     }
@@ -138,6 +147,6 @@ export const useTablesStore = defineStore('tables', () => {
         tables, zonesData, selectedTable, selectedZoneId, isLoading, error,
         totalTables, availableTables, occupiedTables, cleaningTables,
         zones, filteredTables,
-        fetchAll, fetchById, create, update, remove, setTableStatus, selectZone, removeZone, updateZone, createZone,
+        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, selectZone, removeZone, updateZone, createZone,
     };
 });

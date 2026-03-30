@@ -1,18 +1,26 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
+import { usePosStore }    from '../../../pos/application/pos.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
-import CreateAndEditZone from './create-and-edit-zone.vue'
-import CreateAndEditTable from './create-and-edit-tables.vue'
+import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
+import CreateAndEditZone   from './create-and-edit-zone.vue'
+import CreateAndEditTable  from './create-and-edit-tables.vue'
+import AssignTableDialog   from './assign-table-dialog.vue'
 
-const store = useTablesStore()
+const store    = useTablesStore()
+const posStore = usePosStore()
+const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
 
-const showZoneDialog  = ref(false)
-const showTableDialog = ref(false)
-const editingZone     = ref(null)
-const editingTable    = ref(null)
+const showZoneDialog   = ref(false)
+const showTableDialog  = ref(false)
+const showAssignDialog = ref(false)
+const editingZone      = ref(null)
+const editingTable     = ref(null)
+const assigningTable   = ref(null)
 
 // Mapa rápido zoneId → { color, name } para las tarjetas de mesas
 const zoneColorMap = computed(() => {
@@ -45,6 +53,23 @@ function onDeleteZone(zone) {
 function openEditTable(table) {
     editingTable.value = { ...table }
     showTableDialog.value = true
+}
+
+function openCreateTable() {
+    editingTable.value = null
+    showTableDialog.value = true
+}
+
+function openAssignTable(table) {
+    assigningTable.value = table
+    showAssignDialog.value = true
+}
+
+function onAssignConfirm({ guests }) {
+    const table = assigningTable.value
+    posStore.openSaleForTable(table.id, table.zoneId, guests)
+    router.push(posOrderRoute(table.id))
+    assigningTable.value = null
 }
 
 function onDeleteTable(table) {
@@ -118,17 +143,20 @@ function onTableSaved(table) {
         <!-- Zone filter + actions -->
         <div class="flex flex-column gap-2">
 
-            <!-- Row 1: label -->
+            <!-- Row 1: action buttons (top right) -->
+            <div class="flex justify-content-end gap-2">
+                <pv-button label="Nueva Zona" icon="pi pi-plus" size="small" @click="openCreateZone" />
+                <pv-button label="Nueva Mesa" icon="pi pi-plus" size="small" severity="success" @click="openCreateTable" />
+            </div>
+
+            <!-- Row 2: label -->
             <div class="flex align-items-center gap-2">
                 <i class="pi pi-map-marker text-color-secondary"></i>
                 <span class="text-sm text-color-secondary font-medium">Filtrar por Zona:</span>
             </div>
 
-            <!-- Row 2: zone pills (left) + action buttons (right) -->
-            <div class="flex align-items-center justify-content-between flex-wrap gap-2">
-
-                <!-- Zone pills -->
-                <div class="flex flex-wrap gap-2">
+            <!-- Row 3: zone pills -->
+            <div class="flex flex-wrap gap-2">
                     <button
                         :class="['zone-btn border-round-xl px-3 py-2 cursor-pointer text-sm font-medium border-1',
                                  store.selectedZoneId === null ? 'zone-btn--active' : 'zone-btn--inactive']"
@@ -161,13 +189,6 @@ function onTableSaved(table) {
                     </div>
                 </div>
 
-                <!-- Action buttons -->
-                <div class="flex gap-2">
-                    <pv-button label="Nueva Zona" icon="pi pi-plus" size="small" @click="openCreateZone" />
-                    <pv-button label="Nueva Mesa" icon="pi pi-plus" size="small" severity="success" @click="showTableDialog = true" />
-                </div>
-
-            </div>
         </div>
 
         <!-- Grilla de mesas -->
@@ -230,7 +251,7 @@ function onTableSaved(table) {
                 <button
                     v-else-if="table.status === 'available'"
                     class="table-card__cta table-card__cta--asignar"
-                    @click.stop
+                    @click.stop="openAssignTable(table)"
                 >
                     <i class="pi pi-user-plus"></i> Asignar Mesa
                 </button>
@@ -262,6 +283,11 @@ function onTableSaved(table) {
 
     </div>
 
+    <AssignTableDialog
+        v-model:visible="showAssignDialog"
+        :table="assigningTable"
+        @assigned="onAssignConfirm"
+    />
     <CreateAndEditZone
         v-model:visible="showZoneDialog"
         :zone="editingZone"
@@ -274,7 +300,7 @@ function onTableSaved(table) {
         :zones="store.zones"
         :edit="!!editingTable"
         @table-saved="onTableSaved"
-        @update:visible="v => { if (!v) { editingTable = null } }"
+        @update:visible="v => { if (!v) { editingTable.value = null } }"
     />
 
 </template>
