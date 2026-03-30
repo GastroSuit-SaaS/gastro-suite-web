@@ -123,7 +123,7 @@ function confirmPayment() {
         detail:   'Orden cerrada exitosamente. Mesa liberada.',
         life:     3000,
     })
-    router.push(POS_ROUTES.TERMINAL)
+    router.push('/payments')
 }
 </script>
 
@@ -138,13 +138,22 @@ function confirmPayment() {
                 <button class="back-btn" title="Volver a la orden" @click="goBack">
                     <i class="pi pi-arrow-left"></i>
                 </button>
-                <div>
+                <div class="payment-form__title-group">
                     <h2 class="payment-form__title">Procesar Pago</h2>
-                    <p class="payment-form__sub">
-                        Mesa {{ table?.number ?? '—' }}
-                        <span v-if="zone"> &middot; {{ zone.name }}</span>
-                        &middot; Orden #{{ sale?.id ?? '—' }}
-                    </p>
+                    <div class="payment-form__chips">
+                        <span class="hdr-chip hdr-chip--order">
+                            <i class="pi pi-hashtag"></i>
+                            Orden {{ sale?.id ?? '—' }}
+                        </span>
+                        <span class="hdr-chip hdr-chip--table">
+                            <i class="pi pi-th-large"></i>
+                            Mesa {{ table?.number ?? '—' }}
+                        </span>
+                        <span v-if="zone" class="hdr-chip" :style="{ background: zone.color + '18', borderColor: zone.color, color: zone.color }">
+                            <i class="pi pi-map-marker"></i>
+                            {{ zone.name }}
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -160,9 +169,15 @@ function confirmPayment() {
                         v-for="m in PAYMENT_METHODS"
                         :key="m.key"
                         :class="['method-btn', selectedMethod === m.key ? 'method-btn--active' : '']"
+                        :style="selectedMethod === m.key
+                            ? { borderColor: m.color, background: m.color + '18', color: m.color }
+                            : {}"
                         @click="selectedMethod = m.key"
                     >
-                        <i :class="['pi', m.icon, 'method-btn__icon']"></i>
+                        <div class="method-btn__icon-wrap">
+                            <i :class="['pi', m.icon, 'method-btn__icon']"></i>
+                            <span v-if="selectedMethod === m.key" class="method-btn__dot" :style="{ background: m.color }"></span>
+                        </div>
                         <span>{{ m.label }}</span>
                     </button>
                 </div>
@@ -170,17 +185,24 @@ function confirmPayment() {
                 <!-- Detalle efectivo -->
                 <Transition name="fade-slide">
                     <div v-if="selectedMethod === 'cash'" class="cash-section">
+                        <div class="cash-total-ref">
+                            <span>Total a cobrar</span>
+                            <strong>S/ {{ (sale?.total ?? 0).toFixed(2) }}</strong>
+                        </div>
                         <div class="cash-row">
-                            <label class="cash-row__label">Monto recibido (S/)</label>
-                            <input
-                                v-model="cashReceived"
-                                type="number"
-                                min="0"
-                                step="0.10"
-                                class="cash-input"
-                                placeholder="0.00"
-                                inputmode="decimal"
-                            />
+                            <label class="cash-row__label">Monto recibido</label>
+                            <div class="cash-input-wrap">
+                                <span class="cash-input-prefix">S/</span>
+                                <input
+                                    v-model="cashReceived"
+                                    type="number"
+                                    min="0"
+                                    step="0.10"
+                                    class="cash-input"
+                                    placeholder="0.00"
+                                    inputmode="decimal"
+                                />
+                            </div>
                         </div>
 
                         <!-- Montos rápidos -->
@@ -207,6 +229,20 @@ function confirmPayment() {
                         </div>
                     </div>
                 </Transition>
+                <!-- Pago digital -->
+                <Transition name="fade-slide">
+                    <div v-if="selectedMethod !== 'cash'" class="digital-note">
+                        <i class="pi pi-check-circle digital-note__icon"></i>
+                        <div class="digital-note__text">
+                            <span class="digital-note__title">
+                                {{ PAYMENT_METHODS.find(m => m.key === selectedMethod)?.label }} · Pago digital
+                            </span>
+                            <span class="digital-note__sub">
+                                Monto a cobrar: <strong>S/ {{ (sale?.total ?? 0).toFixed(2) }}</strong>
+                            </span>
+                        </div>
+                    </div>
+                </Transition>
             </div>
 
             <!-- ─── Sección 2: Tipo de comprobante ─────────────────────── -->
@@ -221,9 +257,12 @@ function confirmPayment() {
                         v-for="r in RECEIPT_TYPES"
                         :key="r.key"
                         :class="['receipt-btn', receiptType === r.key ? 'receipt-btn--active' : '']"
+                        :style="receiptType === r.key
+                            ? { borderColor: r.color, background: r.color + '12', color: r.color }
+                            : {}"
                         @click="receiptType = r.key"
                     >
-                        <i :class="['pi', r.icon]"></i>
+                        <i :class="['pi', r.icon, 'receipt-btn__icon']" :style="receiptType === r.key ? { color: r.color } : {}"></i>
                         <span>{{ r.label }}</span>
                     </button>
                 </div>
@@ -302,20 +341,7 @@ function confirmPayment() {
                     <i class="pi pi-receipt text-primary" style="font-size:1.1rem"></i>
                     <span class="font-bold text-color" style="font-size:1rem">Resumen de Orden</span>
                 </div>
-                <div class="flex gap-2">
-                    <div class="ctx-badge ctx-badge--blue">
-                        <span class="ctx-badge__lbl">Mesa</span>
-                        <strong class="ctx-badge__val">{{ table?.number ?? '—' }}</strong>
-                    </div>
-                    <div
-                        v-if="zone"
-                        class="ctx-badge"
-                        :style="{ background: zone.color + '22', borderColor: zone.color }"
-                    >
-                        <span class="ctx-badge__lbl" :style="{ color: zone.color }">Zona</span>
-                        <strong class="ctx-badge__val" :style="{ color: zone.color }">{{ zone.name }}</strong>
-                    </div>
-                </div>
+                <span class="panel-order-id">#{{ sale?.id ?? '—' }}</span>
             </div>
 
             <!-- Lista de ítems -->
@@ -397,28 +423,34 @@ function confirmPayment() {
                 </div>
             </div>
 
+            <!-- Vuelto -->
+            <Transition name="fade-slide">
+                <div v-if="selectedMethod === 'cash' && cashChange !== null" class="vuelto-banner">
+                    <span class="vuelto-banner__lbl">Vuelto al cliente</span>
+                    <span class="vuelto-banner__amt">S/ {{ cashChange.toFixed(2) }}</span>
+                </div>
+            </Transition>
+
             <!-- Botones de acción -->
             <div class="payment-panel__actions">
-                <button class="pay-btn pay-btn--ghost" @click="goBack">
-                    <i class="pi pi-arrow-left"></i>
-                    Volver
-                </button>
-                <button class="pay-btn pay-btn--danger" @click="cancelOrder">
-                    <i class="pi pi-times"></i>
-                    Cancelar Orden
-                </button>
-                <button class="pay-btn pay-btn--secondary" @click="printPreCuenta">
-                    <i class="pi pi-print"></i>
-                    Pre-cuenta
-                </button>
                 <button
-                    class="pay-btn pay-btn--primary"
+                    :class="['pay-btn pay-btn--primary', canConfirm ? 'pay-btn--ready' : '']"
                     :disabled="!canConfirm"
                     @click="confirmPayment"
                 >
                     <i class="pi pi-check-circle"></i>
                     Confirmar Pago
                 </button>
+                <div class="pay-btn-row">
+                    <button class="pay-btn pay-btn--secondary" @click="printPreCuenta">
+                        <i class="pi pi-print"></i>
+                        Pre-cuenta
+                    </button>
+                    <button class="pay-btn pay-btn--danger" @click="cancelOrder">
+                        <i class="pi pi-times"></i>
+                        Cancelar Orden
+                    </button>
+                </div>
             </div>
 
         </div>
@@ -475,10 +507,49 @@ function confirmPayment() {
     font-weight: 700;
     color: #111827;
 }
-.payment-form__sub {
-    margin: 0.15rem 0 0;
-    font-size: 0.82rem;
-    color: #6b7280;
+
+.payment-form__title-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+    gap: 0.5rem;
+}
+
+.payment-form__chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+.payment-form__chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.hdr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid;
+}
+.hdr-chip--order {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #374151;
+}
+.hdr-chip--table {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1e40af;
 }
 
 /* ── Form sections ───────────────────────────────────────────────────────── */
@@ -520,21 +591,37 @@ function confirmPayment() {
     font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s;
+    position: relative;
 }
 .method-btn:hover {
-    border-color: #6366f1;
-    background: #eef2ff;
-    color: #4338ca;
+    border-color: #94a3b8;
+    background: #f1f5f9;
 }
 .method-btn--active {
-    border-color: #6366f1;
-    background: #eef2ff;
-    color: #4338ca;
     font-weight: 700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
 }
 .method-btn__icon {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
+}
+.method-btn__icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+}
+.method-btn__dot {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
 }
 
 /* ── Cash section ────────────────────────────────────────────────────────── */
@@ -621,38 +708,71 @@ function confirmPayment() {
     border: 1px solid #fca5a5;
 }
 
-/* ── Receipt type ────────────────────────────────────────────────────────── */
-.receipt-grid {
+/* ── Digital payment note ───────────────────────────────────────────────── */
+.digital-note {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 1rem;
+    padding: 1rem 1.1rem;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 10px;
+}
+.digital-note__icon {
+    font-size: 1.75rem;
+    color: #16a34a;
+    flex-shrink: 0;
+}
+.digital-note__text {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.2rem;
+}
+.digital-note__title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #166534;
+}
+.digital-note__sub {
+    font-size: 0.8rem;
+    color: #4b5563;
+}
+
+/* ── Receipt type ────────────────────────────────────────────────────────── */
+.receipt-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
 }
 
 .receipt-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.65rem;
-    padding: 0.7rem 1rem;
+    gap: 0.4rem;
+    padding: 0.85rem 0.4rem;
     border: 2px solid #e5e7eb;
     border-radius: 10px;
     background: #f9fafb;
     color: #374151;
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     font-weight: 500;
     cursor: pointer;
-    text-align: left;
-    transition: all 0.15s;
+    text-align: center;
+    transition: all 0.2s;
 }
 .receipt-btn:hover {
-    border-color: #6366f1;
-    background: #eef2ff;
-    color: #4338ca;
+    border-color: #94a3b8;
+    background: #f1f5f9;
 }
 .receipt-btn--active {
-    border-color: #6366f1;
-    background: #eef2ff;
-    color: #4338ca;
     font-weight: 700;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.receipt-btn__icon {
+    font-size: 1.2rem;
 }
 
 /* ── Customer form ───────────────────────────────────────────────────────── */
@@ -715,24 +835,16 @@ function confirmPayment() {
     flex-shrink: 0;
 }
 
-/* ── Context badges ──────────────────────────────────────────────────────── */
-.ctx-badge {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid #bae6fd;
-    border-radius: 7px;
+/* ── Order id chip ───────────────────────────────────────────────────────── */
+.panel-order-id {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
     padding: 0.2rem 0.55rem;
-    line-height: 1.25;
 }
-.ctx-badge--blue { background: #dbeafe; border-color: #93c5fd; }
-.ctx-badge__lbl {
-    font-size: 0.6rem;
-    font-weight: 500;
-    color: #1e40af;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-.ctx-badge__val { font-size: 0.78rem; color: #1e3a8a; }
 
 /* ── Items list ──────────────────────────────────────────────────────────── */
 .payment-panel__items {
@@ -939,7 +1051,47 @@ function confirmPayment() {
     opacity: 0.4;
     cursor: not-allowed;
 }
+/* ── Vuelto banner ─────────────────────────────────────────────────────────── */
+.vuelto-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.1rem;
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    border-top: 1px solid #6ee7b7;
+    flex-shrink: 0;
+}
+.vuelto-banner__lbl {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #065f46;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.vuelto-banner__amt {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #047857;
+}
 
+/* ── Secondary action row ─────────────────────────────────────────────── */
+.pay-btn-row {
+    display: flex;
+    gap: 0.4rem;
+}
+.pay-btn-row .pay-btn {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.35rem;
+}
+.pay-btn--ready {
+    background: #059669 !important;
+    border-color: #059669 !important;
+}
+.pay-btn--ready:hover:not(:disabled) {
+    background: #047857 !important;
+    border-color: #047857 !important;
+}
 /* ── Transitions ─────────────────────────────────────────────────────────── */
 .fade-slide-enter-active,
 .fade-slide-leave-active {

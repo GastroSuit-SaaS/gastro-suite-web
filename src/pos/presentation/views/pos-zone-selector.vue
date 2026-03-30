@@ -12,7 +12,18 @@ function selectZone(zone) {
 </script>
 
 <template>
-    <div class="p-4">
+    <div class="p-4 flex flex-column gap-3">
+
+        <!-- Acceso rápido a órdenes activas -->
+        <div class="orders-link" @click="router.push('/pos')">
+            <i class="pi pi-list orders-link__icon"></i>
+            <span>Ver órdenes activas</span>
+            <span v-if="posStore.activeOrders.length > 0" class="orders-link__badge">
+                {{ posStore.activeOrders.length }}
+            </span>
+            <i class="pi pi-arrow-right orders-link__arrow"></i>
+        </div>
+
         <div class="zone-grid">
             <div
                 v-for="zone in posStore.zones"
@@ -47,6 +58,40 @@ function selectZone(zone) {
 </template>
 
 <style scoped>
+/* ── Orders link ────────────────────────────────────────────────────────── */
+.orders-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    background: var(--surface-card);
+    color: var(--text-color-secondary);
+    font-size: 0.83rem;
+    font-weight: 500;
+    cursor: pointer;
+    width: fit-content;
+    transition: background 0.15s, color 0.15s;
+}
+.orders-link:hover { background: var(--surface-hover); color: var(--text-color); }
+.orders-link__icon  { font-size: 0.82rem; }
+.orders-link__arrow { font-size: 0.7rem; margin-left: auto; opacity: 0.5; }
+.orders-link__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: var(--primary-color, #6366f1);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0 0.3rem;
+}
+
+/* ── zone grid ───────────────────────────────────────────────────────────── */
 .zone-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

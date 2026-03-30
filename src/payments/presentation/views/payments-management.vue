@@ -45,11 +45,10 @@ const filteredPayments = computed(() => {
     return list
 })
 
-// ── Detalle expandido ──────────────────────────────────────────────────────
-const expandedId = ref(null)
-function toggleExpand(id) {
-    expandedId.value = expandedId.value === id ? null : id
-}
+// ── Detalle en popup ─────────────────────────────────────────────────────
+const detailPayment = ref(null)
+function openDetail(p)  { detailPayment.value = p }
+function closeDetail()  { detailPayment.value = null }
 
 function formatTime(date) {
     return new Date(date).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
@@ -173,15 +172,12 @@ function formatDate(date) {
                     </tr>
                 </thead>
                 <tbody>
-                    <template
+                    <tr
                         v-for="p in filteredPayments"
                         :key="p.id"
+                        class="pay-row"
+                        @click="openDetail(p)"
                     >
-                        <!-- Fila principal -->
-                        <tr
-                            :class="['pay-row', expandedId === p.id ? 'pay-row--expanded' : '']"
-                            @click="toggleExpand(p.id)"
-                        >
                             <td class="td-time">{{ formatTime(p.processedAt) }}</td>
                             <td class="td-order">#{{ p.saleId }}</td>
                             <td class="td-table">
@@ -212,100 +208,143 @@ function formatDate(date) {
                                 <span v-else class="td-na">—</span>
                             </td>
                             <td class="td-expand">
-                                <i :class="['pi', expandedId === p.id ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
+                                <i class="pi pi-eye"></i>
                             </td>
                         </tr>
-
-                        <!-- Detalle expandido -->
-                        <tr v-if="expandedId === p.id" class="detail-row">
-                            <td colspan="9">
-                                <div class="detail-wrap">
-                                    <!-- Items -->
-                                    <div class="detail-col">
-                                        <p class="detail-col__title">Productos</p>
-                                        <div
-                                            v-for="(item, idx) in p.items"
-                                            :key="idx"
-                                            class="detail-item"
-                                        >
-                                            <span class="detail-item__qty">{{ item.qty }}×</span>
-                                            <span class="detail-item__name">{{ item.name }}</span>
-                                            <span class="detail-item__price">S/ {{ item.subtotal.toFixed(2) }}</span>
-                                        </div>
-                                        <div class="detail-totals">
-                                            <div class="detail-total-row">
-                                                <span>Subtotal</span>
-                                                <span>S/ {{ p.subtotal.toFixed(2) }}</span>
-                                            </div>
-                                            <div class="detail-total-row">
-                                                <span>IGV (18%)</span>
-                                                <span>S/ {{ p.tax.toFixed(2) }}</span>
-                                            </div>
-                                            <div v-if="p.discount > 0" class="detail-total-row detail-total-row--disc">
-                                                <span>Descuento</span>
-                                                <span>- S/ {{ p.discount.toFixed(2) }}</span>
-                                            </div>
-                                            <div class="detail-total-row detail-total-row--grand">
-                                                <span>Total</span>
-                                                <span>S/ {{ p.total.toFixed(2) }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Datos del comprobante -->
-                                    <div v-if="p.receiptType !== 'nota'" class="detail-col">
-                                        <p class="detail-col__title">Datos del Comprobante</p>
-                                        <template v-if="p.receiptType === 'boleta'">
-                                            <div class="detail-field" v-if="p.receiptData?.dni">
-                                                <span class="detail-field__label">DNI</span>
-                                                <span class="detail-field__val">{{ p.receiptData.dni }}</span>
-                                            </div>
-                                            <div class="detail-field" v-if="p.receiptData?.nombre">
-                                                <span class="detail-field__label">Nombre</span>
-                                                <span class="detail-field__val">{{ p.receiptData.nombre }}</span>
-                                            </div>
-                                        </template>
-                                        <template v-if="p.receiptType === 'factura'">
-                                            <div class="detail-field" v-if="p.receiptData?.ruc">
-                                                <span class="detail-field__label">RUC</span>
-                                                <span class="detail-field__val">{{ p.receiptData.ruc }}</span>
-                                            </div>
-                                            <div class="detail-field" v-if="p.receiptData?.razonSocial">
-                                                <span class="detail-field__label">Razón Social</span>
-                                                <span class="detail-field__val">{{ p.receiptData.razonSocial }}</span>
-                                            </div>
-                                            <div class="detail-field" v-if="p.receiptData?.direccion">
-                                                <span class="detail-field__label">Dirección</span>
-                                                <span class="detail-field__val">{{ p.receiptData.direccion }}</span>
-                                            </div>
-                                        </template>
-                                    </div>
-
-                                    <!-- Fecha completa -->
-                                    <div class="detail-col">
-                                        <p class="detail-col__title">Registro</p>
-                                        <div class="detail-field">
-                                            <span class="detail-field__label">Fecha</span>
-                                            <span class="detail-field__val">{{ formatDate(p.processedAt) }}</span>
-                                        </div>
-                                        <div class="detail-field">
-                                            <span class="detail-field__label">Hora</span>
-                                            <span class="detail-field__val">{{ formatTime(p.processedAt) }}</span>
-                                        </div>
-                                        <div class="detail-field">
-                                            <span class="detail-field__label">ID Pago</span>
-                                            <span class="detail-field__val">#{{ p.id }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </template>
                 </tbody>
             </table>
         </div>
 
     </div>
+
+    <!-- ══ Popup detalle ═════════════════════════════════════════════════ -->
+    <Teleport to="body">
+        <Transition name="dlg-fade">
+            <div v-if="detailPayment" class="dlg-backdrop" @click.self="closeDetail">
+                <div class="dlg" role="dialog" aria-modal="true">
+
+                    <!-- Header -->
+                    <div class="dlg-header">
+                        <div class="dlg-title">
+                            <i class="pi pi-receipt" style="color:#6366f1;font-size:1rem"></i>
+                            <span>Pago <strong>#{{ detailPayment.id }}</strong></span>
+                            <span
+                                class="badge"
+                                :style="{ background: METHOD_COLORS[detailPayment.method] + '22', color: METHOD_COLORS[detailPayment.method], border: '1px solid ' + METHOD_COLORS[detailPayment.method] + '66' }"
+                            >{{ METHOD_LABELS[detailPayment.method] }}</span>
+                            <span
+                                class="badge"
+                                :style="{ background: RECEIPT_COLORS[detailPayment.receiptType] + '22', color: RECEIPT_COLORS[detailPayment.receiptType], border: '1px solid ' + RECEIPT_COLORS[detailPayment.receiptType] + '66' }"
+                            >{{ RECEIPT_LABELS[detailPayment.receiptType] }}</span>
+                        </div>
+                        <button class="dlg-close" @click="closeDetail" aria-label="Cerrar">
+                            <i class="pi pi-times"></i>
+                        </button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="dlg-body">
+
+                        <!-- Columna: Productos -->
+                        <div class="detail-col">
+                            <p class="detail-col__title">Productos</p>
+                            <div
+                                v-for="(item, idx) in detailPayment.items"
+                                :key="idx"
+                                class="detail-item"
+                            >
+                                <span class="detail-item__qty">{{ item.qty }}×</span>
+                                <span class="detail-item__name">{{ item.name }}</span>
+                                <span class="detail-item__price">S/ {{ item.subtotal.toFixed(2) }}</span>
+                            </div>
+                            <div class="detail-totals">
+                                <div class="detail-total-row">
+                                    <span>Subtotal</span>
+                                    <span>S/ {{ detailPayment.subtotal.toFixed(2) }}</span>
+                                </div>
+                                <div class="detail-total-row">
+                                    <span>IGV (18%)</span>
+                                    <span>S/ {{ detailPayment.tax.toFixed(2) }}</span>
+                                </div>
+                                <div v-if="detailPayment.discount > 0" class="detail-total-row detail-total-row--disc">
+                                    <span>Descuento</span>
+                                    <span>- S/ {{ detailPayment.discount.toFixed(2) }}</span>
+                                </div>
+                                <div class="detail-total-row detail-total-row--grand">
+                                    <span>Total</span>
+                                    <span>S/ {{ detailPayment.total.toFixed(2) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Columna: Pago -->
+                        <div class="detail-col">
+                            <p class="detail-col__title">Detalle del Pago</p>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Recibido</span>
+                                <span class="detail-field__val">S/ {{ detailPayment.amountReceived.toFixed(2) }}</span>
+                            </div>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Vuelto</span>
+                                <span class="detail-field__val" :style="detailPayment.change > 0 ? 'color:#059669;font-weight:600' : ''">
+                                    {{ detailPayment.change > 0 ? 'S/ ' + detailPayment.change.toFixed(2) : '—' }}
+                                </span>
+                            </div>
+                            <div class="detail-field" v-if="detailPayment.tableNumber">
+                                <span class="detail-field__label">Mesa</span>
+                                <span class="detail-field__val">{{ detailPayment.tableNumber }}<span v-if="detailPayment.zoneName" style="color:#9ca3af"> · {{ detailPayment.zoneName }}</span></span>
+                            </div>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Fecha</span>
+                                <span class="detail-field__val">{{ formatDate(detailPayment.processedAt) }}</span>
+                            </div>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Hora</span>
+                                <span class="detail-field__val">{{ formatTime(detailPayment.processedAt) }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Columna: Comprobante (solo si aplica) -->
+                        <div v-if="detailPayment.receiptType !== 'nota'" class="detail-col">
+                            <p class="detail-col__title">Datos del Comprobante</p>
+                            <template v-if="detailPayment.receiptType === 'boleta'">
+                                <div class="detail-field" v-if="detailPayment.receiptData?.dni">
+                                    <span class="detail-field__label">DNI</span>
+                                    <span class="detail-field__val">{{ detailPayment.receiptData.dni }}</span>
+                                </div>
+                                <div class="detail-field" v-if="detailPayment.receiptData?.nombre">
+                                    <span class="detail-field__label">Nombre</span>
+                                    <span class="detail-field__val">{{ detailPayment.receiptData.nombre }}</span>
+                                </div>
+                            </template>
+                            <template v-if="detailPayment.receiptType === 'factura'">
+                                <div class="detail-field" v-if="detailPayment.receiptData?.ruc">
+                                    <span class="detail-field__label">RUC</span>
+                                    <span class="detail-field__val">{{ detailPayment.receiptData.ruc }}</span>
+                                </div>
+                                <div class="detail-field" v-if="detailPayment.receiptData?.razonSocial">
+                                    <span class="detail-field__label">Razón Social</span>
+                                    <span class="detail-field__val">{{ detailPayment.receiptData.razonSocial }}</span>
+                                </div>
+                                <div class="detail-field" v-if="detailPayment.receiptData?.direccion">
+                                    <span class="detail-field__label">Dirección</span>
+                                    <span class="detail-field__val">{{ detailPayment.receiptData.direccion }}</span>
+                                </div>
+                            </template>
+                        </div>
+
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="dlg-footer">
+                        <button class="dlg-btn dlg-btn--primary" @click="closeDetail">Cerrar</button>
+                    </div>
+
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
+
 </template>
 
 <style scoped>
@@ -512,8 +551,7 @@ function formatDate(date) {
     cursor: pointer;
     transition: background 0.1s;
 }
-.pay-row:hover,
-.pay-row--expanded { background: #fafafe; }
+.pay-row:hover { background: #fafafe; }
 
 .pay-table td {
     padding: 0.7rem 0.85rem;
@@ -540,19 +578,103 @@ function formatDate(date) {
     white-space: nowrap;
 }
 
-/* ── Detalle expandido ───────────────────────────────────────────────────── */
-.detail-row td {
-    padding: 0;
-    background: #fafafe;
-    border-bottom: 1px solid #e5e7eb;
+/* ── Popup dialog ────────────────────────────────────────────────────────── */
+.dlg-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
 }
 
-.detail-wrap {
+.dlg {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dlg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem 0.85rem;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+.dlg-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111827;
+    flex-wrap: wrap;
+}
+
+.dlg-close {
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    background: #f3f4f6;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    flex-shrink: 0;
+    transition: background 0.1s;
+}
+.dlg-close:hover { background: #e5e7eb; color: #111827; }
+
+.dlg-body {
     display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
-    padding: 1.1rem 1.25rem;
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
 }
+
+.dlg-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+.dlg-btn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.12s;
+}
+.dlg-btn--primary {
+    background: #6366f1;
+    color: #fff;
+    border-color: #6366f1;
+}
+.dlg-btn--primary:hover { background: #4f46e5; }
+
+/* Transition */
+.dlg-fade-enter-active,
+.dlg-fade-leave-active { transition: opacity 0.18s ease; }
+.dlg-fade-enter-from,
+.dlg-fade-leave-to   { opacity: 0; }
 
 .detail-col {
     display: flex;

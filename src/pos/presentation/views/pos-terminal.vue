@@ -17,6 +17,11 @@ function selectZone(zone) {
     router.push(posSelectTableRoute(zone.id))
 }
 
+function openOrder(order) {
+    posStore.openSaleForTable(order.tableId, order.zoneId)
+    router.push(`/pos/order/${order.tableId}`)
+}
+
 onMounted(() => {
     posStore.fetchAll()
 })
@@ -130,7 +135,7 @@ onMounted(() => {
                         v-for="order in posStore.activeOrders"
                         :key="order.id"
                         class="order-row surface-card border-1 surface-border border-round-lg p-3 cursor-pointer"
-                        @click="router.push(`/pos/order/${order.tableId}`)"
+                        @click="openOrder(order)"
                     >
                         <!-- Fila principal -->
                         <div class="flex align-items-center justify-content-between gap-3">

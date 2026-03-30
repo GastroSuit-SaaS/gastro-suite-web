@@ -4,12 +4,50 @@ import { PosApi } from '../infrastructure/api/pos.api.js';
 // SaleAssembler: reserved for API integration (fetchAll / create / update)
 // import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
 import { Sale, SALE_STATUS } from '../domain/models/sale.entity.js';
+import { SaleItem }          from '../domain/models/sale-item.entity.js';
 import { useTablesStore }    from '../../tables/application/tables.store.js';
 import { useMenuStore }      from '../../menu/application/menu.store.js';
 import { useStationsStore }  from '../../stations/application/stations.store.js';
 import { usePaymentsStore }  from '../../payments/application/payments.store.js';
 
 const api = new PosApi();
+
+// ── Mock sales (DEV fallback) ──────────────────────────────────────────────
+// Órdenes activas vinculadas a las mesas ocupadas del tables.store mock data
+// (Table id:2 → orderId:1201, id:4 → orderId:1215, id:8 → orderId:1246)
+const agno = (min) => new Date(Date.now() - min * 60000);
+
+const MOCK_SALES = (() => {
+    const s1 = new Sale({
+        id: 1201, tableId: 2, zoneId: 1, status: SALE_STATUS.ACTIVE, createdAt: agno(45),
+        items: [
+            new SaleItem({ id: 9001, menuItemId: 1, menuItemName: 'Ceviche Clásico',   quantity: 1, unitPrice: 28, stationId: 2, stationName: 'Cocina Fría',     isSent: true }),
+            new SaleItem({ id: 9002, menuItemId: 2, menuItemName: 'Tequeños de Queso', quantity: 1, unitPrice: 18, stationId: 2, stationName: 'Cocina Fría',     isSent: true }),
+        ],
+    });
+    s1._recalculate(); // subtotal:46  tax:8.28  total:54.28
+
+    const s2 = new Sale({
+        id: 1215, tableId: 4, zoneId: 1, status: SALE_STATUS.ACTIVE, createdAt: agno(72),
+        items: [
+            new SaleItem({ id: 9003, menuItemId: 3, menuItemName: 'Lomo Saltado',      quantity: 2, unitPrice: 45, stationId: 1, stationName: 'Cocina Caliente', isSent: true  }),
+            new SaleItem({ id: 9004, menuItemId: 6, menuItemName: 'Pasta Alfredo',     quantity: 1, unitPrice: 32, stationId: 5, stationName: 'Pastas',          isSent: true  }),
+            new SaleItem({ id: 9005, menuItemId: 2, menuItemName: 'Tequeños de Queso', quantity: 3, unitPrice: 18, stationId: 2, stationName: 'Cocina Fría',     isSent: false }),
+        ],
+    });
+    s2._recalculate(); // subtotal:176  tax:31.68  total:207.68 (3 tequeños pendientes de enviar)
+
+    const s3 = new Sale({
+        id: 1246, tableId: 8, zoneId: 2, status: SALE_STATUS.ACTIVE, createdAt: agno(38),
+        items: [
+            new SaleItem({ id: 9006, menuItemId: 4, menuItemName: 'Pollo a la Brasa',  quantity: 1, unitPrice: 52, stationId: 1, stationName: 'Cocina Caliente', isSent: true }),
+            new SaleItem({ id: 9007, menuItemId: 1, menuItemName: 'Ceviche Clásico',   quantity: 1, unitPrice: 28, stationId: 2, stationName: 'Cocina Fría',     isSent: true }),
+        ],
+    });
+    s3._recalculate(); // subtotal:80  tax:14.40  total:94.40
+
+    return [s1, s2, s3];
+})();
 
 export const usePosStore = defineStore('pos', () => {
 
@@ -63,7 +101,20 @@ export const usePosStore = defineStore('pos', () => {
 
     // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
-        // TODO: call api.getAll(), transform via SaleAssembler.toEntitiesFromResponse
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getAll();
+            // sales.value = SaleAssembler.toEntitiesFromResponse(response); // TODO
+        } catch (e) {
+            if (import.meta.env.DEV && sales.value.length === 0) {
+                sales.value = [...MOCK_SALES];
+            } else if (!import.meta.env.DEV) {
+                error.value = e?.response?.data?.message ?? 'Error al cargar las órdenes';
+            }
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     async function fetchById(id) {

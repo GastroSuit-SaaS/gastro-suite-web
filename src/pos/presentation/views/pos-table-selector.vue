@@ -26,6 +26,15 @@ function selectTable(table) {
 <template>
     <div class="p-4 flex flex-column gap-4">
 
+        <!-- Acceso rápido a órdenes activas -->
+        <div class="orders-link" @click="router.push('/pos')">
+            <i class="pi pi-arrow-left orders-link__icon"></i>
+            <span>Órdenes activas</span>
+            <span v-if="posStore.activeOrders.length > 0" class="orders-link__badge">
+                {{ posStore.activeOrders.length }}
+            </span>
+        </div>
+
         <!-- Encabezado de zona -->
         <div v-if="zone" class="flex align-items-center gap-3">
             <div

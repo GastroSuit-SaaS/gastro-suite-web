@@ -40,16 +40,16 @@ export function posPaymentRoute(tableId) {
 }
 
 export const PAYMENT_METHODS = [
-    { key: 'cash', label: 'Efectivo', icon: 'pi-money-bill' },
-    { key: 'card', label: 'Tarjeta',  icon: 'pi-credit-card' },
-    { key: 'yape', label: 'Yape',     icon: 'pi-mobile' },
-    { key: 'plin', label: 'Plin',     icon: 'pi-send' },
+    { key: 'cash', label: 'Efectivo', icon: 'pi-money-bill',  color: '#059669' },
+    { key: 'card', label: 'Tarjeta',  icon: 'pi-credit-card', color: '#2563eb' },
+    { key: 'yape', label: 'Yape',     icon: 'pi-mobile',      color: '#7c3aed' },
+    { key: 'plin', label: 'Plin',     icon: 'pi-send',        color: '#0891b2' },
 ];
 
 export const RECEIPT_TYPES = [
-    { key: 'nota',    label: 'Nota de Venta',        icon: 'pi-file' },
-    { key: 'boleta',  label: 'Boleta Electr\u00f3nica', icon: 'pi-file-export' },
-    { key: 'factura', label: 'Factura Electr\u00f3nica', icon: 'pi-building' },
+    { key: 'nota',    label: 'Nota de Venta',       icon: 'pi-file',        color: '#6b7280' },
+    { key: 'boleta',  label: 'Boleta Electrónica',  icon: 'pi-file-export', color: '#2563eb' },
+    { key: 'factura', label: 'Factura Electrónica', icon: 'pi-building',    color: '#7c3aed' },
 ];
 
 export const POS_LABELS = {
