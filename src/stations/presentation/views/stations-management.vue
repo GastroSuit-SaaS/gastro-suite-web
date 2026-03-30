@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
@@ -133,6 +133,64 @@ function onStationSaved(data) {
 function onDeleteStation(station) {
     confirmDelete('la estación', station.name, () => store.removeStation(station.id))
 }
+
+// ── Cancel ticket dialog ──────────────────────────────────────────────────
+const showCancelDialog  = ref(false)
+const cancelTicketId    = ref(null)
+const cancelReason      = ref('')
+
+function openCancelDialog(ticketId) {
+    cancelTicketId.value = ticketId
+    cancelReason.value   = ''
+    showCancelDialog.value = true
+}
+
+function confirmCancel() {
+    if (!cancelTicketId.value) return
+    store.cancelTicket(cancelTicketId.value, cancelReason.value)
+    showCancelDialog.value = false
+    cancelTicketId.value   = null
+    cancelReason.value     = ''
+}
+
+// ── New ticket alert ─────────────────────────────────────────────────────
+const newTicketIds = ref(new Set())
+const _prevIds     = ref(new Set(store.tickets.map(t => t.id)))
+watch(() => store.tickets.length, () => {
+    store.tickets.forEach(t => {
+        if (!_prevIds.value.has(t.id)) {
+            newTicketIds.value = new Set([...newTicketIds.value, t.id])
+            _prevIds.value.add(t.id)
+            setTimeout(() => {
+                const s = new Set(newTicketIds.value)
+                s.delete(t.id)
+                newTicketIds.value = s
+            }, 4000)
+        }
+    })
+})
+
+// ── Waiter call tracking ──────────────────────────────────────────────────
+const calledWaiterIds = ref(new Set())
+function callWaiter(ticketId) {
+    calledWaiterIds.value = new Set([...calledWaiterIds.value, ticketId])
+    setTimeout(() => {
+        const s = new Set(calledWaiterIds.value)
+        s.delete(ticketId)
+        calledWaiterIds.value = s
+    }, 30000)
+}
+
+// ── Urgency border color (based on elapsed time, not status) ─────────────
+function urgencyBorderColor(ticket) {
+    if (ticket.status === 'delivered' || ticket.status === 'cancelled') {
+        return TICKET_STATUS_CONFIG[ticket.status].color
+    }
+    const m = elapsedMins(ticket.createdAt)
+    if (m < 15) return '#10b981'
+    if (m < 30) return '#f59e0b'
+    return '#ef4444'
+}
 </script>
 
 <template>
@@ -151,6 +209,13 @@ function onDeleteStation(station) {
                 @click="activeTab = 'stations'"
             >
                 <i class="pi pi-cog"></i> Gestionar Estaciones
+            </button>
+            <button
+                :class="['tab-btn', activeTab === 'history' && 'tab-btn--active']"
+                @click="activeTab = 'history'"
+            >
+                <i class="pi pi-history"></i> Historial
+                <span v-if="store.ticketHistory.length" class="tab-badge">{{ store.ticketHistory.length }}</span>
             </button>
             <!-- Modo estación: separado a la derecha -->
             <div class="tab-spacer"></div>
@@ -204,6 +269,41 @@ function onDeleteStation(station) {
                         <p v-if="store.activeStations.length === 0" class="station-picker-empty">
                             No hay estaciones activas. Crea estaciones en la pestaña Gestionar.
                         </p>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
+
+        <!-- ── Cancel ticket dialog ───────────────────────────────────── -->
+        <Teleport to="body">
+            <Transition name="picker-fade">
+                <div v-if="showCancelDialog" class="station-picker-overlay" @click.self="showCancelDialog = false">
+                    <div class="cancel-dialog">
+                        <div class="cancel-dialog__header">
+                            <div class="cancel-dialog__icon"><i class="pi pi-times-circle"></i></div>
+                            <div>
+                                <h3 class="cancel-dialog__title">Cancelar Ticket</h3>
+                                <p class="cancel-dialog__sub">El ticket pasará al historial como cancelado</p>
+                            </div>
+                            <button class="station-picker-panel__close" @click="showCancelDialog = false">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+                        <div class="cancel-dialog__body">
+                            <label class="cancel-dialog__label">Motivo de cancelación (opcional)</label>
+                            <textarea
+                                v-model="cancelReason"
+                                class="cancel-dialog__textarea"
+                                placeholder="Ej: Ingrediente agotado, error en pedido, cliente cambió de opinión…"
+                                rows="3"
+                            ></textarea>
+                        </div>
+                        <div class="cancel-dialog__footer">
+                            <button class="cancel-dialog__btn-secondary" @click="showCancelDialog = false">Volver</button>
+                            <button class="cancel-dialog__btn-danger" @click="confirmCancel">
+                                <i class="pi pi-times-circle"></i> Cancelar Ticket
+                            </button>
+                        </div>
                     </div>
                 </div>
             </Transition>
@@ -274,7 +374,7 @@ function onDeleteStation(station) {
                 <div
                     v-for="col in TICKET_COLUMNS"
                     :key="col.key"
-                    class="focus-col"
+                    :class="['focus-col', focusedByColumn(col.key).length === 0 && 'focus-col--empty-col']"
                 >
                     <!-- Column header -->
                     <div class="focus-col__header" :style="{ background: col.bg, borderBottom: `2px solid ${col.color}` }">
@@ -297,8 +397,8 @@ function onDeleteStation(station) {
                         <div
                             v-for="ticket in focusedByColumn(col.key)"
                             :key="ticket.id"
-                            class="focus-ticket"
-                            :style="{ borderLeft: `6px solid ${TICKET_STATUS_CONFIG[ticket.status].color}` }"
+                            :class="['focus-ticket', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket.createdAt) === 'critical' && ticket.status !== 'delivered' && ticket.status !== 'cancelled' && 'ticket-card--critical']"
+                            :style="{ borderLeft: `6px solid ${urgencyBorderColor(ticket)}` }"
                         >
                             <!-- Header -->
                             <div class="focus-ticket__body">
@@ -309,6 +409,14 @@ function onDeleteStation(station) {
                                         <i class="pi pi-clock"></i>
                                         {{ elapsedTime(ticket.createdAt) }}
                                     </span>
+                                    <button
+                                        v-if="TICKET_STATUS_CONFIG[ticket.status].canCancel"
+                                        class="ticket-card__cancel-btn ticket-card__cancel-btn--corner"
+                                        title="Cancelar ticket"
+                                        @click="openCancelDialog(ticket.id)"
+                                    >
+                                        <i class="pi pi-times"></i>
+                                    </button>
                                 </div>
 
                                 <ul class="focus-ticket__items">
@@ -342,20 +450,21 @@ function onDeleteStation(station) {
 
                                 <div class="flex gap-2">
                                     <button
+                                        v-if="ticket.status === 'ready'"
+                                        :class="['call-waiter-btn', calledWaiterIds.has(ticket.id) && 'call-waiter-btn--called']"
+                                        :title="calledWaiterIds.has(ticket.id) ? 'Mesero avisado' : 'Llamar mesero'"
+                                        @click="callWaiter(ticket.id)"
+                                    >
+                                        <i :class="['pi', calledWaiterIds.has(ticket.id) ? 'pi-check' : 'pi-bell']"></i>
+                                    </button>
+                                    <button
                                         v-if="TICKET_STATUS_CONFIG[ticket.status].next"
                                         class="focus-ticket__advance-btn"
-                                        :style="{ background: TICKET_STATUS_CONFIG[TICKET_STATUS_CONFIG[ticket.status].next]?.color ?? '#10b981' }"
+                                        :style="{ background: TICKET_STATUS_CONFIG[TICKET_STATUS_CONFIG[ticket.status].next]?.color ?? '#6366f1' }"
                                         @click="store.advanceTicket(ticket.id)"
                                     >
                                         <i class="pi pi-arrow-right"></i>
                                         {{ TICKET_STATUS_CONFIG[ticket.status].nextLabel }}
-                                    </button>
-                                    <button
-                                        v-else
-                                        class="ticket-card__archive-btn"
-                                        @click="store.removeTicket(ticket.id)"
-                                    >
-                                        <i class="pi pi-inbox"></i> Archivar
                                     </button>
                                 </div>
                             </div>
@@ -457,7 +566,7 @@ function onDeleteStation(station) {
                 <div
                     v-for="col in TICKET_COLUMNS"
                     :key="col.key"
-                    class="kanban-col"
+                    :class="['kanban-col', ticketsByColumn(col.key).length === 0 && 'kanban-col--empty-col']"
                 >
                     <!-- Column header -->
                     <div class="kanban-col__header" :style="{ background: col.bg, borderBottom: `2px solid ${col.color}` }">
@@ -480,8 +589,8 @@ function onDeleteStation(station) {
                         <div
                             v-for="ticket in ticketsByColumn(col.key)"
                             :key="ticket.id"
-                            class="ticket-card"
-                            :style="{ borderLeft: `4px solid ${TICKET_STATUS_CONFIG[ticket.status].color}` }"
+                            :class="['ticket-card', newTicketIds.has(ticket.id) && 'ticket-card--new', timeUrgency(ticket.createdAt) === 'critical' && ticket.status !== 'delivered' && ticket.status !== 'cancelled' && 'ticket-card--critical']"
+                            :style="{ borderLeft: `4px solid ${urgencyBorderColor(ticket)}` }"
                         >
                             <!-- Ticket header -->
                             <div class="ticket-card__header">
@@ -497,6 +606,14 @@ function onDeleteStation(station) {
                                     >
                                         {{ ticket.stationName }}
                                     </span>
+                                    <button
+                                        v-if="TICKET_STATUS_CONFIG[ticket.status].canCancel"
+                                        class="ticket-card__cancel-btn ticket-card__cancel-btn--corner"
+                                        title="Cancelar ticket"
+                                        @click="openCancelDialog(ticket.id)"
+                                    >
+                                        <i class="pi pi-times"></i>
+                                    </button>
                                 </div>
                             </div>
 
@@ -537,19 +654,20 @@ function onDeleteStation(station) {
                                         {{ orderProgress(ticket).ready }}/{{ orderProgress(ticket).total }}
                                     </span>
                                     <button
+                                        v-if="ticket.status === 'ready'"
+                                        :class="['call-waiter-btn', calledWaiterIds.has(ticket.id) && 'call-waiter-btn--called']"
+                                        :title="calledWaiterIds.has(ticket.id) ? 'Mesero avisado' : 'Llamar mesero'"
+                                        @click="callWaiter(ticket.id)"
+                                    >
+                                        <i :class="['pi', calledWaiterIds.has(ticket.id) ? 'pi-check' : 'pi-bell']"></i>
+                                    </button>
+                                    <button
                                         v-if="TICKET_STATUS_CONFIG[ticket.status].next"
                                         class="ticket-card__advance-btn"
-                                        :style="{ background: TICKET_STATUS_CONFIG[TICKET_STATUS_CONFIG[ticket.status].next]?.color ?? '#10b981' }"
+                                        :style="{ background: TICKET_STATUS_CONFIG[TICKET_STATUS_CONFIG[ticket.status].next]?.color ?? '#6366f1' }"
                                         @click="store.advanceTicket(ticket.id)"
                                     >
                                         {{ TICKET_STATUS_CONFIG[ticket.status].nextLabel }}
-                                    </button>
-                                    <button
-                                        v-else
-                                        class="ticket-card__archive-btn"
-                                        @click="store.removeTicket(ticket.id)"
-                                    >
-                                        <i class="pi pi-inbox"></i> Archivar
                                     </button>
                                 </div>
                             </div>
@@ -560,7 +678,7 @@ function onDeleteStation(station) {
         </div>
 
         <!-- ══════════════════ TAB: ESTACIONES CRUD ═══════════════════════ -->
-        <div v-else class="p-4 flex flex-column gap-4">
+        <div v-else-if="activeTab === 'stations'" class="p-4 flex flex-column gap-4">
 
             <!-- Actions -->
             <div class="flex justify-content-end">
@@ -607,6 +725,71 @@ function onDeleteStation(station) {
             <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-6">
                 <i class="pi pi-bolt text-4xl text-color-secondary"></i>
                 <span class="text-color-secondary">No hay estaciones configuradas</span>
+            </div>
+        </div>
+
+        <!-- ══════════════════ TAB: HISTORIAL ════════════════════════════ -->
+        <div v-else-if="activeTab === 'history'" class="p-4 flex flex-column gap-3 display-tab">
+
+            <!-- Empty state -->
+            <div v-if="store.filteredHistory.length === 0" class="flex flex-column align-items-center justify-content-center gap-2 py-6">
+                <i class="pi pi-history text-4xl text-color-secondary"></i>
+                <span class="text-color-secondary">Sin historial para este turno</span>
+            </div>
+
+            <!-- History list -->
+            <div v-else class="history-list">
+                <div
+                    v-for="ticket in store.filteredHistory"
+                    :key="ticket.id"
+                    class="history-row"
+                    :style="{ borderLeft: `4px solid ${TICKET_STATUS_CONFIG[ticket.status]?.color ?? '#9ca3af'}` }"
+                >
+                    <!-- Status chip -->
+                    <span
+                        class="history-row__status"
+                        :style="{ background: TICKET_STATUS_CONFIG[ticket.status]?.bg ?? '#f3f4f6', color: TICKET_STATUS_CONFIG[ticket.status]?.color ?? '#6b7280' }"
+                    >
+                        <i :class="['pi', TICKET_STATUS_CONFIG[ticket.status]?.icon ?? 'pi-circle']"></i>
+                        {{ TICKET_STATUS_CONFIG[ticket.status]?.label ?? ticket.status }}
+                    </span>
+
+                    <!-- Table + order -->
+                    <div class="history-row__meta">
+                        <span class="history-row__table">Mesa {{ ticket.tableNumber }}</span>
+                        <span class="history-row__order">#{{ ticket.saleId }}</span>
+                        <span
+                            class="history-row__station"
+                            :style="{ background: store.stations.find(s => s.id === ticket.stationId)?.color + '22', color: store.stations.find(s => s.id === ticket.stationId)?.color }"
+                        >{{ ticket.stationName }}</span>
+                    </div>
+
+                    <!-- Items summary -->
+                    <div class="history-row__items">
+                        <span v-for="(item, i) in ticket.items" :key="i" class="history-row__item">
+                            {{ item.quantity }}× {{ item.menuItemName }}<template v-if="i < ticket.items.length - 1">, </template>
+                        </span>
+                    </div>
+
+                    <!-- Timestamps -->
+                    <div class="history-row__times">
+                        <span v-if="ticket.createdAt" class="history-row__ts">
+                            <i class="pi pi-inbox"></i> {{ new Date(ticket.createdAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
+                        </span>
+                        <span v-if="ticket.readyAt" class="history-row__ts history-row__ts--ready">
+                            <i class="pi pi-check"></i> {{ new Date(ticket.readyAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
+                        </span>
+                        <span v-if="ticket.deliveredAt" class="history-row__ts history-row__ts--delivered">
+                            <i class="pi pi-user"></i> {{ new Date(ticket.deliveredAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
+                        </span>
+                        <span v-if="ticket.cancelledAt" class="history-row__ts history-row__ts--cancelled">
+                            <i class="pi pi-times-circle"></i> {{ new Date(ticket.cancelledAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
+                        </span>
+                        <span v-if="ticket.cancelReason" class="history-row__reason">
+                            "{{ ticket.cancelReason }}"
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1006,7 +1189,7 @@ function onDeleteStation(station) {
 .focus-kanban {
     flex: 1; min-height: 0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
     padding: 1.25rem;
     overflow: hidden;
@@ -1122,7 +1305,7 @@ function onDeleteStation(station) {
 /* ── Kanban board ─────────────────────────────────────────────────────── */
 .kanban-board {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
     min-height: 400px;
 }
@@ -1445,4 +1628,152 @@ function onDeleteStation(station) {
 }
 .station-action-btn--edit:hover  { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
 .station-action-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+/* ── Cancel ticket button (icon-only, on ticket cards) ───────────────── */
+.ticket-card__cancel-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem;
+    border: 1.5px solid #fca5a5;
+    border-radius: 6px;
+    background: #fff5f5;
+    color: #dc2626;
+    font-size: 0.72rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s;
+}
+.ticket-card__cancel-btn:hover { background: #fee2e2; }
+
+/* ── Cancel dialog ───────────────────────────────────────────────────── */
+.cancel-dialog {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%; max-width: 460px;
+    padding: 1.75rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+
+.cancel-dialog__header {
+    display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;
+}
+
+.cancel-dialog__icon {
+    width: 3rem; height: 3rem; border-radius: 10px;
+    background: #fee2e2; color: #dc2626;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; flex-shrink: 0;
+}
+
+.cancel-dialog__title {
+    font-size: 1.1rem; font-weight: 800; color: #111827; margin: 0;
+}
+.cancel-dialog__sub {
+    font-size: 0.8rem; color: #6b7280; margin: 0.25rem 0 0;
+}
+
+.cancel-dialog__body { margin-bottom: 1.5rem; }
+
+.cancel-dialog__label {
+    display: block; font-size: 0.82rem; font-weight: 600;
+    color: #374151; margin-bottom: 0.5rem;
+}
+
+.cancel-dialog__textarea {
+    width: 100%; border: 1.5px solid #e5e7eb; border-radius: 8px;
+    padding: 0.65rem 0.85rem; font-size: 0.85rem; color: #111827;
+    resize: vertical; outline: none; transition: border-color 0.15s;
+    font-family: inherit; box-sizing: border-box;
+}
+.cancel-dialog__textarea:focus { border-color: #f87171; }
+
+.cancel-dialog__footer {
+    display: flex; gap: 0.75rem; justify-content: flex-end;
+}
+
+.cancel-dialog__btn-secondary {
+    padding: 0.5rem 1.1rem; border: 1.5px solid #e5e7eb; border-radius: 8px;
+    background: #fff; color: #374151; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: background 0.12s;
+}
+.cancel-dialog__btn-secondary:hover { background: #f9fafb; }
+
+.cancel-dialog__btn-danger {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1.25rem; border: none; border-radius: 8px;
+    background: #dc2626; color: #fff; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; transition: background 0.12s;
+}
+.cancel-dialog__btn-danger:hover { background: #b91c1c; }
+
+/* ── Tab badge (history count) ───────────────────────────────────────── */
+.tab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.1rem; height: 1.1rem;
+    background: #ef4444; color: #fff;
+    border-radius: 999px; font-size: 0.62rem; font-weight: 700;
+    padding: 0 0.2rem; margin-left: 0.25rem;
+}
+
+/* ── History list ────────────────────────────────────────────────────── */
+.history-list {
+    display: flex; flex-direction: column; gap: 0.5rem;
+}
+
+.history-row {
+    display: flex; align-items: center; flex-wrap: wrap;
+    gap: 0.65rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+}
+
+.history-row__status {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.72rem; font-weight: 700;
+    border-radius: 999px; padding: 0.2rem 0.6rem;
+    flex-shrink: 0;
+}
+
+.history-row__meta {
+    display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;
+}
+
+.history-row__table { font-size: 0.88rem; font-weight: 700; color: #111827; }
+
+.history-row__order {
+    font-size: 0.72rem; color: #6b7280;
+    background: #f3f4f6; border-radius: 4px; padding: 0.1rem 0.35rem;
+}
+
+.history-row__station {
+    font-size: 0.68rem; font-weight: 600;
+    border-radius: 999px; padding: 0.15rem 0.5rem;
+}
+
+.history-row__items {
+    flex: 1; min-width: 0;
+    font-size: 0.8rem; color: #374151;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.history-row__item { color: #374151; }
+
+.history-row__times {
+    display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap;
+}
+
+.history-row__ts {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.72rem; color: #6b7280;
+}
+.history-row__ts--ready     { color: #059669; }
+.history-row__ts--delivered { color: #6366f1; }
+.history-row__ts--cancelled { color: #dc2626; }
+
+.history-row__reason {
+    font-size: 0.72rem; color: #9ca3af; font-style: italic;
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 </style>

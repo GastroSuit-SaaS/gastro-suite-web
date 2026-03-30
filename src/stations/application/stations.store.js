@@ -5,6 +5,9 @@ import { StationTicket, StationTicketItem, TICKET_STATUS } from '../domain/model
 
 export { TICKET_STATUS };
 
+// Statuses that are still active on the live kanban
+const ACTIVE_STATUSES = new Set([TICKET_STATUS.RECEIVED, TICKET_STATUS.PREPARING, TICKET_STATUS.READY, TICKET_STATUS.DELIVERED]);
+
 export const useStationsStore = defineStore('stations', () => {
 
     // ── State ─────────────────────────────────────────────────────────────
@@ -29,6 +32,11 @@ export const useStationsStore = defineStore('stations', () => {
         new StationTicket({ id: 7, stationId: 4, stationName: 'Bar',             saleId: 1246, tableNumber: 8, items: [{ menuItemId: 10, menuItemName: 'Limonada de la Casa', quantity: 3, note: '' }],                                                                                       status: TICKET_STATUS.PREPARING, createdAt: new Date(Date.now() -  5 * 60000), startedAt: new Date(Date.now() -  3 * 60000) }),
     ]);
 
+    // ── History (delivered + cancelled — never deleted) ───────────────────
+    const ticketHistory     = ref([]);
+    // Persistent counter so totalToday never decreases
+    const ticketCountToday  = ref(tickets.value.length);
+
     const selectedStationId = ref(null);
     const isLoading         = ref(false);
     const error             = ref(null);
@@ -45,9 +53,18 @@ export const useStationsStore = defineStore('stations', () => {
     const receivedTickets  = computed(() => filteredTickets.value.filter(t => t.status === TICKET_STATUS.RECEIVED));
     const preparingTickets = computed(() => filteredTickets.value.filter(t => t.status === TICKET_STATUS.PREPARING));
     const readyTickets     = computed(() => filteredTickets.value.filter(t => t.status === TICKET_STATUS.READY));
+    const deliveredTickets = computed(() => filteredTickets.value.filter(t => t.status === TICKET_STATUS.DELIVERED));
 
-    const totalToday       = computed(() => tickets.value.length);
-    const readyCount       = computed(() => tickets.value.filter(t => t.status === TICKET_STATUS.READY).length);
+    // Real "total hoy" — monotonically increasing, never decreases when tickets are archived
+    const totalToday  = computed(() => ticketCountToday.value);
+    const readyCount  = computed(() => tickets.value.filter(t => t.status === TICKET_STATUS.READY).length);
+
+    // History filtered by station selection
+    const filteredHistory  = computed(() =>
+        selectedStationId.value === null
+            ? ticketHistory.value
+            : ticketHistory.value.filter(t => t.stationId === selectedStationId.value)
+    );
 
     // ── Station Actions ───────────────────────────────────────────────────
     function createStation(data) {
@@ -59,7 +76,6 @@ export const useStationsStore = defineStore('stations', () => {
     function updateStation(id, data) {
         const idx = stations.value.findIndex(s => s.id === id);
         if (idx !== -1) stations.value[idx] = new Station({ ...stations.value[idx], ...data });
-        // Update stationName on existing tickets
         tickets.value.forEach(t => {
             if (t.stationId === id) t.stationName = data.name ?? t.stationName;
         });
@@ -77,8 +93,8 @@ export const useStationsStore = defineStore('stations', () => {
 
     // ── Ticket Actions ────────────────────────────────────────────────────
     /**
-     * Avanza el ticket al siguiente estado: received → preparing → ready.
-     * En estado 'ready' no hace nada.
+     * Avanza received → preparing → ready → delivered.
+     * Al llegar a 'delivered' el ticket pasa al historial en lugar de borrarse.
      */
     function advanceTicket(ticketId) {
         const ticket = tickets.value.find(t => t.id === ticketId);
@@ -89,35 +105,61 @@ export const useStationsStore = defineStore('stations', () => {
         } else if (ticket.status === TICKET_STATUS.PREPARING) {
             ticket.status  = TICKET_STATUS.READY;
             ticket.readyAt = new Date();
+        } else if (ticket.status === TICKET_STATUS.READY) {
+            ticket.status      = TICKET_STATUS.DELIVERED;
+            ticket.deliveredAt = new Date();
+            // Move to history after a brief delay so the transition is visible
+            setTimeout(() => archiveTicket(ticketId), 3000);
         }
         // TODO: call api.updateTicketStatus(ticketId, ticket.status)
     }
 
     /**
+     * Cancela un ticket activo (received | preparing) con motivo opcional.
+     * Lo mueve al historial inmediatamente.
+     */
+    function cancelTicket(ticketId, reason = '') {
+        const ticket = tickets.value.find(t => t.id === ticketId);
+        if (!ticket || ticket.status === TICKET_STATUS.DELIVERED || ticket.status === TICKET_STATUS.CANCELLED) return;
+        ticket.status       = TICKET_STATUS.CANCELLED;
+        ticket.cancelledAt  = new Date();
+        ticket.cancelReason = reason;
+        ticketHistory.value.unshift({ ...ticket });
+        tickets.value = tickets.value.filter(t => t.id !== ticketId);
+        // TODO: call api.cancelTicket(ticketId, reason)
+    }
+
+    /** Moves a delivered ticket to history (called internally after delay). */
+    function archiveTicket(ticketId) {
+        const ticket = tickets.value.find(t => t.id === ticketId);
+        if (!ticket) return;
+        ticketHistory.value.unshift({ ...ticket });
+        tickets.value = tickets.value.filter(t => t.id !== ticketId);
+    }
+
+    /**
      * Recibe los ítems de una venta agrupados por estación y crea tickets.
-     * Llamado desde el POS al "Enviar a Estaciones".
-     * @param {import('../../pos/domain/models/sale.entity.js').Sale} sale
-     * @param {number|null} tableNumber
+     * Ítems sin stationId van a la estación "Sin estación asignada" y generan
+     * una advertencia (visible en el panel de cocina) en lugar de perderse.
      */
     function sendSaleToStations(sale, tableNumber) {
         if (!sale || sale.items.length === 0) return;
 
-        // Agrupar ítems por stationId
         const groups = {};
         sale.items.forEach(item => {
-            const key = item.stationId ?? 0; // 0 = sin estación
+            const key = item.stationId ?? 'unassigned';
             if (!groups[key]) groups[key] = [];
             groups[key].push(item);
         });
 
         const baseId = Date.now();
         Object.entries(groups).forEach(([key, items], idx) => {
-            const sid     = Number(key) || null;
-            const station = stations.value.find(s => s.id === sid);
+            const sid     = key === 'unassigned' ? null : Number(key);
+            const station = sid !== null ? stations.value.find(s => s.id === sid) : null;
             tickets.value.push(new StationTicket({
                 id:          baseId + idx,
                 stationId:   sid,
-                stationName: station?.name ?? 'Sin estación',
+                stationName: station?.name ?? '⚠ Sin estación asignada',
                 saleId:      sale.id,
                 tableNumber: tableNumber ?? null,
                 items:       items.map(i => new StationTicketItem({
@@ -129,24 +171,26 @@ export const useStationsStore = defineStore('stations', () => {
                 status:    TICKET_STATUS.RECEIVED,
                 createdAt: new Date(),
             }));
+            ticketCountToday.value++;
         });
         // TODO: call api.sendToStations(sale.id, tickets)
     }
 
+    /** @deprecated Use cancelTicket() instead — removeTicket hard-deletes with no history. */
     function removeTicket(ticketId) {
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
     }
 
     return {
         // State
-        stations, tickets, selectedStationId, isLoading, error,
+        stations, tickets, ticketHistory, selectedStationId, isLoading, error,
         // Getters
-        activeStations, filteredTickets,
-        receivedTickets, preparingTickets, readyTickets,
+        activeStations, filteredTickets, filteredHistory,
+        receivedTickets, preparingTickets, readyTickets, deliveredTickets,
         totalToday, readyCount,
         // Station actions
         createStation, updateStation, removeStation, selectStation,
         // Ticket actions
-        advanceTicket, sendSaleToStations, removeTicket,
+        advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket,
     };
 });
