@@ -42,8 +42,8 @@ const onSave = () => {
     <CreateAndEdit
         :visible="visible"
         :edit="edit"
-        entity-name="Estaci髇"
-        :custom-button-label="edit ? 'Actualizar Estaci髇' : 'Crear Estaci髇'"
+        entity-name="Estaci贸n"
+        :custom-button-label="edit ? 'Actualizar Estaci贸n' : 'Crear Estaci贸n'"
         @update:visible="v => emit('update:visible', v)"
         @canceled-shared="onCancel"
         @saved-shared="onSave"
@@ -54,20 +54,20 @@ const onSave = () => {
                 <!-- Nombre -->
                 <div class="flex flex-column gap-2">
                     <label class="text-sm font-medium" style="color: #374151;">
-                        Nombre de la Estaci髇 <span class="text-red-500">*</span>
+                        Nombre de la Estaci贸n <span class="text-red-500">*</span>
                     </label>
                     <pv-input-text
                         v-model="form.name"
-                        placeholder="Ej: Cocina Caliente, Bar, Pasteler韆"
+                        placeholder="Ej: Cocina Caliente, Bar, Pasteler铆a"
                     />
                 </div>
 
-                <!-- Descripci髇 -->
+                <!-- Descripci贸n -->
                 <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Descripci髇</label>
+                    <label class="text-sm font-medium" style="color: #374151;">Descripci贸n</label>
                     <pv-textarea
                         v-model="form.description"
-                        placeholder="Descripci髇 opcional de la estaci髇"
+                        placeholder="Descripci贸n opcional de la estaci贸n"
                         :rows="3"
                         auto-resize
                     />
