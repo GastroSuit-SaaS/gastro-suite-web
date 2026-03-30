@@ -4,6 +4,7 @@ import { usePaymentsStore }  from '../../../payments/application/payments.store.
 import { usePosStore }       from '../../../pos/application/pos.store.js'
 import { useTablesStore }    from '../../../tables/application/tables.store.js'
 import { useStationsStore }  from '../../../stations/application/stations.store.js'
+import ModuleStateFeedback   from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const paymentsStore = usePaymentsStore()
 const posStore      = usePosStore()
@@ -15,6 +16,12 @@ onMounted(() => {
     tablesStore.fetchAll()
     posStore.fetchAll()
 })
+
+function retryDashboard() {
+    paymentsStore.fetchAll()
+    tablesStore.fetchAll()
+    posStore.fetchAll()
+}
 
 const formatSoles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`
 
@@ -59,6 +66,12 @@ const topItems = computed(() => {
 </script>
 
 <template>
+    <module-state-feedback
+        :loading="paymentsStore.isLoading || tablesStore.isLoading || posStore.isLoading"
+        :error="paymentsStore.error || tablesStore.error || posStore.error || null"
+        loading-label="Cargando dashboard..."
+        @retry="retryDashboard()"
+    >
     <div class="dash-layout">
 
         <!-- ── Row 1: KPI cards ──────────────────────────────────── -->
@@ -205,6 +218,7 @@ const topItems = computed(() => {
         </div>
 
     </div>
+    </module-state-feedback>
 </template>
 
 <style scoped>

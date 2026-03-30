@@ -6,9 +6,10 @@ import { usePosStore }    from '../../../pos/application/pos.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
 import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
-import CreateAndEditZone   from './create-and-edit-zone.vue'
-import CreateAndEditTable  from './create-and-edit-tables.vue'
-import AssignTableDialog   from './assign-table-dialog.vue'
+import CreateAndEditZone       from './create-and-edit-zone.vue'
+import CreateAndEditTable      from './create-and-edit-tables.vue'
+import AssignTableDialog       from './assign-table-dialog.vue'
+import ModuleStateFeedback     from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store    = useTablesStore()
 const posStore = usePosStore()
@@ -157,20 +158,13 @@ function onTableSaved(table) {
         <!-- ══════════════════ TAB: PLANO DEL SALÓN ══════════════════════ -->
         <div v-if="activeTab === 'floor'" class="p-4 flex flex-column gap-4 floor-tab">
 
-            <!-- Error banner -->
-            <div v-if="store.error" class="tables-error-banner">
-                <i class="pi pi-exclamation-circle"></i>
-                {{ store.error }}
-                <button class="tables-error-banner__retry" @click="store.fetchAll()">
-                    <i class="pi pi-refresh"></i> Reintentar
-                </button>
-            </div>
-
-            <!-- Loading overlay -->
-            <div v-if="store.isLoading" class="tables-loading">
-                <i class="pi pi-spin pi-spinner" style="font-size:1.5rem; color:#6366f1"></i>
-                <span>Cargando mesas…</span>
-            </div>
+            <!-- ── Loading / Error / Contenido ───────────────────────────── -->
+            <module-state-feedback
+                :loading="store.isLoading"
+                :error="store.error"
+                loading-label="Cargando mesas…"
+                @retry="store.fetchAll()"
+            >
 
             <!-- Stat chips (los de estado actúan como filtro toggle) -->
             <div class="stat-row">
@@ -310,6 +304,7 @@ function onTableSaved(table) {
                 <span class="text-color-secondary">No hay mesas en esta zona</span>
             </div>
 
+            </module-state-feedback>
         </div>
 
         <!-- ══════════════════ TAB: GESTIONAR MESAS ══════════════════════ -->
@@ -734,41 +729,7 @@ function onTableSaved(table) {
 .table-card__cta--reservada { background: #7c3aed; color: #fff; }
 .table-card__cta--reservada:hover { filter: brightness(1.1); }
 
-/* ── Loading / Error ─────────────────────────────────────────────────── */
-.tables-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    padding: 1rem;
-    color: #6366f1;
-    font-size: 0.9rem;
-}
-.tables-error-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.65rem 1rem;
-    border-radius: 8px;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: #dc2626;
-    font-size: 0.85rem;
-}
-.tables-error-banner__retry {
-    margin-left: auto;
-    background: none;
-    border: 1px solid #dc2626;
-    border-radius: 6px;
-    color: #dc2626;
-    font-size: 0.8rem;
-    cursor: pointer;
-    padding: 0.2rem 0.55rem;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-.tables-error-banner__retry:hover { background: rgba(239,68,68,0.08); }
+/* Loading/Error states handled by shared ModuleStateFeedback component */
 
 /* ── Zone cards (manage tab) ─────────────────────────────────────────── */
 .zones-grid {

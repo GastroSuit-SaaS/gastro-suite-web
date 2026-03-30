@@ -7,6 +7,7 @@ import {
     RECEIPT_LABELS, RECEIPT_COLORS,
     PAYMENT_STATUS_CONFIG,
 } from '../constants/payments.constants-ui.js'
+import ModuleStateFeedback           from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store = usePaymentsStore()
 
@@ -62,14 +63,14 @@ function formatDate(date) {
 </script>
 
 <template>
+    <module-state-feedback
+        :loading="store.isLoading"
+        :error="store.error"
+        loading-label="Cargando pagos..."
+        @retry="store.fetchAll()"
+    >
     <div class="pay-history">
 
-        <!-- ══ Error banner ══════════════════════════════════════════════ -->
-        <div v-if="store.error" class="pay-error-banner">
-            <i class="pi pi-exclamation-triangle"></i>
-            <span>{{ store.error }}</span>
-            <button class="pay-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
-        </div>
 
         <!-- ══ Stat cards ═════════════════════════════════════════════════ -->
         <div class="stat-strip">
@@ -163,14 +164,8 @@ function formatDate(date) {
             </button>
         </div>
 
-        <!-- ══ Loading ════════════════════════════════════════════════════ -->
-        <div v-if="store.isLoading" class="state-msg">
-            <i class="pi pi-spin pi-spinner" style="font-size:1.6rem;color:#9ca3af"></i>
-            <span>Cargando pagos...</span>
-        </div>
-
-        <!-- ══ Empty ══════════════════════════════════════════════════════ -->
-        <div v-else-if="filteredPayments.length === 0" class="state-msg">
+        <!-- ══ Empty ═══════════════════════════════════════════════════════════ -->
+        <div v-if="filteredPayments.length === 0" class="state-msg">
             <i class="pi pi-receipt" style="font-size:2rem;color:#d1d5db"></i>
             <span class="state-msg__title">Sin pagos registrados hoy</span>
             <span class="state-msg__sub">Los pagos procesados desde el POS aparecerán aquí</span>
@@ -237,6 +232,7 @@ function formatDate(date) {
         </div>
 
     </div>
+    </module-state-feedback>
 
     <!-- ══ Popup detalle ═════════════════════════════════════════════════ -->
     <Teleport to="body">
@@ -735,34 +731,7 @@ function formatDate(date) {
     color: #dc2626;
 }
 
-/* Error banner */
-.pay-error-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.7rem 1rem;
-    background: #fee2e2;
-    border: 1px solid #fca5a5;
-    border-radius: 10px;
-    font-size: 0.85rem;
-    color: #dc2626;
-    margin-bottom: 0.5rem;
-}
-.pay-error-banner .pi { font-size: 1rem; flex-shrink: 0; }
-.pay-error-banner span { flex: 1; }
-.pay-error-banner__retry {
-    padding: 0.3rem 0.8rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: #dc2626;
-    color: #fff;
-    border: none;
-    cursor: pointer;
-    transition: background 0.12s;
-    flex-shrink: 0;
-}
-.pay-error-banner__retry:hover { background: #b91c1c; }
+/* Loading/Error states handled by shared ModuleStateFeedback component */
 
 /* History toggle */
 .filter-divider {

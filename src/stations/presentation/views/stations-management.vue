@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
-import CreateAndEditStation from './create-and-edit-station.vue'
+import CreateAndEditStation      from './create-and-edit-station.vue'
+import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store = useStationsStore()
 const { confirmDelete } = useConfirmDialog()
@@ -208,18 +209,13 @@ function urgencyBorderColor(ticket) {
 <template>
     <div class="stations-layout">
 
-        <!-- ── Loading ────────────────────────────────────────────────── -->
-        <div v-if="store.isLoading" class="stations-loading">
-            <pv-progress-spinner style="width:40px;height:40px" stroke-width="4" />
-            <span>Cargando estaciones...</span>
-        </div>
-
-        <!-- ── Error banner ───────────────────────────────────────────── -->
-        <div v-if="store.error" class="stations-error-banner">
-            <i class="pi pi-exclamation-triangle"></i>
-            <span>{{ store.error }}</span>
-            <button class="stations-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
-        </div>
+        <!-- ── Loading / Error / Contenido ───────────────────────────── -->
+        <module-state-feedback
+            :loading="store.isLoading"
+            :error="store.error"
+            loading-label="Cargando estaciones..."
+            @retry="store.fetchAll()"
+        >
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
         <div class="stations-tabs">
@@ -843,6 +839,7 @@ function urgencyBorderColor(ticket) {
             </div>
         </div>
 
+        </module-state-feedback>
     </div>
 
     <!-- Dialogs -->
@@ -862,46 +859,7 @@ function urgencyBorderColor(ticket) {
     min-height: 0;
 }
 
-/* ── Loading ──────────────────────────────────────────────────────────── */
-.stations-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1.25rem 1.5rem;
-    background: #f0f9ff;
-    border-bottom: 1px solid #bae6fd;
-    color: #0369a1;
-    font-size: 0.88rem;
-    font-weight: 500;
-    flex-shrink: 0;
-}
-
-/* ── Error banner ─────────────────────────────────────────────────────── */
-.stations-error-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.8rem 1.25rem;
-    background: #fef2f2;
-    border-bottom: 1px solid #fca5a5;
-    color: #dc2626;
-    font-size: 0.88rem;
-    font-weight: 500;
-    flex-shrink: 0;
-}
-.stations-error-banner i { font-size: 1rem; }
-.stations-error-banner__retry {
-    margin-left: auto;
-    padding: 0.3rem 0.9rem;
-    background: #dc2626;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-.stations-error-banner__retry:hover { background: #b91c1c; }
+/* Loading/Error states handled by shared ModuleStateFeedback component */
 
 /* ── Compact stat bar ─────────────────────────────────────────────────── */
 .stat-bar {

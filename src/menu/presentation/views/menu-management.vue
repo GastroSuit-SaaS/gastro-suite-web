@@ -2,8 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useMenuStore } from '../../application/menu.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import CreateAndEditCategory from './create-and-edit-category.vue'
-import CreateAndEditMenuItem  from './create-and-edit-menu-item.vue'
+import CreateAndEditCategory    from './create-and-edit-category.vue'
+import CreateAndEditMenuItem     from './create-and-edit-menu-item.vue'
+import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store = useMenuStore()
 const { confirmDelete } = useConfirmDialog()
@@ -79,18 +80,13 @@ function onCategorySaved(data) {
 <template>
     <div class="menu-layout">
 
-        <!-- ── Loading ────────────────────────────────────────────────── -->
-        <div v-if="store.isLoading" class="menu-loading">
-            <pv-progress-spinner style="width:40px;height:40px" stroke-width="4" />
-            <span>Cargando menú...</span>
-        </div>
-
-        <!-- ── Error banner ───────────────────────────────────────────── -->
-        <div v-if="store.error" class="menu-error-banner">
-            <i class="pi pi-exclamation-triangle"></i>
-            <span>{{ store.error }}</span>
-            <button class="menu-error-banner__retry" @click="store.fetchAll()">Reintentar</button>
-        </div>
+        <!-- ── Loading / Error / Contenido ───────────────────────────── -->
+        <module-state-feedback
+            :loading="store.isLoading"
+            :error="store.error"
+            loading-label="Cargando menú..."
+            @retry="store.fetchAll()"
+        >
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
         <div class="menu-tabs">
@@ -268,6 +264,7 @@ function onCategorySaved(data) {
 
         </div>
 
+        </module-state-feedback>
     </div>
 
     <CreateAndEditCategory
@@ -661,42 +658,5 @@ function onCategorySaved(data) {
 .mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
 .mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
 
-/* ── Loading ──────────────────────────────────────────────────────────── */
-.menu-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1.25rem 1.5rem;
-    background: #f0f9ff;
-    border-bottom: 1px solid #bae6fd;
-    color: #0369a1;
-    font-size: 0.88rem;
-    font-weight: 500;
-}
-
-/* ── Error banner ─────────────────────────────────────────────────────── */
-.menu-error-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.8rem 1.25rem;
-    background: #fef2f2;
-    border-bottom: 1px solid #fca5a5;
-    color: #dc2626;
-    font-size: 0.88rem;
-    font-weight: 500;
-}
-.menu-error-banner i { font-size: 1rem; }
-.menu-error-banner__retry {
-    margin-left: auto;
-    padding: 0.3rem 0.9rem;
-    background: #dc2626;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-.menu-error-banner__retry:hover { background: #b91c1c; }
+/* Loading/Error states handled by shared ModuleStateFeedback component */
 </style>
