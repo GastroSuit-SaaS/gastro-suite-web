@@ -19,6 +19,7 @@ export class SaleItem {
         discountValue   = 0,       // % o monto fijo en soles
         stationId       = null,
         stationName     = null,
+        isSent          = false,   // true una vez enviado a estaciones
     } = {}) {
         this.id            = id ?? _nextId++;
         this.menuItemId    = menuItemId;
@@ -30,6 +31,7 @@ export class SaleItem {
         this.discountValue = discountValue;
         this.stationId     = stationId;
         this.stationName   = stationName;
+        this.isSent        = isSent;
         this.subtotal      = 0;
         this._recalculate();
     }

@@ -1,19 +1,22 @@
 ﻿<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { usePosStore }     from '../../application/pos.store.js'
-import { useStationsStore } from '../../../stations/application/stations.store.js'
-import { POS_ROUTES }      from '../constants/pos.constants-ui.js'
+import { useToast }            from 'primevue/usetoast'
+import { usePosStore }         from '../../application/pos.store.js'
+import { POS_ROUTES }          from '../constants/pos.constants-ui.js'
 
 const route         = useRoute()
 const router        = useRouter()
+const toast         = useToast()
 const posStore      = usePosStore()
-const stationsStore  = useStationsStore()
 
 const tableId = computed(() => Number(route.params.tableId))
 const table   = computed(() => posStore.tableById(tableId.value))
 const zone    = computed(() => posStore.zoneById(table.value?.zoneId))
 const sale    = computed(() => posStore.currentSale)
+
+// Ítems pendientes de enviar a cocina
+const pendingItems = computed(() => sale.value?.items.filter(i => !i.isSent) ?? [])
 
 // â”€â”€ Nota editable por Ã­tem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const editingNoteId     = ref(null)
@@ -83,9 +86,15 @@ function cancelDiscount() {
 
 // â”€â”€ Acciones de orden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function enviarEstaciones() {
-    if (!sale.value || sale.value.items.length === 0) return
-    const table = posStore.tableById(tableId.value)
-    stationsStore.sendSaleToStations(sale.value, table?.number ?? null)
+    const count = posStore.sendCurrentSaleToStations()
+    if (count > 0) {
+        toast.add({
+            severity: 'success',
+            summary:  'Enviado a Cocina',
+            detail:   `${count} producto${count !== 1 ? 's' : ''} despachado${count !== 1 ? 's' : ''} a las estaciones.`,
+            life:     3000,
+        })
+    }
 }
 function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
 function procederPago()     { /* TODO: navigate to payment view */ }
@@ -230,7 +239,12 @@ function procederPago()     { /* TODO: navigate to payment view */ }
                     >
                         <!-- Nombre + acciones -->
                         <div class="flex align-items-start justify-content-between gap-1">
-                            <span class="order-item__name">{{ item.menuItemName }}</span>
+                            <div class="flex align-items-center gap-2">
+                                <span class="order-item__name">{{ item.menuItemName }}</span>
+                                <span v-if="item.isSent" class="sent-badge">
+                                    <i class="pi pi-check"></i> Enviado
+                                </span>
+                            </div>
                             <div class="flex gap-1 flex-shrink-0">
                                 <!-- Descuento (etiqueta) -->
                                 <button
@@ -353,8 +367,14 @@ function procederPago()     { /* TODO: navigate to payment view */ }
 
                 <!-- Botones -->
                 <div class="action-btns">
-                    <button class="action-btn action-btn--stations" @click="enviarEstaciones">
-                        <i class="pi pi-send"></i> Enviar a Estaciones
+                    <button
+                        class="action-btn action-btn--stations"
+                        :disabled="pendingItems.length === 0"
+                        @click="enviarEstaciones"
+                    >
+                        <i class="pi pi-send"></i>
+                        Enviar a Estaciones
+                        <span v-if="pendingItems.length > 0" class="pending-count">{{ pendingItems.length }}</span>
                     </button>
                     <button class="action-btn action-btn--split" @click="dividirCuenta">
                         <i class="pi pi-sliders-h"></i> Dividir Cuenta
@@ -664,6 +684,20 @@ function procederPago()     { /* TODO: navigate to payment view */ }
 .order-item__name { font-size: 0.86rem; font-weight: 600; color: #111827; line-height: 1.3; flex: 1; }
 .order-item__subtotal { font-size: 0.9rem; font-weight: 700; color: var(--color-primary, #6366f1); }
 
+.sent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #065f46;
+    background: #d1fae5;
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .icon-btn {
     width: 1.55rem; height: 1.55rem;
     border-radius: 4px; border: none; background: transparent;
@@ -782,7 +816,25 @@ function procederPago()     { /* TODO: navigate to payment view */ }
     transition: opacity 0.15s;
 }
 .action-btn:hover { opacity: 0.88; }
+.action-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+}
 .action-btn--stations { background: #059669; }
 .action-btn--split    { background: #7c3aed; }
 .action-btn--pay      { background: #2563eb; }
+
+.pending-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.35);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0 0.25rem;
+}
 </style>

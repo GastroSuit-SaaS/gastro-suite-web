@@ -54,8 +54,10 @@ export class Sale {
      * De lo contrario crea una nueva línea.
      */
     addItem(menuItem) {
+        // Solo se puede acumular en una línea que todavía no fue enviada a cocina.
+        // Si la línea ya fue enviada, se crea una nueva para que el delta llegue como ticket nuevo.
         const existing = this.items.find(
-            i => i.menuItemId === menuItem.id && i.note === ''
+            i => i.menuItemId === menuItem.id && i.note === '' && !i.isSent
         );
         if (existing) {
             existing.quantity += 1;

@@ -4,16 +4,17 @@ import { PosApi } from '../infrastructure/api/pos.api.js';
 // SaleAssembler: reserved for API integration (fetchAll / create / update)
 // import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
 import { Sale, SALE_STATUS } from '../domain/models/sale.entity.js';
-import { useTablesStore } from '../../tables/application/tables.store.js';
-import { useMenuStore }   from '../../menu/application/menu.store.js';
+import { useTablesStore }   from '../../tables/application/tables.store.js';
+import { useMenuStore }     from '../../menu/application/menu.store.js';
+import { useStationsStore } from '../../stations/application/stations.store.js';
 
 const api = new PosApi();
 
 export const usePosStore = defineStore('pos', () => {
 
     // ── Stores externos ───────────────────────────────────────────────────
-    const tablesStore  = useTablesStore();
-    const menuStore    = useMenuStore();
+    const tablesStore    = useTablesStore();
+    const menuStore      = useMenuStore();
 
     // ── State ─────────────────────────────────────────────────────────────
     const sales                   = ref([]);
@@ -135,6 +136,29 @@ export const usePosStore = defineStore('pos', () => {
         currentSale.value.duplicateItem(itemId);
     }
 
+    /**
+     * Envía a las estaciones de cocina únicamente los ítems que todavía no
+     * fueron enviados (isSent === false). Tras el envío los marca como enviados
+     * para que rondas posteriores solo despachen el delta nuevo.
+     * @returns {number} Cantidad de ítems despachados (0 si no había nada pendiente)
+     */
+    function sendCurrentSaleToStations() {
+        if (!currentSale.value) return 0;
+        const pending = currentSale.value.items.filter(i => !i.isSent);
+        if (pending.length === 0) return 0;
+        // Lazy call — se llama dentro de la acción para evitar problemas de
+        // orden de inicialización entre stores en Pinia
+        const stationsStore = useStationsStore();
+        const table = tablesStore.tables.find(t => t.id === currentSale.value.tableId);
+        stationsStore.sendSaleToStations(
+            { id: currentSale.value.id, items: pending },
+            table?.number ?? null,
+        );
+        pending.forEach(item => { item.isSent = true; });
+        // TODO: persist via api.update(currentSale.value.id, ...)
+        return pending.length;
+    }
+
     return {
         // State
         sales, currentSale, currentSaleIsRecovered, isLoading, error,
@@ -149,6 +173,7 @@ export const usePosStore = defineStore('pos', () => {
         openSaleForTable,
         addItemToCurrentSale, removeItemFromCurrentSale,
         updateItemQuantity, updateItemNote, updateItemDiscount, duplicateItemInCurrentSale,
+        sendCurrentSaleToStations,
         // Catálogo
         setCatalogCategory, setCatalogSearch,
     };
