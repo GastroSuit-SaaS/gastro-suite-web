@@ -17,6 +17,7 @@ export class MenuItem {
         isAvailable = true,
         prepTime    = 0,
         station     = null,
+        stationId   = null,
         sku         = '',
         sortOrder   = 0,
     } = {}) {
@@ -31,6 +32,7 @@ export class MenuItem {
         this.isAvailable = isAvailable;
         this.prepTime    = prepTime;
         this.station     = station;
+        this.stationId   = stationId;
         this.sku         = sku;
         this.sortOrder   = sortOrder;
     }

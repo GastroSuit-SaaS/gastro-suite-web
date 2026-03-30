@@ -1,12 +1,14 @@
 ﻿<script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { usePosStore } from '../../application/pos.store.js'
-import { POS_ROUTES }  from '../constants/pos.constants-ui.js'
+import { usePosStore }     from '../../application/pos.store.js'
+import { useStationsStore } from '../../../stations/application/stations.store.js'
+import { POS_ROUTES }      from '../constants/pos.constants-ui.js'
 
-const route    = useRoute()
-const router   = useRouter()
-const posStore = usePosStore()
+const route         = useRoute()
+const router        = useRouter()
+const posStore      = usePosStore()
+const stationsStore  = useStationsStore()
 
 const tableId = computed(() => Number(route.params.tableId))
 const table   = computed(() => posStore.tableById(tableId.value))
@@ -80,7 +82,11 @@ function cancelDiscount() {
 }
 
 // â”€â”€ Acciones de orden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function enviarEstaciones() { /* TODO: emit to stations */ }
+function enviarEstaciones() {
+    if (!sale.value || sale.value.items.length === 0) return
+    const table = posStore.tableById(tableId.value)
+    stationsStore.sendSaleToStations(sale.value, table?.number ?? null)
+}
 function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
 function procederPago()     { /* TODO: navigate to payment view */ }
 </script>
@@ -111,8 +117,8 @@ function procederPago()     { /* TODO: navigate to payment view */ }
                     <div class="context-badge context-badge--blue">
                         <span class="context-badge__label">Orden</span>
                         <div style="display:flex;align-items:center;gap:0.35rem">
-                            <strong v-if="posStore.currentSaleIsRecovered" class="context-badge__value">#{{ sale?.id ?? '—' }}</strong>
-                            <span class="pending-chip">PENDIENTE</span>
+                            <strong class="context-badge__value">#{{ sale?.id ?? '—' }}</strong>
+                            <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
                         </div>
                     </div>
                 </div>
@@ -519,13 +525,13 @@ function procederPago()     { /* TODO: navigate to payment view */ }
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.15s, transform 0.15s;
-    min-height: 260px;
+    min-height: 310px;
 }
 .product-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.10); transform: translateY(-2px); }
 
 .product-card__image {
     position: relative;
-    height: 130px;
+    height: 160px;
     background: #f3f4f6;
     display: flex;
     align-items: center;

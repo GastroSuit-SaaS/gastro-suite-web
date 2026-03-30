@@ -3,7 +3,7 @@ import iamRoutes            from "../iam/presentation/iam.routes.js";
 import tablesRoutes         from "../tables/presentation/tables.routes.js";
 import dashboardRoutes      from "../dashboard/presentation/dashboard.routes.js";
 import inventoryRoutes      from "../inventory/presentation/inventory.routes.js";
-import kitchenRoutes        from "../kitchen/presentation/kitchen.routes.js";
+import stationsRoutes       from "../stations/presentation/stations.routes.js";
 import paymentsRoutes       from "../payments/presentation/payments.routes.js";
 import posRoutes            from "../pos/presentation/pos.routes.js";
 import reportsRoutes        from "../reports/presentation/reports.routes.js";
@@ -50,10 +50,10 @@ const routes = [
         meta: { title: 'Inventario' },
     },
     {
-        path: '/kitchen',
+        path: '/stations',
         component: layout,
-        children: kitchenRoutes,
-        meta: { title: 'Cocina' },
+        children: stationsRoutes,
+        meta: { title: 'Estaciones' },
     },
     {
         path: '/payments',

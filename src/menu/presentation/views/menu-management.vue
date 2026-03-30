@@ -11,6 +11,8 @@ const { confirmDelete } = useConfirmDialog()
 const showCategoryDialog = ref(false)
 const editingCategory    = ref(null)
 
+const activeTab = ref('catalog')
+
 const showItemDialog = ref(false)
 const editingItem    = ref(null)
 
@@ -62,166 +64,241 @@ function onCategorySaved(data) {
 </script>
 
 <template>
-    <div class="p-4 flex flex-column gap-4">
+    <div class="menu-layout">
 
-        <!-- Stat cards -->
-        <div class="flex flex-wrap gap-3">
+        <!-- ── Tab navigation ──────────────────────────────────────────── -->
+        <div class="menu-tabs">
+            <button
+                :class="['tab-btn', activeTab === 'catalog' && 'tab-btn--active']"
+                @click="activeTab = 'catalog'"
+            >
+                <i class="pi pi-book"></i> Catálogo
+            </button>
+            <button
+                :class="['tab-btn', activeTab === 'categories' && 'tab-btn--active']"
+                @click="activeTab = 'categories'"
+            >
+                <i class="pi pi-tag"></i> Categorías
+            </button>
+        </div>
 
-            <!-- Total Productos -->
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <span class="text-sm text-color-secondary">Total Productos</span>
-                <span class="text-4xl font-bold text-color">{{ store.totalItems }}</span>
-            </div>
+        <!-- ══════════════════ TAB: CATÁLOGO ═════════════════════════════ -->
+        <div v-if="activeTab === 'catalog'" class="p-4 flex flex-column gap-4 catalog-tab">
 
-            <!-- Disponibles -->
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <div class="flex align-items-center gap-2">
-                    <span class="status-dot bg-green-500"></span>
-                    <span class="text-sm text-color-secondary">Disponibles</span>
+            <!-- Stat cards -->
+            <div class="flex flex-wrap gap-3">
+                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
+                    <span class="text-sm text-color-secondary">Total Productos</span>
+                    <span class="text-4xl font-bold text-color">{{ store.totalItems }}</span>
                 </div>
-                <span class="text-4xl font-bold text-green-500">{{ store.availableItems }}</span>
-            </div>
-
-            <!-- No Disponibles -->
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <div class="flex align-items-center gap-2">
-                    <span class="status-dot bg-red-500"></span>
-                    <span class="text-sm text-color-secondary">No Disponibles</span>
+                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
+                    <div class="flex align-items-center gap-2">
+                        <span class="status-dot bg-green-500"></span>
+                        <span class="text-sm text-color-secondary">Disponibles</span>
+                    </div>
+                    <span class="text-4xl font-bold text-green-500">{{ store.availableItems }}</span>
                 </div>
-                <span class="text-4xl font-bold text-red-500">{{ store.unavailableItems }}</span>
+                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
+                    <div class="flex align-items-center gap-2">
+                        <span class="status-dot bg-red-500"></span>
+                        <span class="text-sm text-color-secondary">No Disponibles</span>
+                    </div>
+                    <span class="text-4xl font-bold text-red-500">{{ store.unavailableItems }}</span>
+                </div>
+                <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
+                    <span class="text-sm text-color-secondary">Categorías</span>
+                    <span class="text-4xl font-bold text-color">{{ store.totalCategories }}</span>
+                </div>
             </div>
 
-            <!-- Categorías -->
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <span class="text-sm text-color-secondary">Categorías</span>
-                <span class="text-4xl font-bold text-color">{{ store.totalCategories }}</span>
+            <!-- Toolbar -->
+            <div class="flex align-items-center gap-2">
+                <div class="search-wrapper flex-1">
+                    <i class="pi pi-search search-wrapper__icon"></i>
+                    <pv-input-text
+                        v-model="store.searchQuery"
+                        placeholder="Buscar productos por nombre o SKU..."
+                        class="w-full search-wrapper__input"
+                    />
+                </div>
+                <pv-button label="Nuevo Producto" icon="pi pi-plus" size="small" severity="success" @click="openCreateItem" />
             </div>
 
-        </div>
-
-        <!-- Action buttons -->
-        <div class="flex justify-content-end gap-2">
-            <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
-            <pv-button label="Nuevo Producto"  icon="pi pi-plus" size="small" severity="success" @click="openCreateItem" />
-        </div>
-
-        <!-- Search bar -->
-        <div class="search-wrapper">
-            <i class="pi pi-search search-wrapper__icon"></i>
-            <pv-input-text
-                v-model="store.searchQuery"
-                placeholder="Buscar productos por nombre o SKU..."
-                class="w-full search-wrapper__input"
-            />
-        </div>
-
-        
-
-        <!-- Category filter label -->
-        <div class="flex align-items-center gap-2">
-            <i class="pi pi-tag text-color-secondary"></i>
-            <span class="text-sm text-color-secondary font-medium">Filtrar por Categoría:</span>
-        </div>
-
-        <!-- Category filter pills -->
-        <div class="flex flex-wrap align-items-center gap-2">
-                <button
-                    :class="['cat-btn border-round-xl px-3 py-2 cursor-pointer text-sm font-medium border-1',
-                             store.selectedCategoryId === null ? 'cat-btn--active' : 'cat-btn--inactive']"
-                    @click="store.selectCategory(null)"
-                >
-                    Todas ({{ store.totalItems }})
-                </button>
-
-                <div v-for="cat in store.categories" :key="cat.id" class="cat-pill-wrapper inline-flex align-items-center">
+            <!-- Category filter pills (solo lectura) -->
+            <div class="flex flex-column gap-2">
+                <div class="flex align-items-center gap-2">
+                    <i class="pi pi-tag text-color-secondary"></i>
+                    <span class="text-sm text-color-secondary font-medium">Filtrar por Categoría:</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
                     <button
-                        class="cat-btn border-round-xl px-3 py-2 cursor-pointer text-sm font-medium"
-                        :class="store.selectedCategoryId === cat.id ? 'cat-btn--active' : 'cat-btn--inactive'"
-                        :style="{ borderLeft: `4px solid ${cat.color}` }"
+                        :class="['cat-pill', store.selectedCategoryId === null && 'cat-pill--active']"
+                        @click="store.selectCategory(null)"
+                    >
+                        Todas ({{ store.totalItems }})
+                    </button>
+                    <button
+                        v-for="cat in store.categories"
+                        :key="cat.id"
+                        :class="['cat-pill', store.selectedCategoryId === cat.id && 'cat-pill--active']"
+                        :style="store.selectedCategoryId !== cat.id ? { borderLeft: `4px solid ${cat.color}` } : {}"
                         @click="store.selectCategory(cat.id)"
                     >
                         {{ cat.name }} ({{ cat.count }})
                     </button>
-                    <div class="cat-pill-actions">
-                        <button class="cat-action-btn cat-action-btn--edit" title="Editar categoría" @click.stop="openEditCategory(cat)">
+                </div>
+            </div>
+
+            <!-- Items grid -->
+            <div v-if="store.filteredItems.length > 0" class="menu-grid">
+                <div
+                    v-for="item in store.filteredItems"
+                    :key="item.id"
+                    class="menu-card"
+                >
+                    <div class="menu-card__image flex align-items-center justify-content-center">
+                        <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" class="menu-card__img" />
+                        <i v-else class="pi pi-prime menu-card__placeholder-icon"></i>
+                        <div :class="['menu-card__badge flex align-items-center', item.isAvailable ? 'menu-card__badge--available' : 'menu-card__badge--unavailable']">
+                            <i :class="['pi', item.isAvailable ? 'pi-check-circle' : 'pi-times-circle']"></i>
+                            {{ item.isAvailable ? 'Disponible' : 'No Disponible' }}
+                        </div>
+                        <div class="menu-card__actions">
+                            <button class="menu-card__action-btn menu-card__action-btn--edit" title="Editar" @click.stop="openEditItem(item)">
+                                <i class="pi pi-pencil"></i>
+                            </button>
+                            <button class="menu-card__action-btn menu-card__action-btn--delete" title="Eliminar" @click.stop="onDeleteItem(item)">
+                                <i class="pi pi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="menu-card__content flex flex-column">
+                        <span class="text-xs text-color-secondary">{{ item.category }}</span>
+                        <h3 class="menu-card__name font-bold">{{ item.name }}</h3>
+                        <p class="menu-card__description">{{ item.description }}</p>
+                        <div class="menu-card__footer flex flex-column">
+                            <span class="menu-card__price font-bold text-blue-500">S/ {{ item.price.toFixed(2) }}</span>
+                            <span class="menu-card__sku text-color-secondary">SKU: {{ item.sku }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="flex flex-column align-items-center justify-content-center gap-3 p-6">
+                <i class="pi pi-inbox text-color-secondary" style="font-size: 3rem;"></i>
+                <span class="text-color-secondary">No se encontraron productos</span>
+            </div>
+
+        </div>
+
+        <!-- ══════════════════ TAB: CATEGORÍAS ═══════════════════════════ -->
+        <div v-else class="p-4 flex flex-column gap-4">
+
+            <div class="flex align-items-center justify-content-between">
+                <span class="text-base font-bold text-color">Categorías</span>
+                <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
+            </div>
+
+            <div v-if="store.categories.length > 0" class="cats-grid">
+                <div
+                    v-for="cat in store.categories"
+                    :key="cat.id"
+                    class="cat-card"
+                    :style="{ '--cat-color': cat.color }"
+                >
+                    <div class="cat-card__top-bar" :style="{ background: cat.color }"></div>
+                    <div class="cat-card__body">
+                        <div class="cat-card__icon-wrap" :style="{ background: cat.color + '22' }">
+                            <i class="pi pi-tag" :style="{ color: cat.color }"></i>
+                        </div>
+                        <div class="cat-card__info">
+                            <div class="cat-card__name">{{ cat.name }}</div>
+                            <div class="cat-card__desc">{{ cat.description || 'Sin descripción' }}</div>
+                        </div>
+                        <div class="cat-card__badge">{{ cat.count }} producto{{ cat.count !== 1 ? 's' : '' }}</div>
+                    </div>
+                    <div class="cat-card__actions">
+                        <button class="mgmt-btn mgmt-btn--edit" title="Editar" @click="openEditCategory(cat)">
                             <i class="pi pi-pencil"></i>
                         </button>
-                        <button class="cat-action-btn cat-action-btn--delete" title="Eliminar categoría" @click.stop="onDeleteCategory(cat)">
+                        <button class="mgmt-btn mgmt-btn--delete" title="Eliminar" @click="onDeleteCategory(cat)">
                             <i class="pi pi-trash"></i>
                         </button>
                     </div>
                 </div>
             </div>
-
-        <!-- Items grid -->
-        <div v-if="store.filteredItems.length > 0" class="menu-grid">
-            <div
-                v-for="item in store.filteredItems"
-                :key="item.id"
-                class="menu-card"
-            >
-                <!-- Image area -->
-                <div class="menu-card__image flex align-items-center justify-content-center">
-                    <img
-                        v-if="item.imageUrl"
-                        :src="item.imageUrl"
-                        :alt="item.name"
-                        class="menu-card__img"
-                    />
-                    <i v-else class="pi pi-prime menu-card__placeholder-icon"></i>
-                    <!-- Availability badge -->
-                    <div :class="['menu-card__badge flex align-items-center', item.isAvailable ? 'menu-card__badge--available' : 'menu-card__badge--unavailable']">
-                        <i :class="['pi', item.isAvailable ? 'pi-check-circle' : 'pi-times-circle']"></i>
-                        {{ item.isAvailable ? 'Disponible' : 'No Disponible' }}
-                    </div>
-                    <!-- Hover actions -->
-                    <div class="menu-card__actions">
-                        <button class="menu-card__action-btn menu-card__action-btn--edit" title="Editar" @click.stop="openEditItem(item)">
-                            <i class="pi pi-pencil"></i>
-                        </button>
-                        <button class="menu-card__action-btn menu-card__action-btn--delete" title="Eliminar" @click.stop="onDeleteItem(item)">
-                            <i class="pi pi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Content -->
-                <div class="menu-card__content flex flex-column">
-                    <span class="text-xs text-color-secondary">{{ item.category }}</span>
-                    <h3 class="menu-card__name font-bold">{{ item.name }}</h3>
-                    <p class="menu-card__description">{{ item.description }}</p>
-                    <div class="menu-card__footer flex flex-column">
-                        <span class="menu-card__price font-bold text-blue-500">S/ {{ item.price.toFixed(2) }}</span>
-                        <span class="menu-card__sku text-color-secondary">SKU: {{ item.sku }}</span>
-                    </div>
-                </div>
+            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-6">
+                <i class="pi pi-tag text-4xl text-color-secondary"></i>
+                <span class="text-color-secondary">No hay categorías configuradas</span>
             </div>
-        </div>
 
-        <!-- Empty state -->
-        <div v-else class="flex flex-column align-items-center justify-content-center gap-3 p-6">
-            <i class="pi pi-inbox text-color-secondary" style="font-size: 3rem;"></i>
-            <span class="text-color-secondary">No se encontraron productos</span>
         </div>
-
-        <CreateAndEditCategory
-            v-model:visible="showCategoryDialog"
-            :edit="!!editingCategory"
-            :category="editingCategory"
-            @category-saved="onCategorySaved"
-        />
-        <CreateAndEditMenuItem
-            v-model:visible="showItemDialog"
-            :edit="!!editingItem"
-            :item="editingItem"
-            :categories="store.categories"
-            @item-saved="onItemSaved"
-        />
 
     </div>
+
+    <CreateAndEditCategory
+        v-model:visible="showCategoryDialog"
+        :edit="!!editingCategory"
+        :category="editingCategory"
+        @category-saved="onCategorySaved"
+    />
+    <CreateAndEditMenuItem
+        v-model:visible="showItemDialog"
+        :edit="!!editingItem"
+        :item="editingItem"
+        :categories="store.categories"
+        @item-saved="onItemSaved"
+    />
+
 </template>
 
 <style scoped>
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.menu-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+.menu-tabs {
+    display: flex;
+    border-bottom: 2px solid var(--surface-border);
+    background: #fff;
+    padding: 0 1.25rem;
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.75rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: var(--text-color-secondary, #6b7280);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s;
+}
+.tab-btn--active {
+    color: var(--p-primary-color, #6366f1);
+    border-bottom-color: var(--p-primary-color, #6366f1);
+    font-weight: 600;
+}
+.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
+
+/* ── Catalog tab scrollable ───────────────────────────────────────────── */
+.catalog-tab {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* ── Stat cards ───────────────────────────────────────────────────────── */
 .stat-card {
     min-width: 160px;
 }
@@ -233,10 +310,9 @@ function onCategorySaved(data) {
     border-radius: 50%;
 }
 
-/* ── Search bar ────────────────────────────────────────────── */
+/* ── Search bar ───────────────────────────────────────────────────────── */
 .search-wrapper {
     position: relative;
-    width: 100%;
 }
 
 .search-wrapper__icon {
@@ -254,86 +330,25 @@ function onCategorySaved(data) {
     padding-left: 2.25rem !important;
 }
 
-/* ── Category pills ─────────────────────────────────────────── */
-.cat-btn {
-    background-color: white;
-    border-top:    1px solid var(--border-color, #e5e7eb);
-    border-right:  1px solid var(--border-color, #e5e7eb);
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
-    /* border-left se aplica via :style con el color de categoría */
-    transition: background-color 0.15s, color 0.15s;
-    white-space: nowrap;
-}
-
-.cat-btn--active {
-    background-color: var(--color-primary, #3b82f6);
-    color: #ffffff;
-    border-color: var(--color-primary, #3b82f6);
-}
-
-.cat-btn--inactive {
-    color: rgb(19, 18, 18);
-}
-
-.cat-btn--inactive:hover {
-    background-color: var(--bg-hover, #f3f4f6);
-    color: var(--text-primary, #374151);
-}
-
-/* wrapper for pill + edit/delete mini buttons */
-.cat-pill-wrapper {
-    position: relative;
-}
-
-.cat-pill-actions {
-    display: none;
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    gap: 2px;
-    align-items: center;
-}
-
-.cat-pill-wrapper:hover .cat-pill-actions {
-    display: flex;
-}
-
-.cat-action-btn {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
+/* ── Category filter pills (catalog tab, read-only) ───────────────────── */
+.cat-pill {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: transform 0.1s ease, filter 0.1s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    color: #374151;
+    white-space: nowrap;
+    transition: background 0.12s;
 }
-
-.cat-action-btn .pi {
-    font-size: 10px;
-    line-height: 1;
-    display: block;
-}
-
-.cat-action-btn:hover {
-    transform: scale(1.2);
-    filter: brightness(1.15);
-}
-
-.cat-action-btn--edit {
-    background: #3b82f6;
+.cat-pill--active {
+    background: var(--p-primary-color, #6366f1);
     color: #fff;
+    border-color: var(--p-primary-color, #6366f1);
 }
-
-.cat-action-btn--delete {
-    background: #ef4444;
-    color: #fff;
-}
+.cat-pill:not(.cat-pill--active):hover { background: #f3f4f6; }
 
 /* ── Menu item cards grid ───────────────────────────────────── */
 .menu-grid {
@@ -476,4 +491,96 @@ function onCategorySaved(data) {
 .menu-card__sku {
     font-size: 0.7rem;
 }
+
+/* ── Category cards (categories tab) ─────────────────────────────────── */
+.cats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.cat-card {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    transition: box-shadow 0.15s;
+}
+.cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); }
+
+.cat-card__top-bar { height: 4px; }
+
+.cat-card__body {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem;
+}
+
+.cat-card__icon-wrap {
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.3rem;
+}
+
+.cat-card__info { flex: 1; min-width: 0; }
+
+.cat-card__name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.cat-card__desc {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cat-card__badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    background: #eff6ff;
+    color: #1d4ed8;
+    flex-shrink: 0;
+}
+
+.cat-card__actions {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 1rem 0.85rem;
+    justify-content: flex-end;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.cat-card:hover .cat-card__actions { opacity: 1; }
+
+/* ── Shared management action buttons ────────────────────────────────── */
+.mgmt-btn {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    color: #6b7280;
+    transition: background 0.12s, color 0.12s;
+}
+.mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
+.mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
 </style>

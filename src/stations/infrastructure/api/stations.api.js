@@ -1,23 +1,22 @@
 /**
- * Kitchen Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo Kitchen.
- * Maneja endpoints de órdenes, preparación, estaciones, etc.
+ * Stations Infrastructure - API Service
+ *
+ * Responsabilidad: Comunicación HTTP con el backend del módulo de Estaciones.
+ * Maneja endpoints de estaciones de preparación y tickets.
  * NO contiene lógica de negocio.
- * 
+ *
  * Usa assemblers para transformar datos API ⇄ Dominio.
  */
 
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
-export class KitchenApi extends BaseApi {
+export class StationsApi extends BaseApi {
     #endpoint;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_KITCHEN_ENDPOINT ?? '/kitchen/orders');
+        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_STATIONS_ENDPOINT ?? '/stations');
     }
 
     getAll() {
@@ -40,7 +39,7 @@ export class KitchenApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add kitchen-specific methods (updateOrderStatus, assignStation, etc.)
+    // TODO: add stations-specific methods (updateOrderStatus, assignStation, etc.)
 }
 
-export const kitchenApi = new KitchenApi();
+export const stationsApi = new StationsApi();

@@ -1,7 +1,8 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import FileUploader  from '../../../shared/presentation/components/file-uploader.vue'
+import { useStationsStore } from '../../../stations/application/stations.store.js'
 
 // ===========================
 // PROPS & EMITS
@@ -16,15 +17,14 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'item-saved'])
 
 // ===========================
-// CONSTANTS
+// STATIONS (from store — fuente de verdad)
 // ===========================
-const PREPARATION_STATIONS = [
-    { value: null,      label: 'Ninguna (No requiere preparación)', icon: 'pi-ban' },
-    { value: 'kitchen', label: 'Cocina',                            icon: 'pi-fire' },
-    { value: 'bar',     label: 'Barra',                             icon: 'pi-box' },
-    { value: 'grill',   label: 'Parrilla',                          icon: 'pi-sun' },
-    { value: 'bakery',  label: 'Repostería',                        icon: 'pi-star' },
-]
+const stationsStore = useStationsStore()
+
+const stationOptions = computed(() => [
+    { id: null, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
+    ...stationsStore.activeStations.map(s => ({ id: s.id, name: s.name, icon: s.icon, color: s.color })),
+])
 
 // ===========================
 // FORM STATE
@@ -35,7 +35,7 @@ const form = reactive({
     categoryId:  null,
     sku:         '',
     price:       0,
-    station:     null,
+    stationId:   null,
     isAvailable: true,
 })
 
@@ -54,7 +54,7 @@ watch(() => props.visible, (val) => {
         form.categoryId  = src?.categoryId  ?? null
         form.sku         = src?.sku         ?? ''
         form.price       = src?.price       ?? 0
-        form.station     = src?.station     ?? null
+        form.stationId   = src?.stationId   ?? null
         form.isAvailable = src?.isAvailable ?? true
         imageFile.value  = null
         errors.name       = false
@@ -75,13 +75,16 @@ function onSave() {
 
     if (errors.name || errors.categoryId || errors.sku || errors.price) return
 
+    const selectedStation = stationOptions.value.find(s => s.id === form.stationId)
+
     emit('item-saved', {
         name:        form.name.trim(),
         description: form.description.trim(),
         categoryId:  form.categoryId,
         sku:         form.sku.trim(),
         price:       form.price,
-        station:     form.station,
+        stationId:   form.stationId,
+        station:     selectedStation?.id !== null ? selectedStation?.name ?? null : null,
         isAvailable: form.isAvailable,
         imageFile:   imageFile.value,
     })
@@ -176,25 +179,27 @@ function onClose() {
 
                 <!-- Estación de Preparación -->
                 <div class="flex flex-column gap-1">
-                    <label class="field-label">Estación de Preparación <span class="required">*</span></label>
+                    <label class="field-label">Estación de Preparación</label>
                     <pv-select
-                        v-model="form.station"
-                        :options="PREPARATION_STATIONS"
-                        option-label="label"
-                        option-value="value"
+                        v-model="form.stationId"
+                        :options="stationOptions"
+                        option-label="name"
+                        option-value="id"
                         class="w-full"
                     >
                         <template #value="{ value }">
-                            <div v-if="value === null" class="flex align-items-center gap-2">
-                                <i class="pi pi-ban" style="color: #ef4444;"></i>
-                                <span>Ninguna (No requiere preparación)</span>
+                            <div class="flex align-items-center gap-2">
+                                <i
+                                    :class="['pi', stationOptions.find(s => s.id === value)?.icon ?? 'pi-bolt']"
+                                    :style="{ color: stationOptions.find(s => s.id === value)?.color ?? '#6b7280' }"
+                                ></i>
+                                <span>{{ stationOptions.find(s => s.id === value)?.name ?? 'Seleccionar estación' }}</span>
                             </div>
-                            <span v-else>{{ PREPARATION_STATIONS.find(s => s.value === value)?.label }}</span>
                         </template>
                         <template #option="{ option }">
                             <div class="flex align-items-center gap-2">
-                                <i :class="['pi', option.icon]" :style="{ color: option.value === null ? '#ef4444' : 'inherit' }"></i>
-                                <span>{{ option.label }}</span>
+                                <i :class="['pi', option.icon]" :style="{ color: option.color }"></i>
+                                <span>{{ option.name }}</span>
                             </div>
                         </template>
                     </pv-select>

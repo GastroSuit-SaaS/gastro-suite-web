@@ -1,8 +1,8 @@
 <script setup>
 import { onMounted } from 'vue'
-import { useKitchenStore } from '../../application/kitchen.store.js'
+import { useStationsStore } from '../../application/stations.store.js'
 
-const store = useKitchenStore()
+const store = useStationsStore()
 
 onMounted(() => {
     store.fetchAll()

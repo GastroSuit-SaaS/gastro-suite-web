@@ -66,6 +66,8 @@ export class Sale {
                 menuItemName: menuItem.name,
                 quantity:     1,
                 unitPrice:    menuItem.price,
+                stationId:    menuItem.stationId   ?? null,
+                stationName:  menuItem.station     ?? null,
             }));
         }
         this._recalculate();

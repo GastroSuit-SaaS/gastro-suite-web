@@ -12,8 +12,8 @@ const api = new PosApi();
 export const usePosStore = defineStore('pos', () => {
 
     // ── Stores externos ───────────────────────────────────────────────────
-    const tablesStore = useTablesStore();
-    const menuStore   = useMenuStore();
+    const tablesStore  = useTablesStore();
+    const menuStore    = useMenuStore();
 
     // ── State ─────────────────────────────────────────────────────────────
     const sales                   = ref([]);

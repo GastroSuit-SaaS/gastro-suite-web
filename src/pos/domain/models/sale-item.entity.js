@@ -17,6 +17,8 @@ export class SaleItem {
         note            = '',
         discountType    = 'pct',   // 'pct' | 'fixed'
         discountValue   = 0,       // % o monto fijo en soles
+        stationId       = null,
+        stationName     = null,
     } = {}) {
         this.id            = id ?? _nextId++;
         this.menuItemId    = menuItemId;
@@ -26,6 +28,8 @@ export class SaleItem {
         this.note          = note;
         this.discountType  = discountType;
         this.discountValue = discountValue;
+        this.stationId     = stationId;
+        this.stationName   = stationName;
         this.subtotal      = 0;
         this._recalculate();
     }

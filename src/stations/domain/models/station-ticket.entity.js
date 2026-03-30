@@ -1,0 +1,52 @@
+/**
+ * Stations Domain - StationTicket Entity
+ *
+ * Representa un comando/pedido enviado a una estación de preparación desde el POS.
+ * Objeto de dominio puro — sin dependencias Vue, sin HTTP.
+ */
+
+export const TICKET_STATUS = Object.freeze({
+    RECEIVED:  'received',
+    PREPARING: 'preparing',
+    READY:     'ready',
+});
+
+export class StationTicketItem {
+    constructor({
+        menuItemId   = null,
+        menuItemName = '',
+        quantity     = 1,
+        note         = '',
+    } = {}) {
+        this.menuItemId   = menuItemId;
+        this.menuItemName = menuItemName;
+        this.quantity     = quantity;
+        this.note         = note;
+    }
+}
+
+export class StationTicket {
+    constructor({
+        id          = null,
+        stationId   = null,
+        stationName = '',
+        saleId      = null,
+        tableNumber = null,
+        items       = [],
+        status      = TICKET_STATUS.RECEIVED,
+        createdAt   = null,
+        startedAt   = null,
+        readyAt     = null,
+    } = {}) {
+        this.id          = id;
+        this.stationId   = stationId;
+        this.stationName = stationName;
+        this.saleId      = saleId;
+        this.tableNumber = tableNumber;
+        this.items       = items.map(i => i instanceof StationTicketItem ? i : new StationTicketItem(i));
+        this.status      = status;
+        this.createdAt   = createdAt ? new Date(createdAt) : new Date();
+        this.startedAt   = startedAt ? new Date(startedAt) : null;
+        this.readyAt     = readyAt   ? new Date(readyAt)   : null;
+    }
+}

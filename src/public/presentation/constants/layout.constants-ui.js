@@ -24,10 +24,10 @@ export const menuItems = [
         title: 'Punto de Venta',
     },
     {
-        label: 'Cocina',
-        icon: 'pi pi-fw pi-briefcase',
-        to: '/kitchen',
-        title: 'Gestión de Cocina',
+        label: 'Estaciones',
+        icon: 'pi pi-fw pi-bolt',
+        to: '/stations',
+        title: 'Estaciones de Preparación',
     },
     {
         label: 'Pagos',
