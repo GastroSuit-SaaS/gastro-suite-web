@@ -3,10 +3,12 @@ import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class MenuApi extends BaseApi {
     #endpoint;
+    #categoriesPath;
 
     constructor() {
         super();
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_MENU_ENDPOINT ?? '/menu/items');
+        this.#endpoint       = new BaseEndpoint(this, import.meta.env.VITE_MENU_ENDPOINT ?? '/menu/items');
+        this.#categoriesPath = import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories';
     }
 
     getAll() {
@@ -31,19 +33,19 @@ export class MenuApi extends BaseApi {
 
     // ── Categories ────────────────────────────────────────────────────────
     getCategories() {
-        return this.http.get(import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories');
+        return this.http.get(this.#categoriesPath);
     }
 
     createCategory(data) {
-        return this.http.post(import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories', data);
+        return this.http.post(this.#categoriesPath, data);
     }
 
     updateCategory(id, data) {
-        return this.http.put(`${import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories'}/${id}`, data);
+        return this.http.put(`${this.#categoriesPath}/${id}`, data);
     }
 
     deleteCategory(id) {
-        return this.http.delete(`${import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories'}/${id}`);
+        return this.http.delete(`${this.#categoriesPath}/${id}`);
     }
 }
 

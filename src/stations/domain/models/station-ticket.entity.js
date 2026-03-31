@@ -42,6 +42,7 @@ export class StationTicket {
         deliveredAt  = null,
         cancelledAt  = null,
         cancelReason = '',
+        sucursalId   = null,
     } = {}) {
         this.id           = id;
         this.stationId    = stationId;
@@ -56,6 +57,7 @@ export class StationTicket {
         this.deliveredAt  = deliveredAt ? new Date(deliveredAt) : null;
         this.cancelledAt  = cancelledAt ? new Date(cancelledAt) : null;
         this.cancelReason = cancelReason;
+        this.sucursalId   = sucursalId;
     }
 
     get elapsedMinutes() {

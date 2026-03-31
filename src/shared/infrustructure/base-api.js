@@ -22,6 +22,11 @@ export class BaseApi {
           config.headers['Authorization'] = `Bearer ${token}`;
         }
 
+        const branchId = localStorage.getItem('gs_branch_id');
+        if (branchId) {
+          config.headers['X-Branch-Id'] = branchId;
+        }
+
         if (config.data instanceof FormData) {
           // Let the browser set multipart/form-data + boundary
           delete config.headers['Content-Type'];

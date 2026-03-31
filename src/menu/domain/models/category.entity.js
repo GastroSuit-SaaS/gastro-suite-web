@@ -13,6 +13,7 @@ export class Category {
         isActive    = true,
         sortOrder   = 0,
         count       = 0,
+        sucursalId  = null,
     } = {}) {
         this.id          = id;
         this.name        = name;
@@ -21,5 +22,6 @@ export class Category {
         this.isActive    = isActive;
         this.sortOrder   = sortOrder;
         this.count       = count;
+        this.sucursalId  = sucursalId;
     }
 }

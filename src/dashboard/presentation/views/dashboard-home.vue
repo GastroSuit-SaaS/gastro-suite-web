@@ -1,76 +1,23 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { usePaymentsStore }  from '../../../payments/application/payments.store.js'
-import { usePosStore }       from '../../../pos/application/pos.store.js'
-import { useTablesStore }    from '../../../tables/application/tables.store.js'
-import { useStationsStore }  from '../../../stations/application/stations.store.js'
+import { useDashboardStore } from '../../application/dashboard.store.js'
 import ModuleStateFeedback   from '../../../shared/presentation/components/module-state-feedback.vue'
 
-const paymentsStore = usePaymentsStore()
-const posStore      = usePosStore()
-const tablesStore   = useTablesStore()
-const stationsStore = useStationsStore()
+const store = useDashboardStore()
 
 onMounted(() => {
-    paymentsStore.fetchAll()
-    tablesStore.fetchAll()
-    posStore.fetchAll()
+    store.fetchAll()
 })
-
-function retryDashboard() {
-    paymentsStore.fetchAll()
-    tablesStore.fetchAll()
-    posStore.fetchAll()
-}
 
 const formatSoles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`
-
-const methodIcons = {
-    cash: 'pi-money-bill',
-    card: 'pi-credit-card',
-    yape: 'pi-mobile',
-    plin: 'pi-mobile',
-}
-
-const paymentMethodRows = computed(() => {
-    const map = paymentsStore.todayByMethod ?? {}
-    return Object.entries(map)
-        .filter(([, v]) => v > 0)
-        .map(([method, total]) => ({
-            method,
-            label: method.charAt(0).toUpperCase() + method.slice(1),
-            total,
-            icon: methodIcons[method] ?? 'pi-wallet',
-        }))
-        .sort((a, b) => b.total - a.total)
-})
-
-const avgTicket = computed(() => {
-    const count = paymentsStore.todayCount
-    return count > 0 ? paymentsStore.todayTotal / count : 0
-})
-
-// Top-selling items from today's payments
-const topItems = computed(() => {
-    const counts = {}
-    paymentsStore.todaysPayments.forEach(p => {
-        p.items?.forEach(item => {
-            counts[item.name] = (counts[item.name] ?? 0) + (item.qty ?? 1)
-        })
-    })
-    return Object.entries(counts)
-        .map(([name, qty]) => ({ name, qty }))
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 5)
-})
 </script>
 
 <template>
     <module-state-feedback
-        :loading="paymentsStore.isLoading || tablesStore.isLoading || posStore.isLoading"
-        :error="paymentsStore.error || tablesStore.error || posStore.error || null"
+        :loading="store.isLoading"
+        :error="store.error"
         loading-label="Cargando dashboard..."
-        @retry="retryDashboard()"
+        @retry="store.fetchAll()"
     >
     <div class="dash-layout">
 
@@ -79,7 +26,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--green">
                 <div class="kpi-card__icon"><i class="pi pi-dollar"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ formatSoles(paymentsStore.todayTotal) }}</div>
+                    <div class="kpi-card__value">{{ formatSoles(store.todayRevenue) }}</div>
                     <div class="kpi-card__label">Ingresos del día</div>
                 </div>
             </div>
@@ -87,7 +34,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--blue">
                 <div class="kpi-card__icon"><i class="pi pi-receipt"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ paymentsStore.todayCount }}</div>
+                    <div class="kpi-card__value">{{ store.todayPaymentCount }}</div>
                     <div class="kpi-card__label">Cobros realizados</div>
                 </div>
             </div>
@@ -95,7 +42,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--purple">
                 <div class="kpi-card__icon"><i class="pi pi-chart-bar"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ formatSoles(avgTicket) }}</div>
+                    <div class="kpi-card__value">{{ formatSoles(store.avgTicket) }}</div>
                     <div class="kpi-card__label">Ticket promedio</div>
                 </div>
             </div>
@@ -103,7 +50,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--orange">
                 <div class="kpi-card__icon"><i class="pi pi-table"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ tablesStore.occupiedTables?.length ?? 0 }}</div>
+                    <div class="kpi-card__value">{{ store.occupiedTablesCount }}</div>
                     <div class="kpi-card__label">Mesas ocupadas</div>
                 </div>
             </div>
@@ -111,7 +58,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--yellow">
                 <div class="kpi-card__icon"><i class="pi pi-bolt"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ posStore.activeOrders?.length ?? posStore.totalInProcess ?? 0 }}</div>
+                    <div class="kpi-card__value">{{ store.activeOrdersCount }}</div>
                     <div class="kpi-card__label">Órdenes activas</div>
                 </div>
             </div>
@@ -119,7 +66,7 @@ const topItems = computed(() => {
             <div class="kpi-card kpi-card--teal">
                 <div class="kpi-card__icon"><i class="pi pi-check-circle"></i></div>
                 <div class="kpi-card__body">
-                    <div class="kpi-card__value">{{ stationsStore.readyCount }}</div>
+                    <div class="kpi-card__value">{{ store.readyCount }}</div>
                     <div class="kpi-card__label">Listos para recoger</div>
                 </div>
             </div>
@@ -134,11 +81,11 @@ const topItems = computed(() => {
                     <i class="pi pi-wallet"></i>
                     <span>Métodos de pago hoy</span>
                 </div>
-                <div v-if="paymentMethodRows.length === 0" class="dash-card__empty">
+                <div v-if="store.paymentMethodRows.length === 0" class="dash-card__empty">
                     Sin cobros registrados hoy
                 </div>
                 <div v-else class="method-list">
-                    <div v-for="row in paymentMethodRows" :key="row.method" class="method-row">
+                    <div v-for="row in store.paymentMethodRows" :key="row.method" class="method-row">
                         <div class="method-row__left">
                             <i :class="['pi', row.icon, 'method-row__icon']"></i>
                             <span class="method-row__label">{{ row.label }}</span>
@@ -146,7 +93,7 @@ const topItems = computed(() => {
                         <div class="method-row__right">
                             <div
                                 class="method-row__bar"
-                                :style="{ width: ((row.total / paymentsStore.todayTotal) * 100).toFixed(1) + '%' }"
+                                :style="{ width: ((row.total / store.todayRevenue) * 100).toFixed(1) + '%' }"
                             ></div>
                             <span class="method-row__val">{{ formatSoles(row.total) }}</span>
                         </div>
@@ -160,11 +107,11 @@ const topItems = computed(() => {
                     <i class="pi pi-star"></i>
                     <span>Productos más vendidos</span>
                 </div>
-                <div v-if="topItems.length === 0" class="dash-card__empty">
+                <div v-if="store.topItems.length === 0" class="dash-card__empty">
                     Sin datos disponibles
                 </div>
                 <div v-else class="top-list">
-                    <div v-for="(item, idx) in topItems" :key="item.name" class="top-row">
+                    <div v-for="(item, idx) in store.topItems" :key="item.name" class="top-row">
                         <span class="top-row__rank" :class="`top-row__rank--${idx + 1}`">{{ idx + 1 }}</span>
                         <span class="top-row__name">{{ item.name }}</span>
                         <span class="top-row__qty">× {{ item.qty }}</span>
@@ -180,22 +127,22 @@ const topItems = computed(() => {
                 </div>
                 <div class="kitchen-stats">
                     <div class="kitchen-stat">
-                        <span class="kitchen-stat__num" style="color:#3b82f6">{{ stationsStore.receivedTickets?.length ?? 0 }}</span>
+                        <span class="kitchen-stat__num" style="color:#3b82f6">{{ store.receivedTickets?.length ?? 0 }}</span>
                         <span class="kitchen-stat__lbl">Recibidos</span>
                     </div>
                     <div class="kitchen-stat__sep"></div>
                     <div class="kitchen-stat">
-                        <span class="kitchen-stat__num" style="color:#f59e0b">{{ stationsStore.preparingTickets?.length ?? 0 }}</span>
+                        <span class="kitchen-stat__num" style="color:#f59e0b">{{ store.preparingTickets?.length ?? 0 }}</span>
                         <span class="kitchen-stat__lbl">En Preparación</span>
                     </div>
                     <div class="kitchen-stat__sep"></div>
                     <div class="kitchen-stat">
-                        <span class="kitchen-stat__num" style="color:#10b981">{{ stationsStore.readyCount }}</span>
+                        <span class="kitchen-stat__num" style="color:#10b981">{{ store.readyCount }}</span>
                         <span class="kitchen-stat__lbl">Listos</span>
                     </div>
                     <div class="kitchen-stat__sep"></div>
                     <div class="kitchen-stat">
-                        <span class="kitchen-stat__num" style="color:#6366f1">{{ stationsStore.totalToday }}</span>
+                        <span class="kitchen-stat__num" style="color:#6366f1">{{ store.totalToday }}</span>
                         <span class="kitchen-stat__lbl">Total hoy</span>
                     </div>
                 </div>
@@ -203,14 +150,14 @@ const topItems = computed(() => {
                 <!-- Per-station breakdown -->
                 <div class="station-breakdown">
                     <div
-                        v-for="st in stationsStore.activeStations"
+                        v-for="st in store.activeStations"
                         :key="st.id"
                         class="station-breakdown-row"
                     >
                         <span class="station-breakdown-row__dot" :style="{ background: st.color }"></span>
                         <span class="station-breakdown-row__name">{{ st.name }}</span>
                         <span class="station-breakdown-row__count">
-                            {{ stationsStore.tickets.filter(t => t.stationId === st.id).length }} tickets
+                            {{ store.tickets.filter(t => t.stationId === st.id).length }} tickets
                         </span>
                     </div>
                 </div>

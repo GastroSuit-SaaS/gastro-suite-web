@@ -20,6 +20,7 @@ export class MenuItem {
         stationId   = null,
         sku         = '',
         sortOrder   = 0,
+        sucursalId  = null,
     } = {}) {
         this.id          = id;
         this.name        = name;
@@ -35,5 +36,6 @@ export class MenuItem {
         this.stationId   = stationId;
         this.sku         = sku;
         this.sortOrder   = sortOrder;
+        this.sucursalId  = sucursalId;
     }
 }

@@ -90,7 +90,7 @@ const onSave = () => {
 
                 <!-- Estación activa -->
                 <div class="flex align-items-center gap-3">
-                    <pv-toggle-switch v-model="form.isActive" input-id="station-active" />
+                    <pv-input-switch v-model="form.isActive" input-id="station-active" />
                     <div class="flex flex-column gap-0">
                         <label for="station-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
                             Estación activa

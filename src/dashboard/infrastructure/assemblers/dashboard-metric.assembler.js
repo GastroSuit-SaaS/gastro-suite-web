@@ -8,26 +8,25 @@ import { DashboardMetric } from '../../domain/models/dashboard-metric.entity.js'
  */
 export class DashboardMetricAssembler {
 
-    /**
-     * Transforma un recurso individual del API en una entidad DashboardMetric.
-     * @param {Object} resource - Recurso crudo del API.
-     * @returns {DashboardMetric}
-     */
     static toEntityFromResource(resource) {
-        // TODO: map resource fields to DashboardMetric constructor parameters
         return new DashboardMetric({
-            id: resource.id,
+            id:     resource.id,
+            label:  resource.label  ?? '',
+            value:  resource.value  ?? 0,
+            unit:   resource.unit   ?? '',
+            period: resource.period ?? null,
         });
     }
 
-    /**
-     * Valida la respuesta HTTP y transforma la colección de recursos en entidades.
-     * @param {Object} response - Respuesta Axios (response.status, response.data).
-     * @returns {DashboardMetric[]}
-     */
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
-        // TODO: adjust extraction path if data is nested (e.g. response.data.items)
-        return response.data.map(r => DashboardMetricAssembler.toEntityFromResource(r));
+        const data = response.data?.items ?? response.data?.data ?? response.data;
+        return Array.isArray(data) ? data.map(r => DashboardMetricAssembler.toEntityFromResource(r)) : [];
+    }
+
+    static toEntityFromResponse(response) {
+        if (response.status !== 200 && response.status !== 201) return null;
+        const data = response.data?.data ?? response.data;
+        return DashboardMetricAssembler.toEntityFromResource(data);
     }
 }

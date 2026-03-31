@@ -10,6 +10,7 @@ import reportsRoutes        from "../reports/presentation/reports.routes.js";
 import usersRoutes          from "../users/presentation/users.routes.js";
 import menuRoutes           from "../menu/presentation/menu.routes.js";
 import cashRegisterRoutes   from "../cash-register/presentation/cash-register.routes.js";
+import branchesRoutes       from "../branches/presentation/branches.routes.js";
 import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -85,6 +86,18 @@ const routes = [
         children: usersRoutes,
         meta: { title: 'Usuarios' },
     },
+    {
+        path: '/branches',
+        component: layout,
+        children: branchesRoutes,
+        meta: { title: 'Sucursales' },
+    },
+    {
+        path: '/select-branch',
+        name: 'select-branch',
+        component: () => import('../branches/presentation/views/select-branch.vue'),
+        meta: { title: 'Seleccionar Sucursal' },
+    },
 
     {
         path: '/:pathMatch(.*)*',
@@ -104,8 +117,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     let baseTitle = 'GastroSuite';
     document.title = to.meta.title ? `${to.meta.title} | ${baseTitle}` : baseTitle;
-    next();
-    //authenticationGuard(to, from, next);
+    authenticationGuard(to, from, next);
 });
 
 export default router;

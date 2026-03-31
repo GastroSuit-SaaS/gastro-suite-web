@@ -28,6 +28,7 @@ export class Sale {
         total     = 0,
         status    = SALE_STATUS.ACTIVE,
         cashierId = null,
+        sucursalId = null,
         createdAt = null,
     } = {}) {
         this.id        = id;
@@ -40,6 +41,7 @@ export class Sale {
         this.total     = total;
         this.status    = status;
         this.cashierId = cashierId;
+        this.sucursalId = sucursalId;
         this.createdAt = createdAt ? new Date(createdAt) : new Date();
     }
 

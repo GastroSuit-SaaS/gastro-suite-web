@@ -89,7 +89,7 @@ const onSave = () => {
                         <span class="text-sm font-medium" style="color: #374151;">Zona activa</span>
                         <span class="text-xs text-color-secondary">Las zonas inactivas no aparecen en el plano del salón</span>
                     </div>
-                    <pv-toggle-switch v-model="form.isActive" />
+                    <pv-input-switch v-model="form.isActive" />
                 </div>
 
             </div>

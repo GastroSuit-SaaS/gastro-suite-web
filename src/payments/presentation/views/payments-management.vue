@@ -15,30 +15,6 @@ onMounted(() => {
     store.fetchAll()
 })
 
-// ── Filtros ────────────────────────────────────────────────────────────────
-const filterMethod  = ref('all')
-const filterReceipt = ref('all')
-const searchQuery   = ref('')
-const showAll       = ref(false)   // false = sólo hoy | true = historial completo
-
-const filteredPayments = computed(() => {
-    let list = showAll.value ? store.payments : store.todaysPayments
-    if (filterMethod.value  !== 'all') list = list.filter(p => p.method      === filterMethod.value)
-    if (filterReceipt.value !== 'all') list = list.filter(p => p.receiptType === filterReceipt.value)
-    if (searchQuery.value.trim()) {
-        const q = searchQuery.value.trim().toLowerCase()
-        list = list.filter(p =>
-            String(p.tableNumber).includes(q) ||
-            String(p.saleId).includes(q)      ||
-            (p.receiptData?.nombre?.toLowerCase().includes(q)) ||
-            (p.receiptData?.razonSocial?.toLowerCase().includes(q)) ||
-            (p.receiptData?.dni?.includes(q)) ||
-            (p.receiptData?.ruc?.includes(q))
-        )
-    }
-    return list
-})
-
 // ── Detalle en popup ─────────────────────────────────────────────────────
 const detailPayment = ref(null)
 function openDetail(p)  { detailPayment.value = p }
@@ -115,7 +91,8 @@ function formatDate(date) {
             <div class="search-wrap">
                 <i class="pi pi-search search-wrap__icon"></i>
                 <input
-                    v-model="searchQuery"
+                    :value="store.searchQuery"
+                    @input="store.setSearchQuery($event.target.value)"
                     class="search-wrap__input"
                     placeholder="Buscar por mesa, orden, DNI, RUC..."
                 />
@@ -127,8 +104,8 @@ function formatDate(date) {
                 <button
                     v-for="m in METHOD_FILTER_OPTIONS"
                     :key="m.key"
-                    :class="['filter-pill', filterMethod === m.key ? 'filter-pill--active' : '']"
-                    @click="filterMethod = m.key"
+                    :class="['filter-pill', store.filterMethod === m.key ? 'filter-pill--active' : '']"
+                    @click="store.setFilterMethod(m.key)"
                 >
                     <i :class="['pi', m.icon]"></i>
                     {{ m.label }}
@@ -141,14 +118,14 @@ function formatDate(date) {
             <div class="filter-group">
                 <span class="filter-group__label">Comprobante</span>
                 <button
-                    :class="['filter-pill', filterReceipt === 'all' ? 'filter-pill--active' : '']"
-                    @click="filterReceipt = 'all'"
+                    :class="['filter-pill', store.filterReceipt === 'all' ? 'filter-pill--active' : '']"
+                    @click="store.setFilterReceipt('all')"
                 >Todos</button>
                 <button
                     v-for="[key, label] in Object.entries(RECEIPT_LABELS)"
                     :key="key"
-                    :class="['filter-pill', filterReceipt === key ? 'filter-pill--active' : '']"
-                    @click="filterReceipt = key"
+                    :class="['filter-pill', store.filterReceipt === key ? 'filter-pill--active' : '']"
+                    @click="store.setFilterReceipt(key)"
                 >{{ label }}</button>
             </div>
 
@@ -156,16 +133,16 @@ function formatDate(date) {
 
             <!-- Hoy / Historial -->
             <button
-                :class="['filter-pill', showAll && 'filter-pill--active']"
-                @click="showAll = !showAll"
+                :class="['filter-pill', store.showAll && 'filter-pill--active']"
+                @click="store.setShowAll(!store.showAll)"
             >
                 <i class="pi pi-history"></i>
-                {{ showAll ? 'Historial completo' : 'Solo hoy' }}
+                {{ store.showAll ? 'Historial completo' : 'Solo hoy' }}
             </button>
         </div>
 
         <!-- ══ Empty ═══════════════════════════════════════════════════════════ -->
-        <div v-if="filteredPayments.length === 0" class="state-msg">
+        <div v-if="store.filteredPayments.length === 0" class="state-msg">
             <i class="pi pi-receipt" style="font-size:2rem;color:#d1d5db"></i>
             <span class="state-msg__title">Sin pagos registrados hoy</span>
             <span class="state-msg__sub">Los pagos procesados desde el POS aparecerán aquí</span>
@@ -189,7 +166,7 @@ function formatDate(date) {
                 </thead>
                 <tbody>
                     <tr
-                        v-for="p in filteredPayments"
+                        v-for="p in store.filteredPayments"
                         :key="p.id"
                         class="pay-row"
                         @click="openDetail(p)"

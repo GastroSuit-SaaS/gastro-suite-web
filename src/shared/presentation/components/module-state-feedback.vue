@@ -1,8 +1,12 @@
 <script setup>
 defineProps({
-    loading:      { type: Boolean, default: false },
-    error:        { type: String,  default: null  },
-    loadingLabel: { type: String,  default: 'Cargando...' },
+    loading:       { type: Boolean, default: false },
+    isEmpty:       { type: Boolean, default: false },
+    error:         { type: String,  default: null  },
+    loadingLabel:  { type: String,  default: 'Cargando...' },
+    emptyIcon:     { type: String,  default: 'pi-inbox' },
+    emptyTitle:    { type: String,  default: 'Sin datos' },
+    emptySubtitle: { type: String,  default: '' },
 })
 
 defineEmits(['retry'])
@@ -23,6 +27,7 @@ defineEmits(['retry'])
 
     <!-- ── Error ────────────────────────────────────────────────────── -->
     <div v-else-if="error" class="gs-error-wrap">
+
         <div class="gs-error-banner">
             <i class="pi pi-exclamation-triangle gs-error-banner__icon"></i>
             <div class="gs-error-banner__body">
@@ -37,7 +42,16 @@ defineEmits(['retry'])
     </div>
 
     <!-- ── Contenido ────────────────────────────────────────────────── -->
-    <slot v-else />
+    <slot v-else-if="!isEmpty" />
+
+    <!-- ── Vacío ────────────────────────────────────────────────────── -->
+    <div v-else class="gs-empty-wrap">
+        <div class="gs-empty-inner">
+            <i :class="['pi', emptyIcon, 'gs-empty-inner__icon']"></i>
+            <span class="gs-empty-inner__title">{{ emptyTitle }}</span>
+            <span v-if="emptySubtitle" class="gs-empty-inner__subtitle">{{ emptySubtitle }}</span>
+        </div>
+    </div>
 </template>
 
 <style scoped>
@@ -134,5 +148,41 @@ defineEmits(['retry'])
 
 .gs-error-banner__retry:hover {
     background: #b91c1c;
+}
+
+/* ── Estado: vacío ────────────────────────────────────────────────────── */
+.gs-empty-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    width: 100%;
+    padding: 2rem 1rem;
+}
+
+.gs-empty-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.gs-empty-inner__icon {
+    font-size: 2.5rem;
+    color: #d1d5db;
+    margin-bottom: 0.25rem;
+}
+
+.gs-empty-inner__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.gs-empty-inner__subtitle {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    max-width: 320px;
 }
 </style>

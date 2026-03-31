@@ -8,26 +8,26 @@ import { Report } from '../../domain/models/report.entity.js';
  */
 export class ReportAssembler {
 
-    /**
-     * Transforma un recurso individual del API en una entidad Report.
-     * @param {Object} resource - Recurso crudo del API.
-     * @returns {Report}
-     */
     static toEntityFromResource(resource) {
-        // TODO: map resource fields to Report constructor parameters
         return new Report({
-            id: resource.id,
+            id:          resource.id,
+            type:        resource.type        ?? '',
+            title:       resource.title       ?? '',
+            period:      resource.period      ?? null,
+            generatedAt: resource.generatedAt ?? resource.generated_at ?? null,
+            data:        resource.data        ?? null,
         });
     }
 
-    /**
-     * Valida la respuesta HTTP y transforma la colección de recursos en entidades.
-     * @param {Object} response - Respuesta Axios (response.status, response.data).
-     * @returns {Report[]}
-     */
     static toEntitiesFromResponse(response) {
         if (response.status !== 200) return [];
-        // TODO: adjust extraction path if data is nested (e.g. response.data.items)
-        return response.data.map(r => ReportAssembler.toEntityFromResource(r));
+        const data = response.data?.items ?? response.data?.data ?? response.data;
+        return Array.isArray(data) ? data.map(r => ReportAssembler.toEntityFromResource(r)) : [];
+    }
+
+    static toEntityFromResponse(response) {
+        if (response.status !== 200 && response.status !== 201) return null;
+        const data = response.data?.data ?? response.data;
+        return ReportAssembler.toEntityFromResource(data);
     }
 }

@@ -40,7 +40,13 @@ export class ReportsApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add reports-specific methods (generate, export, filter, etc.)
+    generate(data) {
+        return this.http.post(`${import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports'}/generate`, data);
+    }
+
+    getByDateRange(from, to) {
+        return this.http.get(import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports', { params: { from, to } });
+    }
 }
 
 export const reportsApi = new ReportsApi();

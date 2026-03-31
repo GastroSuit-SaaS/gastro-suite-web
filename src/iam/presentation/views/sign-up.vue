@@ -4,11 +4,10 @@ import { useRouter } from 'vue-router'
 import { useIamStore } from '../../application/iam.store.js'
 import { IAM_ROUTES } from '../iam.routes.js'
 import { SIGN_UP_STEPS } from '../constants/iam.constants-ui.js'
-import IamBranding        from '../components/iam-branding.vue'
-import SignUpStepper      from '../components/sign-up-stepper.vue'
-import SignUpStepEmpresa  from '../components/sign-up-step-empresa.vue'
-import SignUpStepSucursal from '../components/sign-up-step-sucursal.vue'
-import SignUpStepUsuario  from '../components/sign-up-step-usuario.vue'
+import IamBranding          from '../components/iam-branding.vue'
+import SignUpStepper        from '../components/sign-up-stepper.vue'
+import SignUpStepEmpresa    from '../components/sign-up-step-empresa.vue'
+import SignUpStepUsuario    from '../components/sign-up-step-usuario.vue'
 import SignUpStepFinalizado from '../components/sign-up-step-finalizado.vue'
 
 const router   = useRouter()
@@ -19,24 +18,22 @@ const currentStep = ref(1)
 
 // ── Template refs para cada step component ────────────────
 const stepEmpresa  = ref()
-const stepSucursal = ref()
 const stepUsuario  = ref()
 
 // ── Navegación ────────────────────────────────────────────
 async function nextStep() {
-    const stepRefs = [stepEmpresa, stepSucursal, stepUsuario]
+    const stepRefs = [stepEmpresa, stepUsuario]
     const currentRef = stepRefs[currentStep.value - 1]
     if (currentRef?.value && !currentRef.value.validate()) return
 
-    // Step 3 → 4: registrar en el backend con todos los datos acumulados
+    // Step 2 → 3: registrar en el backend (empresa + usuario, sin sucursal)
     if (currentStep.value === SIGN_UP_STEPS.length - 1) {
         const payload = {
-            empresa:  stepEmpresa.value?.data,
-            sucursal: stepSucursal.value?.data,
-            usuario:  stepUsuario.value?.data,
+            empresa: stepEmpresa.value?.data,
+            usuario: stepUsuario.value?.data,
         }
         const ok = await iamStore.register(payload)
-        if (!ok) return  // Si falla, quedarse en step 3 con el error visible
+        if (!ok) return  // Si falla, quedarse en step 2 con el error visible
     }
 
     currentStep.value++
@@ -48,14 +45,12 @@ function prevStep() {
 
 // ── Resumen para el step final ────────────────────────────
 const summary = computed(() => ({
-    empresa:  stepEmpresa.value?.data  ?? {},
-    sucursal: stepSucursal.value?.data ?? {},
-    usuario:  stepUsuario.value?.data  ?? {},
+    empresa: stepEmpresa.value?.data ?? {},
+    usuario: stepUsuario.value?.data ?? {},
 }))
 
-const summaryEmpresaNombre  = computed(() => summary.value.empresa.nombreComercial  ?? '')
-const summarySucursalNombre = computed(() => summary.value.sucursal.nombre          ?? '')
-const summaryUsuarioNombre  = computed(() => {
+const summaryEmpresaNombre = computed(() => summary.value.empresa.nombreComercial ?? '')
+const summaryUsuarioNombre = computed(() => {
     const u = summary.value.usuario
     return [u.nombres, u.apellidos].filter(Boolean).join(' ')
 })
@@ -87,19 +82,13 @@ const summaryUsuarioNombre  = computed(() => {
                         v-if="currentStep === 1"
                         ref="stepEmpresa"
                     />
-                    <sign-up-step-sucursal
-                        v-if="currentStep === 2"
-                        ref="stepSucursal"
-                    />
                     <sign-up-step-usuario
-                        v-if="currentStep === 3"
+                        v-if="currentStep === 2"
                         ref="stepUsuario"
-                        :sucursal-nombre="summarySucursalNombre || 'la sucursal creada en el paso anterior'"
                     />
                     <sign-up-step-finalizado
-                        v-if="currentStep === 4"
+                        v-if="currentStep === 3"
                         :empresa-nombre="summaryEmpresaNombre"
-                        :sucursal-nombre="summarySucursalNombre"
                         :usuario-nombre="summaryUsuarioNombre"
                     />
                 </div>
@@ -116,10 +105,12 @@ const summaryUsuarioNombre  = computed(() => {
                         @click="prevStep"
                     />
                     <pv-button
-                        :label="currentStep < SIGN_UP_STEPS.length - 1 ? 'Siguiente' : 'Finalizar'"
+                        :label="currentStep < SIGN_UP_STEPS.length - 1 ? 'Siguiente' : 'Finalizar Registro'"
                         :icon="currentStep < SIGN_UP_STEPS.length - 1 ? 'pi pi-arrow-right' : 'pi pi-check'"
                         icon-pos="right"
                         class="flex-1"
+                        :loading="iamStore.isLoading"
+                        :disabled="iamStore.isLoading"
                         @click="nextStep"
                     />
                 </div>

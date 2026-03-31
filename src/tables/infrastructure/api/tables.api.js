@@ -73,3 +73,5 @@ export class TablesApi extends BaseApi {
         return this.http.delete(`${this.#zonesPath}/${id}`);
     }
 }
+
+export const tablesApi = new TablesApi();

@@ -5,30 +5,9 @@ import { TableAssembler } from '../infrastructure/assemblers/table.assembler.js'
 import { ZoneAssembler } from '../infrastructure/assemblers/zone.assembler.js';
 import { Table, TABLE_STATUS, TABLE_SHAPE } from '../domain/models/table.entity.js';
 import { Zone } from '../domain/models/zone.entity.js';
+import { MOCK_ZONES, MOCK_TABLES } from '../infrastructure/tables.mock.js';
 
 const api = new TablesApi();
-
-// ── Mock data (DEV fallback) ────────────────────────────────────────────────
-const MOCK_ZONES = [
-    new Zone({ id: 1, name: 'Salón Principal', color: '#3b82f6', description: 'Área principal del restaurante con vista a la calle' }),
-    new Zone({ id: 2, name: 'Terraza',         color: '#10b981', description: 'Zona al aire libre con ambiente relajado' }),
-    new Zone({ id: 3, name: 'Privado',         color: '#f59e0b', description: 'Salón privado para eventos y reuniones' }),
-];
-
-const MOCK_TABLES = [
-    new Table({ id: 1,  number: 1,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 2,  number: 2,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 2, occupiedSince: new Date(Date.now() - 45 * 60000) }),
-    new Table({ id: 3,  number: 3,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 4,  number: 4,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.OCCUPIED,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 3, occupiedSince: new Date(Date.now() - 72 * 60000) }),
-    new Table({ id: 5,  number: 5,  capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 6,  number: 6,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 1, zone: 'Salón Principal', seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 7,  number: 7,  capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 8,  number: 8,  capacity: 4, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.OCCUPIED,  zoneId: 2, zone: 'Terraza',         seatedGuests: 2, occupiedSince: new Date(Date.now() - 38 * 60000) }),
-    new Table({ id: 9,  number: 9,  capacity: 6, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 10, number: 10, capacity: 2, shape: TABLE_SHAPE.ROUND,      status: TABLE_STATUS.AVAILABLE, zoneId: 2, zone: 'Terraza',         seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 11, number: 11, capacity: 8, shape: TABLE_SHAPE.RECTANGLE,  status: TABLE_STATUS.AVAILABLE, zoneId: 3, zone: 'Privado',         seatedGuests: 0, occupiedSince: null }),
-    new Table({ id: 12, number: 12, capacity: 4, shape: TABLE_SHAPE.SQUARE,     status: TABLE_STATUS.CLEANING,  zoneId: 3, zone: 'Privado',         seatedGuests: 0, occupiedSince: null }),
-];
 
 export const useTablesStore = defineStore('tables', () => {
 
@@ -85,6 +64,12 @@ export const useTablesStore = defineStore('tables', () => {
         isLoading.value = true;
         error.value = null;
         try {
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
+                const branchId = localStorage.getItem('gs_branch_id');
+                zonesData.value = branchId ? MOCK_ZONES.filter(z => z.sucursalId === branchId) : [...MOCK_ZONES];
+                tables.value    = branchId ? MOCK_TABLES.filter(t => t.sucursalId === branchId) : [...MOCK_TABLES];
+                return;
+            }
             const [tablesResp, zonesResp] = await Promise.all([
                 api.getAll(),
                 api.getZones(),
@@ -92,12 +77,7 @@ export const useTablesStore = defineStore('tables', () => {
             zonesData.value = ZoneAssembler.toEntitiesFromResponse(zonesResp);
             tables.value    = TableAssembler.toEntitiesFromResponse(tablesResp);
         } catch (e) {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                zonesData.value = [...MOCK_ZONES];
-                tables.value    = [...MOCK_TABLES];
-            } else {
-                error.value = e?.response?.data?.message ?? 'Error al cargar las mesas';
-            }
+            error.value = e?.response?.data?.message ?? 'Error al cargar las mesas';
         } finally {
             isLoading.value = false;
         }
@@ -155,10 +135,14 @@ export const useTablesStore = defineStore('tables', () => {
     }
 
     async function remove(id) {
+        const snapshot = [...tables.value];
         tables.value = tables.value.filter(t => t.id !== id);
         try {
             await api.delete(id);
-        } catch { /* No revertimos — si falla, el próximo fetchAll restaurará */ }
+        } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
+            tables.value = snapshot;
+        }
     }
 
     async function setTableStatus(id, status) {

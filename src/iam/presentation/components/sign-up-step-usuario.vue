@@ -4,19 +4,12 @@ import { UsuarioRegistration } from '../../domain/models/usuario-registration.vo
 import { TIPOS_DOCUMENTO } from '../constants/peru-geo.constants.js'
 
 /**
- * SignUpStepUsuario — Step 3: Usuario administrador principal.
- *
- * Props:
- *   sucursalNombre — string: nombre de la sucursal del Step 2 (para el info card)
+ * SignUpStepUsuario — Step 2: Usuario administrador principal (OWNER).
  *
  * Expone:
  *   validate() → boolean         — valida y actualiza errores, retorna true si OK
  *   data       → UsuarioRegistration — estado actual del formulario
  */
-
-defineProps({
-    sucursalNombre: { type: String, default: 'creada en el paso anterior' },
-})
 
 const data   = reactive(new UsuarioRegistration())
 const errors = reactive(Object.fromEntries(Object.keys(new UsuarioRegistration().validate()).map(k => [k, false])))
@@ -175,12 +168,11 @@ defineExpose({ validate, data })
             <div class="admin-info-card flex align-items-start gap-3 p-3 border-round-lg mt-1">
                 <i class="pi pi-file-edit text-primary mt-1" style="font-size: 1.1rem;"></i>
                 <div>
-                    <p class="font-semibold text-sm text-color m-0 mb-1">Usuario Administrador Principal</p>
+                    <p class="font-semibold text-sm text-color m-0 mb-1">Propietario del Sistema (OWNER)</p>
                     <p class="text-sm text-color-secondary m-0 line-height-3">
-                        Este usuario será el administrador principal de la sucursal
-                        <span class="font-semibold text-color">{{ sucursalNombre }}</span>.
-                        Tendrá acceso completo al sistema y podrá crear otros usuarios,
-                        gestionar sucursales y configurar todos los aspectos de la plataforma.
+                        Este usuario será el propietario de la empresa.
+                        Tendrá acceso completo al sistema y podrá crear sucursales,
+                        gestionar usuarios, asignar roles y configurar todos los aspectos de la plataforma.
                     </p>
                 </div>
             </div>

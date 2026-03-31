@@ -12,10 +12,8 @@ const username = ref('');
 const password = ref('');
 
 async function handleLogin() {
-    //const ok = await iamStore.login({ username: username.value, password: password.value });
-    //if (ok) router.push('/dashboard');
-
-    router.push('/dashboard')
+    const ok = await iamStore.login({ username: username.value, password: password.value });
+    if (ok) router.push('/dashboard');
 }
 </script>
 
@@ -37,9 +35,10 @@ async function handleLogin() {
         </div>
 
         <!-- Error del store -->
-        <pv-message v-if="iamStore.error" severity="error" class="mb-3 w-full">
-          {{ iamStore.error }}
-        </pv-message>
+        <div v-if="iamStore.error" class="login-error mb-3">
+          <i class="pi pi-exclamation-circle login-error__icon"></i>
+          <span class="login-error__text">{{ iamStore.error }}</span>
+        </div>
 
         <!-- Formulario -->
         <form @submit.prevent="handleLogin" class="flex flex-column gap-3">
@@ -120,4 +119,29 @@ async function handleLogin() {
 .bg-surface     { background-color: var(--color-white); }
 .link-primary   { color: var(--color-primary); }
 a.link-primary:hover { opacity: 0.8; }
+
+.login-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.85rem 1rem;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid #ef4444;
+    border-radius: 8px;
+}
+
+.login-error__icon {
+    color: #dc2626;
+    font-size: 1.1rem;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.login-error__text {
+    color: #991b1b;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
 </style>

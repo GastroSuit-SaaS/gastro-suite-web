@@ -69,68 +69,37 @@ defineExpose({ validate, data })
                 <small v-if="errors.nombreComercial" class="text-red-500">El nombre comercial es requerido</small>
             </div>
 
-            <!-- Email + Teléfono -->
-            <div class="flex gap-3">
-                <div class="flex flex-column gap-1 flex-1">
-                    <label class="font-semibold text-sm text-color">Email Corporativo <span class="text-red-500">*</span></label>
-                    <div class="input-icon-wrapper">
-                        <i class="pi pi-envelope input-icon-wrapper__icon"></i>
-                        <pv-input-text
-                            v-model="data.email"
-                            placeholder="contacto@empresa.pe"
-                            type="email"
-                            :invalid="errors.email"
-                            class="w-full input-icon-wrapper__input"
-                        />
-                    </div>
-                    <small v-if="errors.email" class="text-red-500">El email es requerido</small>
-                </div>
-                <div class="flex flex-column gap-1 flex-1">
-                    <label class="font-semibold text-sm text-color">Teléfono <span class="text-red-500">*</span></label>
-                    <div class="input-icon-wrapper">
-                        <i class="pi pi-phone input-icon-wrapper__icon"></i>
-                        <pv-input-text
-                            v-model="data.telefono"
-                            placeholder="+51 987 654 321"
-                            :invalid="errors.telefono"
-                            class="w-full input-icon-wrapper__input"
-                        />
-                    </div>
-                    <small v-if="errors.telefono" class="text-red-500">El teléfono es requerido</small>
-                </div>
-            </div>
-
-            <!-- Contraseña -->
+            <!-- Dirección Fiscal -->
             <div class="flex flex-column gap-1">
-                <label class="font-semibold text-sm text-color">Contraseña <span class="text-red-500">*</span></label>
-                <pv-password
-                    v-model="data.password"
-                    placeholder="Mínimo 8 caracteres"
-                    toggle-mask
-                    :invalid="errors.password"
-                    class="w-full"
-                    prompt-label="Ingresa una contraseña"
-                    weak-label="Débil"
-                    medium-label="Media"
-                    strong-label="Fuerte"
-                />
-                <small v-if="errors.password" class="text-red-500">La contraseña debe tener al menos 8 caracteres</small>
-            </div>
-
-            <!-- Confirmar Contraseña -->
-            <div class="flex flex-column gap-1">
-                <label class="font-semibold text-sm text-color">Confirmar Contraseña <span class="text-red-500">*</span></label>
-                <pv-password
-                    v-model="data.confirmPassword"
-                    placeholder="Repite tu contraseña"
-                    toggle-mask
-                    :feedback="false"
-                    :invalid="errors.confirmPassword"
+                <label class="font-semibold text-sm text-color">Dirección Fiscal <span class="text-red-500">*</span></label>
+                <pv-input-text
+                    v-model="data.direccion"
+                    placeholder="Av. Javier Prado Este 1234, San Isidro, Lima"
+                    :invalid="errors.direccion"
                     class="w-full"
                 />
-                <small v-if="errors.confirmPassword" class="text-red-500">Las contraseñas no coinciden</small>
+                <small v-if="errors.direccion" class="text-red-500">La dirección fiscal es requerida</small>
+            </div>
+
+            <!-- Info card -->
+            <div class="empresa-info-card flex align-items-start gap-3 p-3 border-round-lg mt-1">
+                <i class="pi pi-info-circle text-primary mt-1" style="font-size: 1.1rem;"></i>
+                <div>
+                    <p class="font-semibold text-sm text-color m-0 mb-1">Datos fiscales</p>
+                    <p class="text-sm text-color-secondary m-0 line-height-3">
+                        Estos datos corresponden a la información registrada en SUNAT.
+                        Serán usados para la facturación electrónica.
+                    </p>
+                </div>
             </div>
 
         </div>
     </div>
 </template>
+
+<style scoped>
+.empresa-info-card {
+    background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+</style>

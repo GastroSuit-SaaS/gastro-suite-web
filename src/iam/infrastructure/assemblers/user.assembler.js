@@ -30,6 +30,9 @@ export class UserAssembler {
             telefono:        r.telefono        ?? r.phone      ?? '',
             roles:           r.roles           ?? [],
             isActive:        r.isActive        ?? r.is_active  ?? r.active ?? true,
+            empresaId:       r.empresaId       ?? r.empresa_id ?? null,
+            sucursalId:      r.sucursalId      ?? r.sucursal_id ?? null,
+            sucursalNombre:  r.sucursalNombre  ?? r.sucursal_nombre ?? r.branchName ?? '',
         });
     }
 

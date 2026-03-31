@@ -5,36 +5,10 @@ import { MenuItemAssembler } from '../infrastructure/assemblers/menu-item.assemb
 import { CategoryAssembler } from '../infrastructure/assemblers/category.assembler.js';
 import { MenuItem } from '../domain/models/menu-item.entity.js';
 import { Category } from '../domain/models/category.entity.js';
+import { MOCK_CATEGORIES, MOCK_ITEMS } from '../infrastructure/menu.mock.js';
 
 const api = new MenuApi();
 
-
-// ── Mock data (DEV fallback) ────────────────────────────────────────────────
-const MOCK_CATEGORIES = [
-    new Category({ id: 1, name: 'Entradas',           color: '#f59e0b', description: 'Primeros platos y aperitivos',   sortOrder: 1 }),
-    new Category({ id: 2, name: 'Platos Principales', color: '#3b82f6', description: 'Platos fuertes del menú',        sortOrder: 2 }),
-    new Category({ id: 3, name: 'Pastas',             color: '#10b981', description: 'Pastas y arroces',               sortOrder: 3 }),
-    new Category({ id: 4, name: 'Postres',            color: '#ec4899', description: 'Dulces y postres',               sortOrder: 4 }),
-    new Category({ id: 5, name: 'Bebidas',            color: '#8b5cf6', description: 'Bebidas frías y calientes',      sortOrder: 5 }),
-    new Category({ id: 6, name: 'Especiales',         color: '#ef4444', description: 'Platos especiales del chef',     sortOrder: 6 }),
-];
-
-const _PLACEHOLDER_IMG = 'https://img.freepik.com/vector-gratis/kawaii-comida-rapida-lindo-hot-dog-comida-rapida-hamburguesas-papas-fritas-bebida-ilustracion-salsa-tomate_24908-60601.jpg?semt=ais_incoming&w=740&q=80';
-
-const MOCK_ITEMS = [
-    new MenuItem({ id: 1,  name: 'Ceviche Clásico',        description: 'Pescado fresco marinado en limón con cebolla y ají', price: 28.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 15, sku: 'ENT-CEV-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 2,  name: 'Tequeños de Queso',       description: 'Palitos de masa rellenos de queso blanco',           price: 18.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 10, sku: 'ENT-TEQ-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 3,  name: 'Lomo Saltado',            description: 'Carne de res salteada con verduras y papas fritas',  price: 45.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 20, sku: 'PRI-LOM-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 4,  name: 'Pollo a la Brasa',        description: 'Pollo entero asado con especias peruanas',           price: 52.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 40, sku: 'PRI-POL-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 5,  name: 'Salmón al Limón',         description: 'Filete de salmón a la plancha con salsa de limón',   price: 58.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 25, sku: 'PRI-SAL-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 6,  name: 'Pasta Alfredo',           description: 'Fettuccine con salsa cremosa de queso parmesano',   price: 32.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 18, sku: 'PAS-ALF-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 7,  name: 'Lasagna Boloñesa',        description: 'Capas de pasta con carne molida y bechamel',        price: 38.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 22, sku: 'PAS-LAS-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 8,  name: 'Tiramisú',                description: 'Postre italiano con mascarpone y café expreso',      price: 22.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-TIR-001', stationId: 3, station: 'Pastelería',      imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 9,  name: 'Cheesecake de Fresa',     description: 'Tarta de queso con coulis de fresa',                price: 20.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-CHE-001', stationId: 3, station: 'Pastelería',      imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 10, name: 'Limonada de la Casa',     description: 'Limonada fresca con hierbas y jengibre',            price: 12.00, categoryId: 5, category: 'Bebidas',            isAvailable: true,  prepTime: 3,  sku: 'BEB-LIM-001', stationId: 4, station: 'Bar',             imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 11, name: 'Tabla del Chef',          description: 'Selección de embutidos y quesos importados',        price: 65.00, categoryId: 6, category: 'Especiales',         isAvailable: true,  prepTime: 10, sku: 'ESP-TAB-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG }),
-    new MenuItem({ id: 12, name: 'Risotto de Hongos',       description: 'Arroz cremoso con hongos porcini y trufa negra',    price: 48.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 30, sku: 'PAS-RIS-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG }),
-];
 
 export const useMenuStore = defineStore('menu', () => {
 
@@ -90,6 +64,12 @@ export const useMenuStore = defineStore('menu', () => {
         isLoading.value = true;
         error.value = null;
         try {
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
+                const branchId = localStorage.getItem('gs_branch_id');
+                categoriesData.value = branchId ? MOCK_CATEGORIES.filter(c => c.sucursalId === branchId) : [...MOCK_CATEGORIES];
+                items.value          = branchId ? MOCK_ITEMS.filter(i => i.sucursalId === branchId)      : [...MOCK_ITEMS];
+                return;
+            }
             const [itemsResp, catsResp] = await Promise.all([
                 api.getAll(),
                 api.getCategories(),
@@ -97,12 +77,7 @@ export const useMenuStore = defineStore('menu', () => {
             categoriesData.value = CategoryAssembler.toEntitiesFromResponse(catsResp);
             items.value          = MenuItemAssembler.toEntitiesFromResponse(itemsResp);
         } catch (e) {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                categoriesData.value = [...MOCK_CATEGORIES];
-                items.value          = [...MOCK_ITEMS];
-            } else {
-                error.value = e?.response?.data?.message ?? 'Error al cargar el menú';
-            }
+            error.value = e?.response?.data?.message ?? 'Error al cargar el menú';
         } finally {
             isLoading.value = false;
         }
@@ -166,9 +141,17 @@ export const useMenuStore = defineStore('menu', () => {
         } catch { /* local change kept */ }
     }
 
-    function setItemAvailability(id, isAvailable) {
+    async function setItemAvailability(id, isAvailable) {
         const item = items.value.find(i => i.id === id);
-        if (item) item.isAvailable = isAvailable;
+        if (!item) return;
+        const prev = item.isAvailable;
+        item.isAvailable = isAvailable;
+        try {
+            await api.update(id, { is_available: isAvailable });
+        } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
+            item.isAvailable = prev;
+        }
     }
 
     function selectCategory(id) {

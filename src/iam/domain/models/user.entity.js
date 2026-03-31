@@ -16,6 +16,9 @@ export class User {
         telefono        = '',
         roles           = [],
         isActive        = true,
+        empresaId       = null,
+        sucursalId      = null,
+        sucursalNombre  = '',
     } = {}) {
         this.id              = id;
         this.username        = username;
@@ -27,6 +30,9 @@ export class User {
         this.telefono        = telefono;
         this.roles           = roles;
         this.isActive        = isActive;
+        this.empresaId       = empresaId;
+        this.sucursalId      = sucursalId;
+        this.sucursalNombre  = sucursalNombre;
     }
 
     /** @returns {string} Nombre completo del usuario */
@@ -37,5 +43,20 @@ export class User {
     /** @returns {boolean} true si tiene el rol indicado */
     hasRole(role) {
         return this.roles.includes(role);
+    }
+
+    /** @returns {string} Rol principal del usuario */
+    get primaryRole() {
+        return this.roles[0] ?? '';
+    }
+
+    /** @returns {boolean} true si el usuario es OWNER */
+    get isOwner() {
+        return this.roles.includes('OWNER');
+    }
+
+    /** @returns {boolean} true si el usuario tiene sucursal asignada */
+    get hasBranch() {
+        return !!this.sucursalId;
     }
 }

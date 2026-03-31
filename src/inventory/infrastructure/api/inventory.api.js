@@ -40,7 +40,13 @@ export class InventoryApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add inventory-specific methods (updateStock, getLowStock, etc.)
+    updateStock(id, quantity) {
+        return this.http.patch(`${import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products'}/${id}/stock`, { quantity });
+    }
+
+    getLowStock(threshold = 10) {
+        return this.http.get(`${import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products'}/low-stock`, { params: { threshold } });
+    }
 }
 
 export const inventoryApi = new InventoryApi();

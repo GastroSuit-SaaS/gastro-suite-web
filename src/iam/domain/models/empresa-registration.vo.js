@@ -14,36 +14,26 @@ export class EmpresaRegistration {
         ruc             = '',
         razonSocial     = '',
         nombreComercial = '',
-        email           = '',
-        telefono        = '',
-        password        = '',
-        confirmPassword = '',
+        direccion       = '',
     } = {}) {
         this.ruc             = ruc
         this.razonSocial     = razonSocial
         this.nombreComercial = nombreComercial
-        this.email           = email
-        this.telefono        = telefono
-        this.password        = password
-        this.confirmPassword = confirmPassword
+        this.direccion       = direccion
     }
 
     /**
      * Retorna un mapa campo → booleano indicando si ese campo tiene error.
      * true  = hay error
      * false = campo válido
-     * @returns {{ ruc: boolean, razonSocial: boolean, nombreComercial: boolean, email: boolean, telefono: boolean, password: boolean, confirmPassword: boolean }}
+     * @returns {{ ruc: boolean, razonSocial: boolean, nombreComercial: boolean, direccion: boolean }}
      */
     validate() {
-        const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         return {
             ruc:             this.ruc.trim().length !== 11,
             razonSocial:     !this.razonSocial.trim(),
             nombreComercial: !this.nombreComercial.trim(),
-            email:           !EMAIL_REGEX.test(this.email.trim()),
-            telefono:        !this.telefono.trim(),
-            password:        this.password.length < 8,
-            confirmPassword: this.password !== this.confirmPassword,
+            direccion:       !this.direccion.trim(),
         }
     }
 

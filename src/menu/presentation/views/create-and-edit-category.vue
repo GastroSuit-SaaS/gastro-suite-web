@@ -84,7 +84,7 @@ const onSave = () => {
 
                 <!-- Categoría activa -->
                 <div class="flex align-items-center gap-3">
-                    <pv-toggle-switch v-model="form.isActive" input-id="cat-active" />
+                    <pv-input-switch v-model="form.isActive" input-id="cat-active" />
                     <div class="flex flex-column gap-0">
                         <label for="cat-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
                             Categoría activa

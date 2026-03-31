@@ -39,8 +39,8 @@ export class IamApi extends BaseApi {
     }
 
     /**
-     * Registra una nueva empresa con su primera sucursal y usuario administrador.
-     * @param {{ empresa: Object, sucursal: Object, usuario: Object }} payload
+     * Registra una nueva empresa con su usuario propietario (OWNER).
+     * @param {{ empresa: Object, usuario: Object }} payload
      * @returns {Promise<AxiosResponse>}
      */
     register(payload) {

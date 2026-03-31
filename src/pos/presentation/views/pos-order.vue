@@ -288,7 +288,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                             <div class="flex gap-1 flex-shrink-0">
                                 <!-- Descuento (etiqueta) -->
                                 <button
-                                    :class="['icon-btn', editingDiscountId === item.id ? 'icon-btn--active-green' : (item.discountPct > 0 ? 'icon-btn--has-discount' : '')]"
+                                    :class="['icon-btn', editingDiscountId === item.id ? 'icon-btn--active-green' : (item.discountValue > 0 ? 'icon-btn--has-discount' : '')]"
                                     title="Descuento"
                                     @click="toggleDiscountEdit(item)"
                                 >
@@ -330,7 +330,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                                     type="number"
                                     min="0"
                                     :max="discountType === 'pct' ? 100 : item.unitPrice * item.quantity"
-                                    step="discountType === 'pct' ? 1 : 0.5"
+                                    :step="discountType === 'pct' ? 1 : 0.5"
                                     placeholder="0"
                                     autofocus
                                     @keyup.enter="commitDiscount(item)"

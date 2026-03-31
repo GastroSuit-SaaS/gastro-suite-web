@@ -40,7 +40,13 @@ export class UsersApi extends BaseApi {
         return this.#endpoint.delete(id);
     }
 
-    // TODO: add user-specific methods (changePassword, assignRole, etc.)
+    changePassword(id, data) {
+        return this.http.patch(`${import.meta.env.VITE_USERS_ENDPOINT ?? '/users'}/${id}/password`, data);
+    }
+
+    toggleActive(id) {
+        return this.http.patch(`${import.meta.env.VITE_USERS_ENDPOINT ?? '/users'}/${id}/toggle-active`);
+    }
 }
 
 export const usersApi = new UsersApi();

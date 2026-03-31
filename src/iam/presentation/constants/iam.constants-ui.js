@@ -20,9 +20,8 @@ export const IAM_LABELS = {
 
 export const SIGN_UP_STEPS = [
     { number: 1, label: 'Empresa'    },
-    { number: 2, label: 'Sucursal'   },
-    { number: 3, label: 'Usuario'    },
-    { number: 4, label: 'Finalizado' },
+    { number: 2, label: 'Usuario'    },
+    { number: 3, label: 'Finalizado' },
 ];
 
 export const IAM_MESSAGES = {

@@ -11,11 +11,13 @@ export class Station {
         description = '',
         color       = '#3b82f6',
         isActive    = true,
+        sucursalId  = null,
     } = {}) {
         this.id          = id;
         this.name        = name;
         this.description = description;
         this.color       = color;
         this.isActive    = isActive;
+        this.sucursalId  = sucursalId;
     }
 }

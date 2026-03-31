@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
+import BranchSwitcher from './branch-switcher.vue'
 
 const props = defineProps({
     title: {
@@ -30,7 +31,7 @@ const iamStore  = useIamStore()
 const userMenu = ref()
 
 const username = computed(() => iamStore.currentUser?.username || 'Usuario')
-const userRole = computed(() => iamStore.currentUser?.roles?.[0] || 'Usuario')
+const userRole = computed(() => iamStore.currentUser?.primaryRole || 'Usuario')
 
 const menuItems = ref([
     {
@@ -88,6 +89,9 @@ const toggleUserMenu = (event) => {
             <h2 class="m-0 toolbar__title">{{ title }}</h2>
             <p v-if="description" class="m-0 toolbar__description">{{ description }}</p>
         </div>
+
+        <!-- Branch switcher (visible cuando hay sucursal activa) -->
+        <BranchSwitcher v-if="iamStore.hasBranchSelected" class="hidden md:flex" />
 
         <!-- Slot for extra action buttons -->
         <slot name="actions" />

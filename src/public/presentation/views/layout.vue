@@ -1,13 +1,17 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from '../components/sidebar.vue'
 import Toolbar from '../components/toolbar.vue'
-import { menuItems } from '../constants/layout.constants-ui.js'
+import { getMenuItemsByRole } from '../constants/layout.constants-ui.js'
+import { useIamStore } from '../../../iam/application/iam.store.js'
 
-const route = useRoute()
+const route    = useRoute()
+const iamStore = useIamStore()
 const collapsed = ref(window.innerWidth < 768)
 const toggleSidebar = () => { collapsed.value = !collapsed.value }
+
+const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole, iamStore.hasBranchSelected))
 </script>
 
 <template>
@@ -18,7 +22,7 @@ const toggleSidebar = () => { collapsed.value = !collapsed.value }
       <div v-if="!collapsed" class="sidebar-overlay" @click="toggleSidebar" />
     </transition>
 
-    <sidebar :menu-items="menuItems" :collapsed="collapsed" @toggle="toggleSidebar" />
+    <sidebar :menu-items="filteredMenuItems" :collapsed="collapsed" @toggle="toggleSidebar" />
 
     <main class="app-content">
       <Toolbar
@@ -39,7 +43,7 @@ const toggleSidebar = () => { collapsed.value = !collapsed.value }
         </template>
       </Toolbar>
       <div class="content-area">
-        <router-view />
+        <router-view :key="iamStore.activeBranchId ?? 'global'" />
       </div>
     </main>
 

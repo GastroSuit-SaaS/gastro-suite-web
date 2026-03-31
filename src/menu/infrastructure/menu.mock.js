@@ -1,0 +1,36 @@
+import { MenuItem } from '../domain/models/menu-item.entity.js';
+import { Category } from '../domain/models/category.entity.js';
+
+export const MOCK_CATEGORIES = [
+    new Category({ id: 1, name: 'Sucursal 001 Entradas',           color: '#f59e0b', description: 'Primeros platos y aperitivos',   sortOrder: 1, sucursalId: 'branch-001' }),
+    new Category({ id: 2, name: 'Sucursal 001 Platos Principales', color: '#3b82f6', description: 'Platos fuertes del menú',        sortOrder: 2, sucursalId: 'branch-001' }),
+    new Category({ id: 3, name: 'Sucursal 001 Pastas',             color: '#10b981', description: 'Pastas y arroces',               sortOrder: 3, sucursalId: 'branch-001' }),
+    new Category({ id: 4, name: 'Sucursal 001 Postres',            color: '#ec4899', description: 'Dulces y postres',               sortOrder: 4, sucursalId: 'branch-001' }),
+    new Category({ id: 5, name: 'Sucursal 001 Bebidas',            color: '#8b5cf6', description: 'Bebidas frías y calientes',      sortOrder: 5, sucursalId: 'branch-001' }),
+    new Category({ id: 6, name: 'Sucursal 001 Especiales',         color: '#ef4444', description: 'Platos especiales del chef',     sortOrder: 6, sucursalId: 'branch-001' }),
+    new Category({ id: 7, name: 'Sucursal 002 Entradas',           color: '#f59e0b', description: 'Primeros platos y aperitivos',   sortOrder: 1, sucursalId: 'branch-002' }),
+    new Category({ id: 8, name: 'Sucursal 002 Platos de Fondo',    color: '#3b82f6', description: 'Platos principales',             sortOrder: 2, sucursalId: 'branch-002' }),
+    new Category({ id: 9, name: 'Sucursal 002 Bebidas',            color: '#8b5cf6', description: 'Bebidas frías y calientes',      sortOrder: 3, sucursalId: 'branch-002' }),
+];
+
+const _PLACEHOLDER_IMG = 'https://img.freepik.com/vector-gratis/kawaii-comida-rapida-lindo-hot-dog-comida-rapida-hamburguesas-papas-fritas-bebida-ilustracion-salsa-tomate_24908-60601.jpg?semt=ais_incoming&w=740&q=80';
+
+export const MOCK_ITEMS = [
+    // ── Sede Central (branch-001) ────────────────────────────────────────
+    new MenuItem({ id: 1,  name: 'Ceviche Clásico',        description: 'Pescado fresco marinado en limón con cebolla y ají', price: 28.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 15, sku: 'ENT-CEV-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 2,  name: 'Tequeños de Queso',       description: 'Palitos de masa rellenos de queso blanco',           price: 18.00, categoryId: 1, category: 'Entradas',           isAvailable: true,  prepTime: 10, sku: 'ENT-TEQ-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 3,  name: 'Lomo Saltado',            description: 'Carne de res salteada con verduras y papas fritas',  price: 45.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 20, sku: 'PRI-LOM-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 4,  name: 'Pollo a la Brasa',        description: 'Pollo entero asado con especias peruanas',           price: 52.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 40, sku: 'PRI-POL-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 5,  name: 'Salmón al Limón',         description: 'Filete de salmón a la plancha con salsa de limón',   price: 58.00, categoryId: 2, category: 'Platos Principales', isAvailable: true,  prepTime: 25, sku: 'PRI-SAL-001', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 6,  name: 'Pasta Alfredo',           description: 'Fettuccine con salsa cremosa de queso parmesano',   price: 32.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 18, sku: 'PAS-ALF-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 7,  name: 'Lasagna Boloñesa',        description: 'Capas de pasta con carne molida y bechamel',        price: 38.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 22, sku: 'PAS-LAS-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 8,  name: 'Tiramisú',                description: 'Postre italiano con mascarpone y café expreso',      price: 22.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-TIR-001', stationId: 3, station: 'Pastelería',      imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 9,  name: 'Cheesecake de Fresa',     description: 'Tarta de queso con coulis de fresa',                price: 20.00, categoryId: 4, category: 'Postres',            isAvailable: true,  prepTime: 5,  sku: 'POS-CHE-001', stationId: 3, station: 'Pastelería',      imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 10, name: 'Limonada de la Casa',     description: 'Limonada fresca con hierbas y jengibre',            price: 12.00, categoryId: 5, category: 'Bebidas',            isAvailable: true,  prepTime: 3,  sku: 'BEB-LIM-001', stationId: 4, station: 'Bar',             imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 11, name: 'Tabla del Chef',          description: 'Selección de embutidos y quesos importados',        price: 65.00, categoryId: 6, category: 'Especiales',         isAvailable: true,  prepTime: 10, sku: 'ESP-TAB-001', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    new MenuItem({ id: 12, name: 'Risotto de Hongos',       description: 'Arroz cremoso con hongos porcini y trufa negra',    price: 48.00, categoryId: 3, category: 'Pastas',             isAvailable: true,  prepTime: 30, sku: 'PAS-RIS-001', stationId: 5, station: 'Pastas',          imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-001' }),
+    // ── Sucursal Miraflores (branch-002) ─────────────────────────────────
+    new MenuItem({ id: 13, name: 'Causa Limeña',            description: 'Papa amarilla prensada con pollo y palta',          price: 24.00, categoryId: 7, category: 'Entradas',           isAvailable: true,  prepTime: 12, sku: 'ENT-CAU-002', stationId: 2, station: 'Cocina Fría',     imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-002' }),
+    new MenuItem({ id: 14, name: 'Ají de Gallina',          description: 'Pollo deshilachado en crema de ají amarillo',       price: 35.00, categoryId: 8, category: 'Platos de Fondo',    isAvailable: true,  prepTime: 25, sku: 'PRI-AJI-002', stationId: 1, station: 'Cocina Caliente', imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-002' }),
+    new MenuItem({ id: 15, name: 'Chicha Morada',           description: 'Bebida tradicional de maíz morado',                price: 10.00, categoryId: 9, category: 'Bebidas',            isAvailable: true,  prepTime: 3,  sku: 'BEB-CHI-002', stationId: 4, station: 'Bar',             imageUrl: _PLACEHOLDER_IMG, sucursalId: 'branch-002' }),
+];

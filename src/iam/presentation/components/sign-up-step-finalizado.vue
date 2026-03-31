@@ -3,18 +3,16 @@ import { useRouter } from 'vue-router'
 import { IAM_ROUTES } from '../iam.routes.js'
 
 /**
- * SignUpStepFinalizado — Step 4: Resumen y confirmación.
+ * SignUpStepFinalizado — Step 3: Resumen y confirmación.
  *
  * Props:
  *   empresaNombre  — string: nombre comercial de la empresa
- *   sucursalNombre — string: nombre de la sucursal
- *   usuarioNombre  — string: nombre completo del administrador
+ *   usuarioNombre  — string: nombre completo del administrador (OWNER)
  */
 
 defineProps({
-    empresaNombre:  { type: String, required: true },
-    sucursalNombre: { type: String, required: true },
-    usuarioNombre:  { type: String, required: true },
+    empresaNombre: { type: String, required: true },
+    usuarioNombre: { type: String, required: true },
 })
 
 const router = useRouter()
@@ -28,13 +26,13 @@ const router = useRouter()
             <div class="success-icon-circle flex align-items-center justify-content-center">
                 <i class="pi pi-megaphone" style="font-size: 1.5rem; color: #22c55e;"></i>
             </div>
-            <h3 class="text-2xl font-bold m-0 text-color">¡Configuración Completada!</h3>
-            <p class="text-sm text-primary m-0">Tu restaurante está listo para comenzar a operar</p>
+            <h3 class="text-2xl font-bold m-0 text-color">¡Registro Completado!</h3>
+            <p class="text-sm text-primary m-0">Tu empresa ha sido creada exitosamente</p>
         </div>
 
         <!-- Resumen -->
         <div class="flex flex-column gap-2">
-            <p class="font-semibold text-sm text-color m-0">Resumen de Configuración</p>
+            <p class="font-semibold text-sm text-color m-0">Resumen de Registro</p>
             <div class="summary-card flex flex-column gap-3 p-3 border-round-lg">
                 <div class="flex align-items-center gap-3">
                     <i class="pi pi-building text-color-secondary" style="font-size: 1.1rem; width: 1.25rem;"></i>
@@ -44,37 +42,30 @@ const router = useRouter()
                     </div>
                 </div>
                 <div class="flex align-items-center gap-3">
-                    <i class="pi pi-shop text-color-secondary" style="font-size: 1.1rem; width: 1.25rem;"></i>
-                    <div>
-                        <p class="font-semibold text-sm text-color m-0">Sucursal:</p>
-                        <p class="text-sm text-color-secondary m-0">{{ sucursalNombre }}</p>
-                    </div>
-                </div>
-                <div class="flex align-items-center gap-3">
                     <i class="pi pi-user text-color-secondary" style="font-size: 1.1rem; width: 1.25rem;"></i>
                     <div>
-                        <p class="font-semibold text-sm text-color m-0">Administrador:</p>
+                        <p class="font-semibold text-sm text-color m-0">Propietario (OWNER):</p>
                         <p class="text-sm text-color-secondary m-0">{{ usuarioNombre }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Felicitaciones card -->
+        <!-- Próximos pasos card -->
         <div class="congrats-card flex align-items-start gap-3 p-3 border-round-lg">
             <i class="pi pi-star-fill" style="font-size: 1.1rem; color: var(--color-primary); margin-top: 2px;"></i>
             <div>
-                <p class="font-semibold text-sm text-primary m-0 mb-1">¡Felicidades!</p>
+                <p class="font-semibold text-sm text-primary m-0 mb-1">Próximos pasos</p>
                 <p class="text-sm text-primary m-0 line-height-3">
-                    Has completado la configuración inicial de tu restaurante en GastroSuite.
-                    Ahora puedes comenzar a gestionar tus operaciones y ofrecer servicios a tus clientes.
+                    Inicia sesión como propietario para crear tus sucursales, agregar usuarios
+                    y asignarles roles. Las sucursales y el equipo se gestionan desde el sistema.
                 </p>
             </div>
         </div>
 
         <!-- Botón Ir al sistema -->
         <pv-button
-            label="Ir al sistema"
+            label="Ir a iniciar sesión"
             icon="pi pi-arrow-right"
             icon-pos="right"
             class="w-full"

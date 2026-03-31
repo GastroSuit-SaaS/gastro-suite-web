@@ -18,15 +18,46 @@ export const useReportsStore = defineStore('reports', () => {
 
     // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
-        // TODO: call api.getAll(), transform via ReportAssembler.toEntitiesFromResponse
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getAll();
+            reports.value = ReportAssembler.toEntitiesFromResponse(response);
+        } catch (e) {
+            error.value = e;
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     async function fetchById(id) {
-        // TODO: call api.getById(id), transform via ReportAssembler.toEntityFromResource
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.getById(id);
+            selectedReport.value = ReportAssembler.toEntityFromResponse(response);
+        } catch (e) {
+            error.value = e;
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     async function generate(reportData) {
-        // TODO: call api.create(reportData), set as selectedReport
+        isLoading.value = true;
+        error.value = null;
+        try {
+            const response = await api.generate(reportData);
+            const report = ReportAssembler.toEntityFromResponse(response);
+            if (report) {
+                reports.value.unshift(report);
+                selectedReport.value = report;
+            }
+        } catch (e) {
+            error.value = e;
+        } finally {
+            isLoading.value = false;
+        }
     }
 
     return { reports, selectedReport, isLoading, error, hasReports, fetchAll, fetchById, generate };

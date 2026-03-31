@@ -41,6 +41,7 @@ export class SaleAssembler {
             total:     r.total      ?? 0,
             status:    r.status     ?? SALE_STATUS.ACTIVE,
             cashierId: r.cashierId  ?? r.cashier_id  ?? null,
+            sucursalId: r.sucursalId ?? r.sucursal_id ?? null,
             createdAt: r.createdAt  ?? r.created_at  ?? null,
         });
     }
@@ -85,6 +86,7 @@ export class SaleAssembler {
             discount:  sale.discount,
             total:     sale.total,
             cashierId: sale.cashierId,
+            sucursalId: sale.sucursalId,
             items: sale.items.map(i => ({
                 id:            i.id,
                 menuItemId:    i.menuItemId,
