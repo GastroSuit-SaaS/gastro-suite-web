@@ -44,7 +44,7 @@ function onConfirm() {
                     <span class="text-xs text-color-secondary uppercase font-medium" style="letter-spacing: 0.05em;">Mesa seleccionada</span>
                     <span class="font-bold text-xl text-color">Mesa {{ table.number }}</span>
                     <span class="text-sm text-color-secondary">
-                        <i class="pi pi-map-marker mr-1"></i>{{ table.zone }}
+                        <i class="pi pi-map-marker mr-1"></i>{{ table.zone ?? 'Sin zona' }}
                         &nbsp;·&nbsp;
                         <i class="pi pi-users mr-1"></i>Capacidad: {{ table.capacity }} personas
                     </span>

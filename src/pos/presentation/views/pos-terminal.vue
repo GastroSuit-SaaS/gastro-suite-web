@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePosStore }          from '../../application/pos.store.js'
@@ -31,7 +31,7 @@ onMounted(() => {
 <template>
     <div class="p-4 flex flex-column gap-4">
 
-        <!-- ══ Loading / Error / Contenido ════════════════════════════════════════ -->
+        <!-- -- Loading / Error / Contenido ---------------------------------------- -->
         <module-state-feedback
             :loading="posStore.isLoading"
             :error="posStore.error"
@@ -39,7 +39,7 @@ onMounted(() => {
             @retry="posStore.fetchAll()"
         >
 
-        <!-- ── Stat cards (siempre visibles) ───────────────────────────── -->
+        <!-- -- Stat cards (siempre visibles) ----------------------------- -->
         <div class="flex flex-wrap gap-3">
             <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
                 <span class="text-sm text-color-secondary">Ordenes Activas</span>
@@ -55,7 +55,7 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- ── Acción principal (siempre visible) ──────────────────────── -->
+        <!-- -- Acci�n principal (siempre visible) ------------------------ -->
         <div>
             <pv-button
                 label="Seleccionar por Zona/Mesa"
@@ -64,7 +64,7 @@ onMounted(() => {
             />
         </div>
 
-        <!-- ── Sección inferior: zonas u órdenes activas ───────────────── -->
+        <!-- -- Secci�n inferior: zonas u �rdenes activas ----------------- -->
         <transition name="fade" mode="out-in">
 
             <!-- Panel selector de zonas -->
@@ -75,7 +75,7 @@ onMounted(() => {
                     <div class="flex align-items-center gap-2">
                         <i class="pi pi-map-marker text-primary"></i>
                         <span class="font-bold text-color">Seleccionar Zona</span>
-                        <span class="text-sm text-color-secondary">— elige la zona y luego la mesa</span>
+                        <span class="text-sm text-color-secondary">� elige la zona y luego la mesa</span>
                     </div>
                     <button class="zone-panel__close" aria-label="Cerrar" @click="closeZoneSelector">
                         <i class="pi pi-times"></i>
@@ -109,7 +109,7 @@ onMounted(() => {
                         <div class="zone-card__divider mt-3 mb-2"></div>
 
                         <span class="text-sm text-color-secondary">
-                            Total mesas: <strong class="text-color">{{ zone.count }}</strong>
+                            Total mesas: <strong class="text-color">{{ zone.tableCount }}</strong>
                         </span>
                     </div>
 
@@ -123,7 +123,7 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Órdenes activas -->
+            <!-- �rdenes activas -->
             <div v-else key="orders">
                 <!-- Empty state -->
                 <div
@@ -137,9 +137,9 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Lista de órdenes -->
+                <!-- Lista de �rdenes -->
                 <div v-else class="flex flex-column gap-2">
-                    <span class="orders-label">Órdenes en curso</span>
+                    <span class="orders-label">�rdenes en curso</span>
                     <div
                         v-for="order in posStore.activeOrders"
                         :key="order.id"
@@ -151,7 +151,7 @@ onMounted(() => {
 
                             <!-- Izquierda: icono + datos -->
                             <div class="flex align-items-center gap-3">
-                                <!-- Ícono coloreado con el color de zona -->
+                                <!-- �cono coloreado con el color de zona -->
                                 <div
                                     class="order-zone-dot border-round-lg flex align-items-center justify-content-center flex-shrink-0"
                                     :style="{ backgroundColor: posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.color ?? 'var(--primary-color)' }"
@@ -162,7 +162,7 @@ onMounted(() => {
                                 <!-- Zona + Mesa -->
                                 <div class="flex flex-column gap-0">
                                     <span class="order-row__zone">
-                                        {{ posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.name ?? '—' }}
+                                        {{ posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.name ?? '�' }}
                                     </span>
                                     <span class="order-row__table">
                                         Mesa {{ posStore.tableById(order.tableId)?.number ?? order.tableId }}
@@ -174,16 +174,16 @@ onMounted(() => {
                             <span class="order-row__total">S/ {{ order.total.toFixed(2) }}</span>
                         </div>
 
-                        <!-- Fila secundaria: personas e ítems -->
+                        <!-- Fila secundaria: personas e �tems -->
                         <div class="order-row__meta flex align-items-center gap-3 mt-2">
                             <span class="flex align-items-center gap-1">
                                 <i class="pi pi-users"></i>
                                 {{ posStore.tableById(order.tableId)?.seatedGuests ?? 0 }}/{{ posStore.tableById(order.tableId)?.capacity ?? '?' }} personas
                             </span>
-                            <span class="order-row__meta-sep">·</span>
+                            <span class="order-row__meta-sep">�</span>
                             <span class="flex align-items-center gap-1">
                                 <i class="pi pi-list"></i>
-                                {{ order.items.length }} ítem{{ order.items.length !== 1 ? 's' : '' }}
+                                {{ order.items.length }} �tem{{ order.items.length !== 1 ? 's' : '' }}
                             </span>
                         </div>
                     </div>
@@ -202,11 +202,11 @@ onMounted(() => {
 
 /* Loading/Error states handled by shared ModuleStateFeedback component */
 
-/* ── Empty state ─────────────────────────────────────────────────────────── */
+/* -- Empty state ----------------------------------------------------------- */
 .empty-state { min-height: 180px; }
 .empty-state__icon { font-size: 3rem; opacity: 0.4; }
 
-/* ── Órdenes activas ─────────────────────────────────────────────────────── */
+/* -- �rdenes activas ------------------------------------------------------- */
 .orders-label {
     font-size: 0.72rem;
     font-weight: 700;
@@ -250,14 +250,14 @@ onMounted(() => {
 .order-row__meta {
     font-size: 0.75rem;
     color: #6b7280;
-    padding-left: 3.25rem; /* alinea con el texto tras el ícono */
+    padding-left: 3.25rem; /* alinea con el texto tras el �cono */
 }
 
 .order-row__meta .pi { font-size: 0.72rem; }
 
 .order-row__meta-sep { opacity: 0.4; }
 
-/* ── Panel de zonas ──────────────────────────────────────────────────────── */
+/* -- Panel de zonas -------------------------------------------------------- */
 .zone-panel { overflow: hidden; }
 
 .zone-panel__header { background: var(--surface-card); }
@@ -321,11 +321,11 @@ onMounted(() => {
     background: var(--surface-border);
 }
 
-/* ── Transitions ─────────────────────────────────────────────────────────── */
+/* -- Transitions ----------------------------------------------------------- */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
 .fade-enter-from, .fade-leave-to       { opacity: 0; }
 
-/* ── Responsive: ≤ 640px ─────────────────────────────────────────────────── */
+/* -- Responsive: = 640px --------------------------------------------------- */
 @media (max-width: 640px) {
     /* Stat cards: reduce min-width so 3 fit on small screens */
     .stat-card { min-width: 100px; flex: 1 1 100px; }

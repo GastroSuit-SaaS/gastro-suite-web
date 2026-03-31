@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
 import { usePosStore }    from '../../../pos/application/pos.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { useDateFormatter }  from '../../../shared/composables/use-date-formatter.js'
 import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
+import { TABLE_STATUS } from '../../domain/models/table.entity.js'
 import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
 import CreateAndEditZone       from './create-and-edit-zone.vue'
 import CreateAndEditTable      from './create-and-edit-tables.vue'
@@ -18,7 +19,15 @@ const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
 const { elapsedTime }   = useDateFormatter()
 
-onMounted(() => store.fetchAll())
+onMounted(() => {
+    store.fetchAll()
+    _clockInterval = setInterval(() => { now.value = Date.now() }, 30_000)
+})
+onUnmounted(() => { clearInterval(_clockInterval) })
+
+// ── Reactive clock for urgency/elapsed updates ────────────────────────────
+const now = ref(Date.now())
+let _clockInterval = null
 
 const activeTab        = ref('floor')   // 'floor' | 'manage'
 const showZoneDialog   = ref(false)
@@ -52,6 +61,7 @@ function toggleStatus(status) {
 }
 
 function urgencyClass(table) {
+    const _ = now.value // ensure reactive tracking
     const level = table.urgencyLevel
     return level !== 'ok' ? `table-card--${level}` : ''
 }
@@ -68,6 +78,11 @@ function openEditZone(zone) {
 }
 
 function onDeleteZone(zone) {
+    const hasOccupied = store.tables.some(t => t.zoneId === zone.id && t.isOccupied)
+    if (hasOccupied) {
+        // Cannot delete a zone that still has occupied tables
+        return
+    }
     confirmDelete('la zona', zone.name, () => store.removeZone(zone.id))
 }
 
@@ -99,6 +114,10 @@ async function openOrderForTable(table) {
 }
 
 function onDeleteTable(table) {
+    if (table.isOccupied) {
+        // Cannot delete a table with an active order
+        return
+    }
     confirmDelete('la mesa', `Mesa ${table.number}`, () => store.remove(table.id))
 }
 
@@ -207,7 +226,7 @@ function onTableSaved(table) {
                         :style="{ borderLeft: `4px solid ${zone.color}` }"
                         @click="store.selectZone(zone.id)"
                     >
-                        {{ zone.name }} ({{ zone.count }})
+                        {{ zone.name }} ({{ zone.tableCount }})
                     </button>
                 </div>
             </div>
@@ -275,14 +294,14 @@ function onTableSaved(table) {
                     <button
                         v-else-if="table.status === 'cleaning'"
                         class="table-card__cta table-card__cta--limpiar"
-                        @click.stop="store.setTableStatus(table.id, 'available')"
+                        @click.stop="store.setTableStatus(table.id, TABLE_STATUS.AVAILABLE)"
                     >
                         <i class="pi pi-check"></i> Lista
                     </button>
                     <button
                         v-else-if="table.status === 'reserved'"
                         class="table-card__cta table-card__cta--reservada"
-                        @click.stop="store.setTableStatus(table.id, 'available')"
+                        @click.stop="store.clearReservation(table.id)"
                     >
                         <i class="pi pi-calendar-times"></i> Cancelar Reserva
                     </button>
@@ -322,7 +341,7 @@ function onTableSaved(table) {
                             <div class="zone-card__desc">{{ zone.description || 'Sin descripción' }}</div>
                         </div>
                         <div class="flex flex-column align-items-end gap-1">
-                            <div class="zone-card__badge">{{ zone.count }} mesa{{ zone.count !== 1 ? 's' : '' }}</div>
+                            <div class="zone-card__badge">{{ zone.tableCount }} mesa{{ zone.tableCount !== 1 ? 's' : '' }}</div>
                             <span :class="['zone-card__active-badge', zone.isActive ? 'zone-card__active-badge--on' : 'zone-card__active-badge--off']">
                                 {{ zone.isActive ? 'Activa' : 'Inactiva' }}
                             </span>

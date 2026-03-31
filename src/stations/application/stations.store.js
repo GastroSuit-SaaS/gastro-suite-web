@@ -124,6 +124,12 @@ export const useStationsStore = defineStore('stations', () => {
     }
 
     async function removeStation(id) {
+        // Guard: cannot remove a station that has active (received/preparing) tickets
+        const hasActiveTickets = tickets.value.some(
+            t => t.stationId === id &&
+                (t.status === TICKET_STATUS.RECEIVED || t.status === TICKET_STATUS.PREPARING)
+        );
+        if (hasActiveTickets) return;
         stations.value = stations.value.filter(s => s.id !== id);
         try {
             await api.delete(id);
@@ -151,8 +157,12 @@ export const useStationsStore = defineStore('stations', () => {
         } else if (ticket.status === TICKET_STATUS.READY) {
             ticket.status      = TICKET_STATUS.DELIVERED;
             ticket.deliveredAt = new Date();
-            // Move to history after a brief delay so the transition is visible
+            // Persist DELIVERED immediately so a page refresh still shows it in history.
+            // The brief UI delay is purely visual — the API call happens synchronously here.
+            api.updateTicketStatus(ticketId, TICKET_STATUS.DELIVERED).catch(() => {});
+            // Move to history after a brief delay so the transition is visible in the kanban
             setTimeout(() => archiveTicket(ticketId), 3000);
+            return; // API call already fired above — skip the generic call below
         }
         api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
     }
@@ -195,13 +205,12 @@ export const useStationsStore = defineStore('stations', () => {
             groups[key].push(item);
         });
 
-        const baseId = Date.now();
         const newTickets = [];
-        Object.entries(groups).forEach(([key, items], idx) => {
+        Object.entries(groups).forEach(([key, items]) => {
             const sid     = key === 'unassigned' ? null : Number(key);
             const station = sid !== null ? stations.value.find(s => s.id === sid) : null;
             const ticket  = new StationTicket({
-                id:          baseId + idx,
+                id:          crypto.randomUUID(),
                 stationId:   sid,
                 stationName: station?.name ?? '⚠ Sin estación asignada',
                 saleId:      sale.id,

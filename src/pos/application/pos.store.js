@@ -164,10 +164,13 @@ export const usePosStore = defineStore('pos', () => {
     }
 
     async function remove(id) {
+        const snapshot = [...sales.value];
         sales.value = sales.value.filter(s => s.id !== id);
         try {
             await api.delete(id);
-        } catch { /* local change kept */ }
+        } catch {
+            sales.value = snapshot;
+        }
     }
 
     /**
@@ -189,9 +192,18 @@ export const usePosStore = defineStore('pos', () => {
             sales.value.push(newSale);
             currentSale.value = newSale;
             currentSaleIsRecovered.value = false;
-            tablesStore.assignTable(tableId, seatedGuests);
+            await tablesStore.assignTable(tableId, seatedGuests);
             // Persist to backend — await ensures real ID is set before any dispatch to stations
-            await create(newSale);
+            try {
+                await create(newSale);
+            } catch {
+                // Rollback: remove the optimistic sale and free the table on total failure
+                sales.value = sales.value.filter(s => s.id !== tempId);
+                currentSale.value = null;
+                currentSaleIsRecovered.value = false;
+                tablesStore.freeTable(tableId);
+                throw new Error('No se pudo crear la orden. Por favor intenta de nuevo.');
+            }
         }
     }
 
@@ -297,25 +309,34 @@ export const usePosStore = defineStore('pos', () => {
 
         // Registrar en el módulo de pagos (lazy — evita problemas de orden de init)
         const paymentsStore = usePaymentsStore();
-        await paymentsStore.registerPayment({
-            saleId:         saleId,
-            tableNumber:    table?.number ?? null,
-            zoneName:       zone?.name   ?? null,
-            items:          sale.items.map(i => ({
-                name:     i.menuItemName,
-                qty:      i.quantity,
-                subtotal: i.subtotal,
-            })),
-            subtotal:       sale.subtotal,
-            tax:            sale.tax,
-            discount:       sale.discount,
-            total:          sale.total,
-            method,
-            amountReceived,
-            change:         parseFloat((amountReceived - sale.total).toFixed(2)),
-            receiptType,
-            receiptData,
-        });
+        let paymentRegistered = false;
+        try {
+            await paymentsStore.registerPayment({
+                saleId:         saleId,
+                tableNumber:    table?.number ?? null,
+                zoneName:       zone?.name   ?? null,
+                items:          sale.items.map(i => ({
+                    name:     i.menuItemName,
+                    qty:      i.quantity,
+                    subtotal: i.subtotal,
+                })),
+                subtotal:       sale.subtotal,
+                tax:            sale.tax,
+                discount:       sale.discount,
+                total:          sale.total,
+                method,
+                amountReceived,
+                change:         parseFloat((amountReceived - sale.total).toFixed(2)),
+                receiptType,
+                receiptData,
+            });
+            paymentRegistered = true;
+        } catch {
+            // Payment registration failed — do NOT proceed with order close
+            return false;
+        }
+
+        if (!paymentRegistered) return false;
 
         // Optimistic update — mark paid locally first
         sale.status = SALE_STATUS.PAID;

@@ -21,8 +21,8 @@ const zone = computed(() =>
 
 const tables = computed(() => posStore.tablesForZone(zoneId.value))
 
-function selectTable(table) {
-    posStore.openSaleForTable(table.id, table.zoneId)
+async function selectTable(table) {
+    await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests ?? 0)
     router.push(posOrderRoute(table.id))
 }
 </script>
@@ -97,7 +97,7 @@ function selectTable(table) {
                         <div class="flex justify-content-between align-items-center">
                             <span class="table-card__order-label">Total</span>
                             <span class="table-card__order-value font-bold" style="color: var(--status-color)">
-                                S/ {{ (posStore.saleByTableId(table.id)?.total ?? table.orderAmount).toFixed(2) }}
+                                S/ {{ (posStore.saleByTableId(table.id)?.total ?? 0).toFixed(2) }}
                             </span>
                         </div>
                     </div>

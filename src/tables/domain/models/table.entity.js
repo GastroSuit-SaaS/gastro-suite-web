@@ -42,6 +42,8 @@ export class Table {
 
     get isOccupied()  { return this.status === TABLE_STATUS.OCCUPIED; }
     get isAvailable() { return this.status === TABLE_STATUS.AVAILABLE; }
+    get isCleaning()  { return this.status === TABLE_STATUS.CLEANING; }
+    get isReserved()  { return this.status === TABLE_STATUS.RESERVED; }
 
     get occupiedMinutes() {
         if (!this.occupiedSince) return 0;

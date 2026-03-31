@@ -5,8 +5,6 @@
  * Objeto de dominio puro — sin dependencias Vue, sin HTTP.
  */
 
-let _nextId = 1;
-
 export class SaleItem {
     constructor({
         id              = null,
@@ -21,7 +19,7 @@ export class SaleItem {
         stationName     = null,
         isSent          = false,   // true una vez enviado a estaciones
     } = {}) {
-        this.id            = id ?? _nextId++;
+        this.id            = id ?? crypto.randomUUID();
         this.menuItemId    = menuItemId;
         this.menuItemName  = menuItemName;
         this.quantity      = quantity;

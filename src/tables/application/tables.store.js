@@ -51,11 +51,7 @@ export const useTablesStore = defineStore('tables', () => {
         tables.value.forEach(t => {
             countMap[t.zoneId] = (countMap[t.zoneId] ?? 0) + 1;
         });
-        return zonesData.value.map(z => {
-            const zone = new Zone({ ...z });
-            zone.count = countMap[z.id] ?? 0;
-            return zone;
-        });
+        return zonesData.value.map(z => new Zone({ ...z, tableCount: countMap[z.id] ?? 0 }));
     });
 
     const occupancyRate  = computed(() =>
@@ -130,6 +126,7 @@ export const useTablesStore = defineStore('tables', () => {
 
     async function update(id, tableData) {
         const zone = zonesData.value.find(z => z.id === tableData.zoneId);
+        const snapshot = [...tables.value];
         tables.value = tables.value.map(t =>
             t.id === id
                 ? new Table({ ...t, ...tableData, id, zone: zone?.name ?? t.zone })
@@ -137,7 +134,9 @@ export const useTablesStore = defineStore('tables', () => {
         );
         try {
             await api.update(id, TableAssembler.toResourceFromEntity(tableData));
-        } catch { /* local change kept — will sync on next fetchAll */ }
+        } catch {
+            tables.value = snapshot;
+        }
     }
 
     async function remove(id) {
@@ -149,32 +148,70 @@ export const useTablesStore = defineStore('tables', () => {
 
     async function setTableStatus(id, status) {
         const table = tables.value.find(t => t.id === id);
-        if (table) table.status = status;
+        if (!table) return;
+        const prevStatus = table.status;
+        table.status = status;
         try {
             await api.updateStatus(id, status);
-        } catch { /* local change kept */ }
+        } catch {
+            table.status = prevStatus;
+        }
     }
 
     async function assignTable(tableId, seatedGuests) {
         const table = tables.value.find(t => t.id === tableId);
         if (!table) return;
+        const prevStatus       = table.status;
+        const prevGuests       = table.seatedGuests;
+        const prevOccupiedSince = table.occupiedSince;
         table.status        = TABLE_STATUS.OCCUPIED;
         table.seatedGuests  = seatedGuests;
         table.occupiedSince = new Date();
         try {
             await api.assign(tableId, { seatedGuests });
-        } catch { /* local change kept */ }
+        } catch {
+            table.status        = prevStatus;
+            table.seatedGuests  = prevGuests;
+            table.occupiedSince = prevOccupiedSince;
+        }
     }
 
     async function freeTable(tableId) {
         const table = tables.value.find(t => t.id === tableId);
         if (!table) return;
-        table.status        = TABLE_STATUS.AVAILABLE;
+        // Restaurant flow: OCCUPIED → CLEANING → (staff confirms) → AVAILABLE
+        // Floor staff manually marks the table as available via the "Lista" button.
+        const prevStatus        = table.status;
+        const prevGuests        = table.seatedGuests;
+        const prevOccupiedSince = table.occupiedSince;
+        const prevReservationId = table.reservationId;
+        table.status        = TABLE_STATUS.CLEANING;
         table.seatedGuests  = 0;
         table.occupiedSince = null;
         try {
             await api.free(tableId);
-        } catch { /* local change kept */ }
+        } catch {
+            table.status        = prevStatus;
+            table.seatedGuests  = prevGuests;
+            table.occupiedSince = prevOccupiedSince;
+            table.reservationId = prevReservationId;
+        }
+    }
+
+    /** Cancels a reservation, clearing status and reservationId atomically. */
+    async function clearReservation(tableId) {
+        const table = tables.value.find(t => t.id === tableId);
+        if (!table) return;
+        const prevStatus        = table.status;
+        const prevReservationId = table.reservationId;
+        table.status        = TABLE_STATUS.AVAILABLE;
+        table.reservationId = null;
+        try {
+            await api.updateStatus(tableId, TABLE_STATUS.AVAILABLE);
+        } catch {
+            table.status        = prevStatus;
+            table.reservationId = prevReservationId;
+        }
     }
 
     function selectZone(zoneId) {
@@ -196,6 +233,8 @@ export const useTablesStore = defineStore('tables', () => {
     }
 
     async function updateZone(updatedZone) {
+        const snapshotZones  = [...zonesData.value];
+        const snapshotTables = [...tables.value];
         zonesData.value = zonesData.value.map(z =>
             z.id === updatedZone.id ? new Zone({ ...z, ...updatedZone }) : z
         );
@@ -206,7 +245,10 @@ export const useTablesStore = defineStore('tables', () => {
         );
         try {
             await api.updateZone(updatedZone.id, ZoneAssembler.toResourceFromEntity(updatedZone));
-        } catch { /* local change kept */ }
+        } catch {
+            zonesData.value = snapshotZones;
+            tables.value    = snapshotTables;
+        }
     }
 
     async function createZone(newZone) {
@@ -225,9 +267,9 @@ export const useTablesStore = defineStore('tables', () => {
     }
 
     return {
-        tables, zonesData, selectedTable, selectedZoneId, isLoading, error,
+        tables, zonesData, selectedZoneId, isLoading, error,
         totalTables, availableTables, occupiedTables, cleaningTables,
         zones, filteredTables, occupancyRate,
-        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, selectZone, removeZone, updateZone, createZone,
+        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone,
     };
 });

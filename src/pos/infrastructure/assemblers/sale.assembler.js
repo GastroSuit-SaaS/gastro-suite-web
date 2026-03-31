@@ -86,6 +86,7 @@ export class SaleAssembler {
             total:     sale.total,
             cashierId: sale.cashierId,
             items: sale.items.map(i => ({
+                id:            i.id,
                 menuItemId:    i.menuItemId,
                 menuItemName:  i.menuItemName,
                 quantity:      i.quantity,

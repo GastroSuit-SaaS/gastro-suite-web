@@ -13,11 +13,14 @@ import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class TablesApi extends BaseApi {
     #endpoint;
+    #tablesPath;
+    #zonesPath;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables');
+        this.#tablesPath = import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables';
+        this.#zonesPath  = import.meta.env.VITE_ZONES_ENDPOINT  ?? '/zones';
+        this.#endpoint = new BaseEndpoint(this, this.#tablesPath);
     }
 
     getAll() {
@@ -42,33 +45,31 @@ export class TablesApi extends BaseApi {
 
     // ── Status transitions ────────────────────────────────────────────────
     updateStatus(id, status) {
-        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/status`, { status });
+        return this.http.patch(`${this.#tablesPath}/${id}/status`, { status });
     }
 
     assign(id, { seatedGuests }) {
-        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/assign`, { seatedGuests });
+        return this.http.patch(`${this.#tablesPath}/${id}/assign`, { seatedGuests });
     }
 
     free(id) {
-        return this.http.patch(`${import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables'}/${id}/free`);
+        return this.http.patch(`${this.#tablesPath}/${id}/free`);
     }
 
     // ── Zones ─────────────────────────────────────────────────────────────
     getZones() {
-        return this.http.get(import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones');
+        return this.http.get(this.#zonesPath);
     }
 
     createZone(data) {
-        return this.http.post(import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones', data);
+        return this.http.post(this.#zonesPath, data);
     }
 
     updateZone(id, data) {
-        return this.http.put(`${import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones'}/${id}`, data);
+        return this.http.put(`${this.#zonesPath}/${id}`, data);
     }
 
     deleteZone(id) {
-        return this.http.delete(`${import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones'}/${id}`);
+        return this.http.delete(`${this.#zonesPath}/${id}`);
     }
 }
-
-export const tablesApi = new TablesApi();

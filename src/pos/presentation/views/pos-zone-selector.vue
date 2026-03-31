@@ -55,7 +55,7 @@ function selectZone(zone) {
                 <div class="zone-card__divider mt-3 mb-2"></div>
 
                 <span class="text-sm text-color-secondary">
-                    Total mesas: <strong class="text-color">{{ zone.count }}</strong>
+                    Total mesas: <strong class="text-color">{{ zone.tableCount }}</strong>
                 </span>
             </div>
         </div>

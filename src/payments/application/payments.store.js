@@ -43,14 +43,11 @@ export const usePaymentsStore = defineStore('payments', () => {
     );
 
     const todayByMethod = computed(() => {
-        const map = {
-            [PAYMENT_METHOD.CASH]: 0,
-            [PAYMENT_METHOD.CARD]: 0,
-            [PAYMENT_METHOD.YAPE]: 0,
-            [PAYMENT_METHOD.PLIN]: 0,
-        };
+        const map = Object.fromEntries(
+            Object.values(PAYMENT_METHOD).map(m => [m, 0])
+        );
         todaysPayments.value.forEach(p => {
-            if (map[p.method] !== undefined) map[p.method] += p.total;
+            if (p.method in map) map[p.method] += p.total;
         });
         return map;
     });
@@ -141,11 +138,14 @@ export const usePaymentsStore = defineStore('payments', () => {
      */
     async function refund(id, reason = '') {
         const idx = payments.value.findIndex(p => p.id === id);
-        if (idx !== -1) payments.value[idx] = new Payment({ ...payments.value[idx], status: PAYMENT_STATUS.REFUNDED });
+        if (idx === -1) return;
+        const snapshot = new Payment({ ...payments.value[idx] });
+        payments.value[idx] = new Payment({ ...payments.value[idx], status: PAYMENT_STATUS.REFUNDED });
         try {
             await api.refund(id, reason);
         } catch {
-            // Cambio local se mantiene; se sincronizará en el próximo fetchAll
+            // Rollback: restore original payment status
+            payments.value[idx] = snapshot;
         }
     }
 

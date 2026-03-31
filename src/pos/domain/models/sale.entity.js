@@ -13,6 +13,9 @@ export const SALE_STATUS = Object.freeze({
     PENDING:   'pending',
 });
 
+/** IGV rate (18%) — single source of truth for all tax calculations. */
+export const SALE_TAX_RATE = 0.18;
+
 export class Sale {
     constructor({
         id        = null,
@@ -37,7 +40,7 @@ export class Sale {
         this.total     = total;
         this.status    = status;
         this.cashierId = cashierId;
-        this.createdAt = createdAt;
+        this.createdAt = createdAt ? new Date(createdAt) : new Date();
     }
 
     // ── Getters ──────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ export class Sale {
         this.subtotal = parseFloat(
             this.items.reduce((sum, i) => sum + i.subtotal, 0).toFixed(2)
         );
-        this.tax   = parseFloat((this.subtotal * 0.18).toFixed(2));
+        this.tax   = parseFloat((this.subtotal * SALE_TAX_RATE).toFixed(2));
         this.total = parseFloat((this.subtotal + this.tax - this.discount).toFixed(2));
     }
 }

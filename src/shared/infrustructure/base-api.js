@@ -40,7 +40,10 @@ export class BaseApi {
       (error) => {
         if (error.response?.status === 401) {
           localStorage.removeItem('gs_token');
-          window.location.href = '/sign-in';
+          // Use dynamic import to avoid circular dependency with router
+          import('../../router/index.js').then(({ default: router }) => {
+            router.replace('/sign-in');
+          });
         }
         return Promise.reject(error);
       }

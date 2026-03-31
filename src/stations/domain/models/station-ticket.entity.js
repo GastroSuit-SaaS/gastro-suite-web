@@ -60,7 +60,7 @@ export class StationTicket {
 
     get elapsedMinutes() {
         if (!this.createdAt) return 0;
-        return Math.floor((Date.now() - new Date(this.createdAt)) / 60000);
+        return Math.floor((Date.now() - this.createdAt) / 60000);
     }
 
     get urgencyLevel() {

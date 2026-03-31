@@ -46,7 +46,7 @@ export class ZoneAssembler {
             name:        zone.name,
             description: zone.description,
             color:       zone.color,
-            isActive:    zone.isActive,
+            is_active:   zone.isActive,
         };
     }
 }

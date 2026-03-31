@@ -116,9 +116,23 @@ async function enviarEstaciones() {
             detail:   `${count} producto${count !== 1 ? 's' : ''} despachado${count !== 1 ? 's' : ''} a las estaciones.`,
             life:     3000,
         })
+    } else {
+        toast.add({
+            severity: 'info',
+            summary:  'Sin cambios pendientes',
+            detail:   'Todos los ítems ya fueron enviados a cocina.',
+            life:     3000,
+        })
     }
 }
-function dividirCuenta()    { /* TODO: navigate to split-bill view */ }
+function dividirCuenta() {
+    toast.add({
+        severity: 'info',
+        summary:  'Próximamente',
+        detail:   'La función de división de cuenta estará disponible en breve.',
+        life:     3000,
+    })
+}
 function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
 
 // ── Mobile tab switcher ───────────────────────────────────────────────────
