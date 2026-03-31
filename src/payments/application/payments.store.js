@@ -144,6 +144,7 @@ export const usePaymentsStore = defineStore('payments', () => {
         try {
             await api.refund(id, reason);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             // Rollback: restore original payment status
             payments.value[idx] = snapshot;
         }

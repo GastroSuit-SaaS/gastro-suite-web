@@ -41,30 +41,44 @@ export const useTablesStore = defineStore('tables', () => {
     const error          = ref(null);
 
     // ── Getters ───────────────────────────────────────────────────────────
-    const totalTables     = computed(() => tables.value.length);
-    const availableTables = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.AVAILABLE));
-    const occupiedTables  = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.OCCUPIED));
-    const cleaningTables  = computed(() => tables.value.filter(t => t.status === TABLE_STATUS.CLEANING));
+    // ── Active zone filtering (internal) ─────────────────────────────────
+    const activeZoneIds = computed(() =>
+        new Set(zonesData.value.filter(z => z.isActive).map(z => z.id))
+    );
 
+    const totalTables     = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId)).length);
+    const availableTables = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.AVAILABLE));
+    const occupiedTables  = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.OCCUPIED));
+    const cleaningTables  = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.CLEANING));
+
+    // zones → solo activas (floor tab, POS selectors, create-table dropdown)
     const zones = computed(() => {
         const countMap = {};
-        tables.value.forEach(t => {
-            countMap[t.zoneId] = (countMap[t.zoneId] ?? 0) + 1;
-        });
+        tables.value.forEach(t => { countMap[t.zoneId] = (countMap[t.zoneId] ?? 0) + 1; });
+        return zonesData.value
+            .filter(z => z.isActive)
+            .map(z => new Zone({ ...z, tableCount: countMap[z.id] ?? 0 }));
+    });
+
+    // allZones → todas las zonas (management tab, zoneColorMap)
+    const allZones = computed(() => {
+        const countMap = {};
+        tables.value.forEach(t => { countMap[t.zoneId] = (countMap[t.zoneId] ?? 0) + 1; });
         return zonesData.value.map(z => new Zone({ ...z, tableCount: countMap[z.id] ?? 0 }));
     });
 
     const occupancyRate  = computed(() =>
-        tables.value.length > 0
-            ? Math.round((occupiedTables.value.length / tables.value.length) * 100)
+        totalTables.value > 0
+            ? Math.round((occupiedTables.value.length / totalTables.value) * 100)
             : 0
     );
 
-    const filteredTables = computed(() =>
-        selectedZoneId.value === null
-            ? tables.value
-            : tables.value.filter(t => t.zoneId === selectedZoneId.value)
-    );
+    const filteredTables = computed(() => {
+        const base = tables.value.filter(t => activeZoneIds.value.has(t.zoneId));
+        return selectedZoneId.value === null
+            ? base
+            : base.filter(t => t.zoneId === selectedZoneId.value);
+    });
 
     // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
@@ -135,6 +149,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.update(id, TableAssembler.toResourceFromEntity(tableData));
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             tables.value = snapshot;
         }
     }
@@ -154,6 +169,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.updateStatus(id, status);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status = prevStatus;
         }
     }
@@ -170,6 +186,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.assign(tableId, { seatedGuests });
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.seatedGuests  = prevGuests;
             table.occupiedSince = prevOccupiedSince;
@@ -191,6 +208,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.free(tableId);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.seatedGuests  = prevGuests;
             table.occupiedSince = prevOccupiedSince;
@@ -209,6 +227,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.updateStatus(tableId, TABLE_STATUS.AVAILABLE);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.reservationId = prevReservationId;
         }
@@ -227,6 +246,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.deleteZone(zoneId);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             tables.value    = snapshotTables;
             zonesData.value = snapshotZones;
         }
@@ -246,6 +266,7 @@ export const useTablesStore = defineStore('tables', () => {
         try {
             await api.updateZone(updatedZone.id, ZoneAssembler.toResourceFromEntity(updatedZone));
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             zonesData.value = snapshotZones;
             tables.value    = snapshotTables;
         }
@@ -269,7 +290,7 @@ export const useTablesStore = defineStore('tables', () => {
     return {
         tables, zonesData, selectedZoneId, isLoading, error,
         totalTables, availableTables, occupiedTables, cleaningTables,
-        zones, filteredTables, occupancyRate,
+        zones, allZones, filteredTables, occupancyRate,
         fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone,
     };
 });

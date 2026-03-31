@@ -169,6 +169,7 @@ export const usePosStore = defineStore('pos', () => {
         try {
             await api.delete(id);
         } catch {
+            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             sales.value = snapshot;
         }
     }

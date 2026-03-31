@@ -4,10 +4,11 @@ import CreateAndEdit from '../../../shared/presentation/components/create-and-ed
 import { Table, TABLE_STATUS } from '../../domain/models/table.entity.js'
 
 const props = defineProps({
-    visible: { type: Boolean, default: false },
-    edit:    { type: Boolean, default: false },
-    table:   { type: Object,  default: null  },
-    zones:   { type: Array,   default: () => [] },
+    visible:        { type: Boolean, default: false },
+    edit:           { type: Boolean, default: false },
+    table:          { type: Object,  default: null  },
+    zones:          { type: Array,   default: () => [] },
+    existingTables: { type: Array,   default: () => [] },
 })
 
 const emit = defineEmits(['update:visible', 'table-saved'])
@@ -43,8 +44,17 @@ const zoneOptions = computed(() =>
 
 const onCancel = () => emit('update:visible', false)
 
+const isDuplicate = computed(() =>
+    props.existingTables.some(t =>
+        t.zoneId === form.zoneId &&
+        t.number === form.number &&
+        t.id     !== props.table?.id
+    )
+)
+
 const onSave = () => {
     if (!form.zoneId || !form.number || !form.capacity) return
+    if (isDuplicate.value) return
     const table = new Table({ ...form })
     emit('table-saved', table)
     emit('update:visible', false)
@@ -87,9 +97,13 @@ const onSave = () => {
                         v-model="form.number"
                         :min="1"
                         :use-grouping="false"
+                        :invalid="isDuplicate"
                         placeholder="1"
                         class="w-full"
                     />
+                    <small v-if="isDuplicate" class="text-red-500">
+                        Ya existe una mesa con ese número en esta zona.
+                    </small>
                 </div>
 
                 <!-- Número de Asientos -->

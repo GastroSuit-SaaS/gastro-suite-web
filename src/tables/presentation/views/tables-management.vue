@@ -37,10 +37,10 @@ const editingZone      = ref(null)
 const editingTable     = ref(null)
 const assigningTable   = ref(null)
 
-// Mapa rápido zoneId → { color, name } para las tarjetas de mesas
+// Mapa rápido zoneId → { color, name } para las tarjetas de mesas (todas las zonas, activas e inactivas)
 const zoneColorMap = computed(() => {
     const map = {}
-    store.zones.forEach(z => { map[z.id] = { color: z.color, name: z.name } })
+    store.allZones.forEach(z => { map[z.id] = { color: z.color, name: z.name } })
     return map
 })
 
@@ -324,14 +324,14 @@ function onTableSaved(table) {
                 <pv-button label="Nueva Zona" icon="pi pi-plus" size="small" @click="openCreateZone" />
             </div>
 
-            <div v-if="store.zones.length > 0" class="zones-grid">
+            <div v-if="store.allZones.length > 0" class="zones-grid">
                 <div
-                    v-for="zone in store.zones"
+                    v-for="zone in store.allZones"
                     :key="zone.id"
-                    class="zone-card"
+                    :class="['zone-card', !zone.isActive && 'zone-card--inactive']"
                     :style="{ '--zone-color': zone.color }"
                 >
-                    <div class="zone-card__top-bar" :style="{ background: zone.color }"></div>
+                    <div class="zone-card__top-bar" :style="{ background: zone.isActive ? zone.color : '#9ca3af' }"></div>
                     <div class="zone-card__body">
                         <div class="zone-card__icon-wrap" :style="{ background: zone.color + '22' }">
                             <i class="pi pi-map-marker" :style="{ color: zone.color }"></i>
@@ -438,6 +438,7 @@ function onTableSaved(table) {
         v-model:visible="showTableDialog"
         :table="editingTable"
         :zones="store.zones"
+        :existing-tables="store.tables"
         :edit="!!editingTable"
         @table-saved="onTableSaved"
         @update:visible="v => { if (!v) { editingTable.value = null } }"
@@ -755,6 +756,17 @@ function onTableSaved(table) {
     transition: box-shadow 0.15s;
 }
 .zone-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); }
+
+.zone-card--inactive {
+    opacity: 0.55;
+    filter: grayscale(0.7);
+    transition: opacity 0.2s, filter 0.2s;
+}
+.zone-card--inactive:hover {
+    opacity: 0.75;
+    filter: grayscale(0.4);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
 
 .zone-card__top-bar { height: 4px; }
 
