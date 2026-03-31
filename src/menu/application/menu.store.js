@@ -52,7 +52,7 @@ export const useMenuStore = defineStore('menu', () => {
     const categories = computed(() =>
         categoriesData.value
             .filter(cat => cat.isActive)
-            .map(cat => ({
+            .map(cat => new Category({
                 ...cat,
                 count: items.value.filter(i => i.categoryId === cat.id).length,
             }))
@@ -60,7 +60,7 @@ export const useMenuStore = defineStore('menu', () => {
 
     // allCategories → todas (tab gestión)
     const allCategories = computed(() =>
-        categoriesData.value.map(cat => ({
+        categoriesData.value.map(cat => new Category({
             ...cat,
             count: items.value.filter(i => i.categoryId === cat.id).length,
         }))

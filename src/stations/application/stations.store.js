@@ -10,6 +10,14 @@ export { TICKET_STATUS };
 
 const api = new StationsApi();
 
+/** Statuses that belong in the active kanban board (not history). */
+const ACTIVE_STATUSES = new Set([
+    TICKET_STATUS.RECEIVED,
+    TICKET_STATUS.PREPARING,
+    TICKET_STATUS.READY,
+    TICKET_STATUS.DELIVERED,
+]);
+
 const MOCK_STATIONS = [
     new Station({ id: 1, name: 'Cocina Caliente', description: 'Platos salteados, fritos y a la plancha', color: '#ef4444', isActive: true }),
     new Station({ id: 2, name: 'Cocina Fría',     description: 'Ceviches, ensaladas y entradas frías',   color: '#10b981', isActive: true }),
@@ -101,7 +109,8 @@ export const useStationsStore = defineStore('stations', () => {
         const optimisticId = Math.max(0, ...stations.value.map(s => s.id)) + 1;
         stations.value.push(new Station({ id: optimisticId, ...data }));
         try {
-            const response = await api.create({ name: data.name, description: data.description, color: data.color, is_active: data.isActive });
+            const entity = new Station({ id: optimisticId, ...data });
+            const response = await api.create(StationAssembler.toResourceFromEntity(entity));
             if (response.status === 201 || response.status === 200) {
                 const saved = StationAssembler.toEntityFromResponse(response);
                 if (saved?.id) {
@@ -160,8 +169,8 @@ export const useStationsStore = defineStore('stations', () => {
             // Persist DELIVERED immediately so a page refresh still shows it in history.
             // The brief UI delay is purely visual — the API call happens synchronously here.
             api.updateTicketStatus(ticketId, TICKET_STATUS.DELIVERED).catch(() => {});
-            // Move to history after a brief delay so the transition is visible in the kanban
-            setTimeout(() => archiveTicket(ticketId), 3000);
+            // Mark as ready to archive — the view layer handles the visual delay
+            ticket.readyToArchive = true;
             return; // API call already fired above — skip the generic call below
         }
         api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
@@ -228,12 +237,42 @@ export const useStationsStore = defineStore('stations', () => {
             newTickets.push(ticket);
             ticketCountToday.value++;
         });
-        api.sendToStations(sale.id, newTickets).catch(() => { /* local change kept */ });
+        // Reconcile temporary UUIDs with backend IDs when the API responds
+        api.sendToStations(sale.id, newTickets)
+            .then(response => {
+                const saved = response?.data?.data ?? response?.data ?? [];
+                if (Array.isArray(saved)) {
+                    newTickets.forEach((ticket, idx) => {
+                        if (saved[idx]?.id) ticket.id = saved[idx].id;
+                    });
+                }
+            })
+            .catch(() => { /* local tickets kept with temporary UUIDs */ });
     }
 
     /** @deprecated Use cancelTicket() instead — removeTicket hard-deletes with no history. */
     function removeTicket(ticketId) {
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
+    }
+
+    /**
+     * Notifica la cancelación de un ítem enviado desde POS.
+     * Elimina el ítem del ticket correspondiente; si el ticket queda vacío, lo cancela.
+     */
+    function notifyItemCancelled(saleId, menuItemId) {
+        const relatedTickets = tickets.value.filter(t => t.saleId === saleId);
+        for (const ticket of relatedTickets) {
+            const itemIdx = ticket.items.findIndex(i => i.menuItemId === menuItemId);
+            if (itemIdx !== -1) {
+                ticket.items.splice(itemIdx, 1);
+                if (ticket.items.length === 0) {
+                    cancelTicket(ticket.id, 'Ítem cancelado desde POS');
+                } else {
+                    api.updateTicketStatus(ticket.id, ticket.status).catch(() => {});
+                }
+                break;
+            }
+        }
     }
 
     return {
@@ -246,6 +285,6 @@ export const useStationsStore = defineStore('stations', () => {
         // Station actions
         fetchAll, createStation, updateStation, removeStation, selectStation,
         // Ticket actions
-        advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket,
+        advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket, notifyItemCancelled,
     };
 });

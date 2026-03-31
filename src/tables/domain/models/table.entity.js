@@ -27,6 +27,7 @@ export class Table {
         seatedGuests  = 0,
         occupiedSince = null,
         reservationId = null,
+        orderId       = null,
     } = {}) {
         this.id            = id;
         this.number        = number;
@@ -38,6 +39,7 @@ export class Table {
         this.seatedGuests  = seatedGuests;
         this.occupiedSince = occupiedSince;
         this.reservationId = reservationId;
+        this.orderId       = orderId;
     }
 
     get isOccupied()  { return this.status === TABLE_STATUS.OCCUPIED; }

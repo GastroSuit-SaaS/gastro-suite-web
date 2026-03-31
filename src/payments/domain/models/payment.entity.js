@@ -43,6 +43,7 @@ export class Payment {
         status         = PAYMENT_STATUS.COMPLETED,
         cashierId      = null,
         processedAt    = null,
+        pendingSync    = false,
     } = {}) {
         this.id             = id;
         this.saleId         = saleId;
@@ -61,6 +62,7 @@ export class Payment {
         this.status         = status;
         this.cashierId      = cashierId;
         this.processedAt    = processedAt ?? new Date();
+        this.pendingSync    = pendingSync;
     }
 
     /** Devuelve true si el pago fue procesado hoy (fecha local). */

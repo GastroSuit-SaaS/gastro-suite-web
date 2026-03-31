@@ -8,6 +8,7 @@ import { useTablesStore }    from '../../tables/application/tables.store.js';
 import { useMenuStore }      from '../../menu/application/menu.store.js';
 import { useStationsStore }  from '../../stations/application/stations.store.js';
 import { usePaymentsStore }  from '../../payments/application/payments.store.js';
+import { useIamStore }       from '../../iam/application/iam.store.js';
 
 const api = new PosApi();
 
@@ -52,8 +53,7 @@ export const usePosStore = defineStore('pos', () => {
 
     // ── Stores externos ───────────────────────────────────────────────────
     const tablesStore    = useTablesStore();
-    const menuStore      = useMenuStore();
-
+    const menuStore      = useMenuStore();    const iamStore       = useIamStore();
     // ── State ─────────────────────────────────────────────────────────────
     const sales                   = ref([]);
     const currentSale             = ref(null);
@@ -189,7 +189,7 @@ export const usePosStore = defineStore('pos', () => {
         } else {
             // Use a temporary negative ID — replaced with backend ID after api.create()
             const tempId  = -(Date.now());
-            const newSale = new Sale({ id: tempId, tableId, zoneId, status: SALE_STATUS.ACTIVE });
+            const newSale = new Sale({ id: tempId, tableId, zoneId, status: SALE_STATUS.ACTIVE, cashierId: iamStore.currentUser?.id ?? null });
             sales.value.push(newSale);
             currentSale.value = newSale;
             currentSaleIsRecovered.value = false;
@@ -198,11 +198,17 @@ export const usePosStore = defineStore('pos', () => {
             try {
                 await create(newSale);
             } catch {
-                // Rollback: remove the optimistic sale and free the table on total failure
+                // Rollback: remove the optimistic sale and restore table to AVAILABLE
+                // (table was never truly occupied with an order)
                 sales.value = sales.value.filter(s => s.id !== tempId);
                 currentSale.value = null;
                 currentSaleIsRecovered.value = false;
-                tablesStore.freeTable(tableId);
+                const rollbackTable = tablesStore.tables.find(t => t.id === tableId);
+                if (rollbackTable) {
+                    rollbackTable.seatedGuests  = 0;
+                    rollbackTable.occupiedSince = null;
+                }
+                tablesStore.setTableStatus(tableId, 'available');
                 throw new Error('No se pudo crear la orden. Por favor intenta de nuevo.');
             }
         }
@@ -217,6 +223,11 @@ export const usePosStore = defineStore('pos', () => {
 
     function removeItemFromCurrentSale(itemId) {
         if (!currentSale.value) return;
+        const item = currentSale.value.items.find(i => i.id === itemId);
+        if (item?.isSent) {
+            const stationsStore = useStationsStore();
+            stationsStore.notifyItemCancelled(currentSale.value.id, item.menuItemId);
+        }
         currentSale.value.removeItem(itemId);
     }
 
@@ -308,47 +319,41 @@ export const usePosStore = defineStore('pos', () => {
         const table   = tablesStore.tables.find(t => t.id === tableId);
         const zone    = tablesStore.zones.find(z => z.id === sale.zoneId);
 
-        // Registrar en el módulo de pagos (lazy — evita problemas de orden de init)
-        const paymentsStore = usePaymentsStore();
-        let paymentRegistered = false;
+        // 1. Saga: persistir PAID en backend PRIMERO (punto de commit)
         try {
-            await paymentsStore.registerPayment({
-                saleId:         saleId,
-                tableNumber:    table?.number ?? null,
-                zoneName:       zone?.name   ?? null,
-                items:          sale.items.map(i => ({
-                    name:     i.menuItemName,
-                    qty:      i.quantity,
-                    subtotal: i.subtotal,
-                })),
-                subtotal:       sale.subtotal,
-                tax:            sale.tax,
-                discount:       sale.discount,
-                total:          sale.total,
-                method,
-                amountReceived,
-                change:         parseFloat((amountReceived - sale.total).toFixed(2)),
-                receiptType,
-                receiptData,
-            });
-            paymentRegistered = true;
+            await api.pay(saleId, { method, amountReceived, receiptType });
         } catch {
-            // Payment registration failed — do NOT proceed with order close
-            return false;
+            if (import.meta.env.VITE_USE_MOCK !== 'true') return false;
+            // Mock mode: continuar sin confirmación del backend
         }
 
-        if (!paymentRegistered) return false;
-
-        // Optimistic update — mark paid locally first
+        // 2. Backend confirmó — actualizar estado local
         sale.status = SALE_STATUS.PAID;
         tablesStore.freeTable(tableId);
         currentSale.value = null;
         currentSaleIsRecovered.value = false;
 
-        // Persist PAID status to backend
-        try {
-            await api.pay(saleId, { method, amountReceived, receiptType });
-        } catch { /* local + payments state kept — payment already registered */ }
+        // 3. Registrar pago en módulo de pagos (fire-and-forget para UI)
+        const paymentsStore = usePaymentsStore();
+        paymentsStore.registerPayment({
+            saleId,
+            tableNumber:    table?.number ?? null,
+            zoneName:       zone?.name   ?? null,
+            items:          sale.items.map(i => ({
+                name:     i.menuItemName,
+                qty:      i.quantity,
+                subtotal: i.subtotal,
+            })),
+            subtotal:       sale.subtotal,
+            tax:            sale.tax,
+            discount:       sale.discount,
+            total:          sale.total,
+            method,
+            amountReceived,
+            change:         parseFloat((amountReceived - sale.total).toFixed(2)),
+            receiptType,
+            receiptData,
+        });
 
         return true;
     }

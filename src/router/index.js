@@ -86,14 +86,12 @@ const routes = [
         meta: { title: 'Usuarios' },
     },
 
-    /*
     {
         path: '/:pathMatch(.*)*',
         name: 'not-found',
-        component: pageNotFound,
+        component: () => import('../shared/presentation/views/page-not-found.vue'),
         meta: { title: 'Página no encontrada' }
-    }
-    */
+    },
 
 ];
 

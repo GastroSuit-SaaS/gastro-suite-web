@@ -87,6 +87,9 @@ export const usePaymentsStore = defineStore('payments', () => {
     }
 
     async function remove(id) {
+        const payment = payments.value.find(p => p.id === id);
+        // Pagos completados no se eliminan — usar refund() en su lugar
+        if (payment?.status === PAYMENT_STATUS.COMPLETED) return;
         isLoading.value = true;
         error.value = null;
         try {
@@ -126,7 +129,11 @@ export const usePaymentsStore = defineStore('payments', () => {
                 }
             }
         } catch (e) {
-            // Pago queda localmente; se sincronizará en el próximo fetchAll
+            // Pago queda localmente con flag de sincronización pendiente
+            const idx = payments.value.findIndex(p => p.id === tempId);
+            if (idx !== -1) {
+                payments.value[idx] = new Payment({ ...payments.value[idx], pendingSync: true });
+            }
         }
         return payment;
     }

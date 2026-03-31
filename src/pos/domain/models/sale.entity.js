@@ -124,11 +124,12 @@ export class Sale {
      */
     updateOrderDiscount(type, value) {
         const numericValue = Math.max(0, Number(value) || 0);
+        const itemsTotal   = this.items.reduce((sum, i) => sum + i.subtotal, 0);
         if (type === 'fixed') {
             this.discount = numericValue;
         } else {
-            const pct      = Math.min(100, numericValue);
-            this.discount  = parseFloat((this.subtotal * pct / 100).toFixed(2));
+            const pct     = Math.min(100, numericValue);
+            this.discount = parseFloat((itemsTotal * pct / 100).toFixed(2));
         }
         this._recalculate();
     }
@@ -156,11 +157,14 @@ export class Sale {
     // ── Private ──────────────────────────────────────────────────────────
 
     _recalculate() {
-        this.subtotal = parseFloat(
+        // Precios del menú ya incluyen IGV (legislación peruana).
+        // Descomponemos el total en base imponible + IGV para el comprobante.
+        const itemsTotal = parseFloat(
             this.items.reduce((sum, i) => sum + i.subtotal, 0).toFixed(2)
         );
-        this.tax   = parseFloat((this.subtotal * SALE_TAX_RATE).toFixed(2));
-        this.total = parseFloat((this.subtotal + this.tax - this.discount).toFixed(2));
+        this.total    = parseFloat((itemsTotal - this.discount).toFixed(2));
+        this.subtotal = parseFloat((this.total / (1 + SALE_TAX_RATE)).toFixed(2));
+        this.tax      = parseFloat((this.total - this.subtotal).toFixed(2));
     }
 }
 

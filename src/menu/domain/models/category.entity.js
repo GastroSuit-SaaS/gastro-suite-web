@@ -12,6 +12,7 @@ export class Category {
         color       = '#3B82F6',
         isActive    = true,
         sortOrder   = 0,
+        count       = 0,
     } = {}) {
         this.id          = id;
         this.name        = name;
@@ -19,5 +20,6 @@ export class Category {
         this.color       = color;
         this.isActive    = isActive;
         this.sortOrder   = sortOrder;
+        this.count       = count;
     }
 }

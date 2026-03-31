@@ -193,6 +193,12 @@ export const useTablesStore = defineStore('tables', () => {
         }
     }
 
+    /** Vincula una mesa con un orderId específico (llamado desde POS). */
+    function setTableOrderId(tableId, orderId) {
+        const table = tables.value.find(t => t.id === tableId);
+        if (table) table.orderId = orderId;
+    }
+
     async function freeTable(tableId) {
         const table = tables.value.find(t => t.id === tableId);
         if (!table) return;
@@ -205,6 +211,7 @@ export const useTablesStore = defineStore('tables', () => {
         table.status        = TABLE_STATUS.CLEANING;
         table.seatedGuests  = 0;
         table.occupiedSince = null;
+        table.orderId       = null;
         try {
             await api.free(tableId);
         } catch {
@@ -291,6 +298,6 @@ export const useTablesStore = defineStore('tables', () => {
         tables, zonesData, selectedZoneId, isLoading, error,
         totalTables, availableTables, occupiedTables, cleaningTables,
         zones, allZones, filteredTables, occupancyRate,
-        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone,
+        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone, setTableOrderId,
     };
 });
