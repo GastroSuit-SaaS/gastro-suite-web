@@ -224,14 +224,14 @@ function onCategorySaved(data) {
                 <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
             </div>
 
-            <div v-if="store.categories.length > 0" class="cats-grid">
+            <div v-if="store.allCategories.length > 0" class="cats-grid">
                 <div
-                    v-for="cat in store.categories"
+                    v-for="cat in store.allCategories"
                     :key="cat.id"
-                    class="cat-card"
+                    :class="['cat-card', !cat.isActive && 'cat-card--inactive']"
                     :style="{ '--cat-color': cat.color }"
                 >
-                    <div class="cat-card__top-bar" :style="{ background: cat.color }"></div>
+                    <div class="cat-card__top-bar" :style="{ background: cat.isActive ? cat.color : '#9ca3af' }"></div>
                     <div class="cat-card__body">
                         <div class="cat-card__icon-wrap" :style="{ background: cat.color + '22' }">
                             <i class="pi pi-tag" :style="{ color: cat.color }"></i>
@@ -248,6 +248,13 @@ function onCategorySaved(data) {
                         </div>
                     </div>
                     <div class="cat-card__actions">
+                        <button
+                            :class="['mgmt-btn', 'mgmt-btn--power', cat.isActive ? 'mgmt-btn--power-on' : 'mgmt-btn--power-off']"
+                            :title="cat.isActive ? 'Desactivar categoría' : 'Activar categoría'"
+                            @click="store.updateCategory(cat.id, { ...cat, isActive: !cat.isActive })"
+                        >
+                            <i class="pi pi-power-off"></i>
+                        </button>
                         <button class="mgmt-btn mgmt-btn--edit" title="Editar" @click="openEditCategory(cat)">
                             <i class="pi pi-pencil"></i>
                         </button>
@@ -573,6 +580,17 @@ function onCategorySaved(data) {
 }
 .cat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); }
 
+.cat-card--inactive {
+    opacity: 0.55;
+    filter: grayscale(0.7);
+    transition: opacity 0.2s, filter 0.2s;
+}
+.cat-card--inactive:hover {
+    opacity: 0.75;
+    filter: grayscale(0.4);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
 .cat-card__top-bar { height: 4px; }
 
 .cat-card__body {
@@ -657,6 +675,13 @@ function onCategorySaved(data) {
 }
 .mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
 .mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+/* Power toggle button */
+.mgmt-btn--power { transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.mgmt-btn--power-on  { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+.mgmt-btn--power-on:hover  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.mgmt-btn--power-off { color: #9ca3af; border-color: #e5e7eb; background: #f9fafb; }
+.mgmt-btn--power-off:hover { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
 
 /* Loading/Error states handled by shared ModuleStateFeedback component */
 </style>

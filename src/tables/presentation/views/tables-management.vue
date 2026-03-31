@@ -349,11 +349,11 @@ function onTableSaved(table) {
                     </div>
                     <div class="zone-card__actions">
                         <button
-                            :class="['zone-mgmt-btn', zone.isActive ? 'zone-mgmt-btn--deactivate' : 'zone-mgmt-btn--activate']"
+                            :class="['zone-mgmt-btn', 'zone-mgmt-btn--power', zone.isActive ? 'zone-mgmt-btn--power-on' : 'zone-mgmt-btn--power-off']"
                             :title="zone.isActive ? 'Desactivar zona' : 'Activar zona'"
                             @click="store.updateZone({ ...zone, isActive: !zone.isActive })"
                         >
-                            <i :class="['pi', zone.isActive ? 'pi-ban' : 'pi-check-circle']"></i>
+                            <i class="pi pi-power-off"></i>
                         </button>
                         <button class="zone-mgmt-btn zone-mgmt-btn--edit" title="Editar" @click="openEditZone(zone)">
                             <i class="pi pi-pencil"></i>
@@ -931,10 +931,15 @@ function onTableSaved(table) {
     color: #6b7280;
     transition: background 0.12s, color 0.12s;
 }
-.zone-mgmt-btn--edit:hover       { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
-.zone-mgmt-btn--delete:hover     { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
-.zone-mgmt-btn--deactivate:hover { background: #fffbeb; color: #d97706; border-color: #fcd34d; }
-.zone-mgmt-btn--activate:hover   { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+.zone-mgmt-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
+.zone-mgmt-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+/* Power toggle button */
+.zone-mgmt-btn--power { transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.zone-mgmt-btn--power-on  { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+.zone-mgmt-btn--power-on:hover  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.zone-mgmt-btn--power-off { color: #9ca3af; border-color: #e5e7eb; background: #f9fafb; }
+.zone-mgmt-btn--power-off:hover { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
 
 .zone-card__active-badge {
     font-size: 0.63rem;

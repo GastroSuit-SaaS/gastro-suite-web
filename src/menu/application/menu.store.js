@@ -48,21 +48,37 @@ export const useMenuStore = defineStore('menu', () => {
     const selectedItem = ref(null);
 
     // ── Computeds ─────────────────────────────────────────────────────────
-    const totalItems       = computed(() => items.value.length);
-    const availableItems   = computed(() => items.value.filter(i => i.isAvailable).length);
-    const unavailableItems = computed(() => items.value.filter(i => !i.isAvailable).length);
-    const totalCategories  = computed(() => categoriesData.value.length);
-
+    // categories → solo activas (filtros catálogo, POS, dropdowns)
     const categories = computed(() =>
+        categoriesData.value
+            .filter(cat => cat.isActive)
+            .map(cat => ({
+                ...cat,
+                count: items.value.filter(i => i.categoryId === cat.id).length,
+            }))
+    );
+
+    // allCategories → todas (tab gestión)
+    const allCategories = computed(() =>
         categoriesData.value.map(cat => ({
             ...cat,
             count: items.value.filter(i => i.categoryId === cat.id).length,
         }))
     );
 
+    const activeCategoryIds = computed(() =>
+        new Set(categoriesData.value.filter(c => c.isActive).map(c => c.id))
+    );
+
+    const totalItems       = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId)).length);
+    const availableItems   = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId) && i.isAvailable).length);
+    const unavailableItems = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId) && !i.isAvailable).length);
+    const totalCategories  = computed(() => categories.value.length);
+
     const filteredItems = computed(() => {
         const query = searchQuery.value.trim().toLowerCase();
         return items.value.filter(i => {
+            if (!activeCategoryIds.value.has(i.categoryId)) return false;
             const matchesCategory = selectedCategoryId.value === null || i.categoryId === selectedCategoryId.value;
             const matchesSearch   = !query || i.name.toLowerCase().includes(query) || i.description.toLowerCase().includes(query);
             return matchesCategory && matchesSearch;
@@ -191,7 +207,7 @@ export const useMenuStore = defineStore('menu', () => {
 
     return {
         items, categoriesData, selectedCategoryId, searchQuery, isLoading, error, selectedItem,
-        totalItems, availableItems, unavailableItems, totalCategories, categories, filteredItems,
+        totalItems, availableItems, unavailableItems, totalCategories, categories, allCategories, filteredItems,
         fetchAll, fetchById, create, update, remove,
         setItemAvailability, selectCategory, createCategory, updateCategory, removeCategory,
     };

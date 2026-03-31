@@ -727,11 +727,11 @@ function urgencyBorderColor(ticket) {
                 <div
                     v-for="station in store.stations"
                     :key="station.id"
-                    class="station-card"
+                    :class="['station-card', !station.isActive && 'station-card--inactive']"
                     :style="{ '--station-color': station.color }"
                 >
                     <!-- Top accent bar -->
-                    <div class="station-card__top-bar" :style="{ background: station.color }"></div>
+                    <div class="station-card__top-bar" :style="{ background: station.isActive ? station.color : '#9ca3af' }"></div>
 
                     <!-- Body -->
                     <div class="station-card__body">
@@ -750,11 +750,11 @@ function urgencyBorderColor(ticket) {
                     <!-- Actions -->
                     <div class="station-card__actions">
                         <button
-                            :class="['station-action-btn', station.isActive ? 'station-action-btn--deactivate' : 'station-action-btn--activate']"
+                            :class="['station-action-btn', 'station-action-btn--power', station.isActive ? 'station-action-btn--power-on' : 'station-action-btn--power-off']"
                             :title="station.isActive ? 'Desactivar estación' : 'Activar estación'"
                             @click="store.updateStation(station.id, { ...station, isActive: !station.isActive })"
                         >
-                            <i :class="['pi', station.isActive ? 'pi-ban' : 'pi-check-circle']"></i>
+                            <i class="pi pi-power-off"></i>
                         </button>
                         <button class="station-action-btn station-action-btn--edit" title="Editar" @click="openEditStation(station)">
                             <i class="pi pi-pencil"></i>
@@ -1743,10 +1743,17 @@ function urgencyBorderColor(ticket) {
     color: #6b7280;
     transition: background 0.12s, color 0.12s;
 }
-.station-action-btn--edit:hover       { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
-.station-action-btn--delete:hover     { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
-.station-action-btn--deactivate:hover { background: #fffbeb; color: #d97706; border-color: #fcd34d; }
-.station-action-btn--activate:hover   { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+.station-action-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
+.station-action-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+.station-action-btn--power { transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.station-action-btn--power-on  { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+.station-action-btn--power-on:hover  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.station-action-btn--power-off { color: #9ca3af; border-color: #e5e7eb; background: #f9fafb; }
+.station-action-btn--power-off:hover { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+
+.station-card--inactive { opacity: 0.55; filter: grayscale(0.7); transition: opacity 0.2s, filter 0.2s; }
+.station-card--inactive:hover { opacity: 0.8; filter: grayscale(0.3); }
 
 /* ── Cancel ticket button (icon-only, on ticket cards) ───────────────── */
 .ticket-card__cancel-btn {
