@@ -2,22 +2,26 @@
 import { ref, computed } from 'vue';
 import { PosApi } from '../infrastructure/api/pos.api.js';
 import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
-import { Sale, SALE_STATUS } from '../domain/models/sale.entity.js';
+import { Sale, SALE_STATUS, SALE_TYPE } from '../domain/models/sale.entity.js';
 import { SaleItem }          from '../domain/models/sale-item.entity.js';
 import { useTablesStore }    from '../../tables/application/tables.store.js';
 import { useMenuStore }      from '../../menu/application/menu.store.js';
 import { useStationsStore }  from '../../stations/application/stations.store.js';
 import { usePaymentsStore }  from '../../payments/application/payments.store.js';
 import { useIamStore }       from '../../iam/application/iam.store.js';
+import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 import { MOCK_SALES }        from '../infrastructure/pos.mock.js';
 
 const api = new PosApi();
+const _isMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const usePosStore = defineStore('pos', () => {
 
     // ── Stores externos ───────────────────────────────────────────────────
-    const tablesStore    = useTablesStore();
-    const menuStore      = useMenuStore();    const iamStore       = useIamStore();
+    const tablesStore       = useTablesStore();
+    const menuStore         = useMenuStore();
+    const iamStore          = useIamStore();
+    const cashRegisterStore = useCashRegisterStore();
     // ── State ─────────────────────────────────────────────────────────────
     const sales                   = ref([]);
     const currentSale             = ref(null);
@@ -26,6 +30,7 @@ export const usePosStore = defineStore('pos', () => {
     const error                   = ref(null);
     const _posSearch              = ref('');
     const _posCategoryId          = ref(null);
+    const _takeawayCounter        = ref(0);     // Correlativo diario para tickets para llevar
 
     // ── Getters ───────────────────────────────────────────────────────────
     const activeOrders   = computed(() => sales.value.filter(s => s.status === SALE_STATUS.ACTIVE));
@@ -78,8 +83,11 @@ export const usePosStore = defineStore('pos', () => {
         error.value = null;
         try {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const branchId = localStorage.getItem('gs_branch_id');
-                sales.value = branchId ? MOCK_SALES.filter(s => s.sucursalId === branchId) : [...MOCK_SALES];
+                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
+                if (sales.value.length === 0) {
+                    const branchId = localStorage.getItem('gs_branch_id');
+                    sales.value = branchId ? MOCK_SALES.filter(s => s.sucursalId === branchId) : [...MOCK_SALES];
+                }
                 await Promise.all([tablesStore.fetchAll(), menuStore.fetchAll()]);
                 return;
             }
@@ -98,6 +106,7 @@ export const usePosStore = defineStore('pos', () => {
     }
 
     async function fetchById(id) {
+        if (_isMock) return;
         isLoading.value = true;
         error.value = null;
         try {
@@ -114,6 +123,7 @@ export const usePosStore = defineStore('pos', () => {
     }
 
     async function create(sale) {
+        if (_isMock) return;
         try {
             const response = await api.create(SaleAssembler.toResourceFromEntity(sale));
             if (response.status === 201 || response.status === 200) {
@@ -129,6 +139,7 @@ export const usePosStore = defineStore('pos', () => {
     }
 
     async function update(id, sale) {
+        if (_isMock) return;
         try {
             await api.update(id, SaleAssembler.toResourceFromEntity(sale));
         } catch { /* local state kept */ }
@@ -137,10 +148,10 @@ export const usePosStore = defineStore('pos', () => {
     async function remove(id) {
         const snapshot = [...sales.value];
         sales.value = sales.value.filter(s => s.id !== id);
+        if (_isMock) return;
         try {
             await api.delete(id);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             sales.value = snapshot;
         }
     }
@@ -183,6 +194,40 @@ export const usePosStore = defineStore('pos', () => {
                 throw new Error('No se pudo crear la orden. Por favor intenta de nuevo.');
             }
         }
+    }
+
+    /**
+     * Crea una nueva venta para llevar (sin mesa ni zona).
+     * Asigna un ticketNumber correlativo y opcionalmente un nombre de cliente.
+     * @param {string} [customerName='']
+     * @returns {Sale} La venta creada
+     */
+    async function openTakeawaySale(customerName = '') {
+        _takeawayCounter.value += 1;
+        const tempId  = -(Date.now());
+        const newSale = new Sale({
+            id:           tempId,
+            tableId:      null,
+            zoneId:       null,
+            saleType:     SALE_TYPE.TAKEAWAY,
+            customerName,
+            ticketNumber: _takeawayCounter.value,
+            status:       SALE_STATUS.ACTIVE,
+            cashierId:    iamStore.currentUser?.id ?? null,
+            sucursalId:   iamStore.activeBranchId ?? null,
+        });
+        sales.value.push(newSale);
+        currentSale.value = newSale;
+        currentSaleIsRecovered.value = false;
+        try {
+            await create(newSale);
+        } catch {
+            sales.value = sales.value.filter(s => s.id !== tempId);
+            currentSale.value = null;
+            currentSaleIsRecovered.value = false;
+            throw new Error('No se pudo crear la orden para llevar. Por favor intenta de nuevo.');
+        }
+        return newSale;
     }
 
     // ── Orden actual — gestión de ítems ──────────────────────────────────
@@ -245,80 +290,166 @@ export const usePosStore = defineStore('pos', () => {
         // Lazy call — se llama dentro de la acción para evitar problemas de
         // orden de inicialización entre stores en Pinia
         const stationsStore = useStationsStore();
-        const table = tablesStore.tables.find(t => t.id === currentSale.value.tableId);
+        // Asegurar que estaciones estén cargadas antes de despachar;
+        // si no, fetchAll() posterior sobrescribiría los tickets nuevos.
+        await stationsStore.fetchAll();
+        const sale = currentSale.value;
+        const tableLabel = sale.isTakeaway
+            ? `PLL #${sale.ticketNumber}${sale.customerName ? ` (${sale.customerName})` : ''}`
+            : (tablesStore.tables.find(t => t.id === sale.tableId)?.number ?? null);
         stationsStore.sendSaleToStations(
-            { id: currentSale.value.id, items: pending },
-            table?.number ?? null,
+            { id: sale.id, items: pending, sucursalId: sale.sucursalId },
+            tableLabel,
         );
-        // Persist updated isSent flags to backend — mark AFTER ACK
-        try {
-            pending.forEach(item => { item.isSent = true; });
-            await api.update(currentSale.value.id, SaleAssembler.toResourceFromEntity(currentSale.value));
-        } catch {
-            // Rollback: mark items as NOT sent so next attempt re-dispatches them
-            pending.forEach(item => { item.isSent = false; });
+        // Mark items as sent locally
+        pending.forEach(item => { item.isSent = true; });
+        // Persist updated isSent flags to backend
+        if (!_isMock) {
+            try {
+                await api.update(currentSale.value.id, SaleAssembler.toResourceFromEntity(currentSale.value));
+            } catch {
+                // Rollback: mark items as NOT sent so next attempt re-dispatches them
+                pending.forEach(item => { item.isSent = false; });
+            }
         }
         return pending.length;
     }
 
     /**
-     * Cancela la orden activa: marca como CANCELLED y libera la mesa.
+     * Cancela la orden activa: marca como CANCELLED y libera la mesa (solo dine-in).
      */
     async function cancelCurrentSale() {
         if (!currentSale.value) return;
         const saleId  = currentSale.value.id;
         const tableId = currentSale.value.tableId;
         currentSale.value.status = SALE_STATUS.CANCELLED;
-        tablesStore.freeTable(tableId);
+        if (!currentSale.value.isTakeaway && tableId) {
+            tablesStore.freeTable(tableId);
+        }
         currentSale.value = null;
         currentSaleIsRecovered.value = false;
         // Persist cancellation — fire-and-forget, local state already updated
-        try {
-            await api.cancel(saleId);
-        } catch { /* local state kept */ }
+        if (!_isMock) {
+            try {
+                await api.cancel(saleId);
+            } catch { /* local state kept */ }
+        }
+    }
+
+    /**
+     * Transfiere la orden activa de una mesa a otra.
+     * Libera la mesa origen y ocupa la mesa destino.
+     *
+     * @param {number} newTableId  - ID de la nueva mesa
+     * @param {number|null} newZoneId - ID de la nueva zona (detectado si null)
+     * @returns {boolean}
+     */
+    async function transferSale(newTableId, newZoneId = null) {
+        if (!currentSale.value) return false;
+
+        const sale       = currentSale.value;
+        const oldTableId = sale.tableId;
+        const oldZoneId  = sale.zoneId;
+
+        // No transferir a la misma mesa
+        if (newTableId === oldTableId) return false;
+
+        // Verificar que la mesa destino no tenga una orden activa
+        const existingSale = sales.value.find(
+            s => s.tableId === newTableId && s.status === SALE_STATUS.ACTIVE
+        );
+        if (existingSale) {
+            error.value = 'La mesa destino ya tiene una orden activa.';
+            return false;
+        }
+
+        // Detectar zona de la mesa destino si no se proporcionó
+        const destTable = tablesStore.tables.find(t => t.id === newTableId);
+        const resolvedZoneId = newZoneId ?? destTable?.zoneId ?? oldZoneId;
+
+        // 1. Actualizar entidad de dominio
+        sale.transferToTable(newTableId, resolvedZoneId);
+
+        // 2. Liberar mesa origen → ocupar mesa destino
+        tablesStore.freeTable(oldTableId);
+        tablesStore.assignTable(newTableId, destTable?.seatedGuests || 0);
+
+        // 3. Persistir al backend
+        if (!_isMock) {
+            try {
+                await api.transfer(sale.id, { tableId: newTableId, zoneId: resolvedZoneId });
+            } catch {
+                // Rollback
+                sale.transferToTable(oldTableId, oldZoneId);
+                tablesStore.freeTable(newTableId);
+                tablesStore.assignTable(oldTableId, 0);
+                error.value = 'Error al transferir la orden. Se revirtió el cambio.';
+                return false;
+            }
+        }
+
+        error.value = null;
+        return true;
     }
 
     /**
      * Confirma el cobro de la orden activa.
      * Registra el pago en el módulo de pagos, marca la venta como PAID,
      * libera la mesa y limpia el estado local.
+     *
+     * Valida que exista un turno de caja abierto antes de procesar.
+     * Si el pago es en efectivo, registra el ingreso en caja.
+     *
      * @param {{ method: string, amountReceived: number, receiptType: string, receiptData: object }} paymentData
      * @returns {boolean}
      */
     async function confirmPayment({ method, amountReceived, receiptType, receiptData }) {
         if (!currentSale.value) return false;
+
+        // 0. Validar turno de caja abierto
+        if (!cashRegisterStore.hasOpenSession) {
+            error.value = 'No hay un turno de caja abierto. Abre un turno en el módulo de Caja antes de cobrar.';
+            return false;
+        }
+
         const sale    = currentSale.value;
         const saleId  = sale.id;
         const tableId = sale.tableId;
-        const table   = tablesStore.tables.find(t => t.id === tableId);
-        const zone    = tablesStore.zones.find(z => z.id === sale.zoneId);
+        const table   = sale.isTakeaway ? null : tablesStore.tables.find(t => t.id === tableId);
+        const zone    = sale.isTakeaway ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
+        const saleLabel = sale.isTakeaway
+            ? `Para Llevar #${sale.ticketNumber}${sale.customerName ? ` (${sale.customerName})` : ''}`
+            : `Mesa ${table?.number ?? '?'}`;
 
         // 1. Saga: persistir PAID en backend PRIMERO (punto de commit)
-        try {
-            await api.pay(saleId, { method, amountReceived, receiptType });
-        } catch {
-            if (import.meta.env.VITE_USE_MOCK !== 'true') return false;
-            // Mock mode: continuar sin confirmación del backend
+        if (!_isMock) {
+            try {
+                await api.pay(saleId, { method, amountReceived, receiptType });
+            } catch {
+                return false;
+            }
         }
 
         // 2. Backend confirmó — actualizar estado local
         sale.status = SALE_STATUS.PAID;
-        try {
-            tablesStore.freeTable(tableId);
-        } catch {
-            // Mesa no se pudo liberar — el pago ya fue registrado en backend.
-            // Se resolverá en el próximo fetchAll o manualmente.
-            console.warn(`[POS] freeTable(${tableId}) falló tras confirmar pago de venta ${saleId}`);
+        if (!sale.isTakeaway && tableId) {
+            try {
+                tablesStore.freeTable(tableId);
+            } catch {
+                console.warn(`[POS] freeTable(${tableId}) falló tras confirmar pago de venta ${saleId}`);
+            }
         }
         currentSale.value = null;
         currentSaleIsRecovered.value = false;
 
         // 3. Registrar pago en módulo de pagos (fire-and-forget para UI)
         const paymentsStore = usePaymentsStore();
-        paymentsStore.registerPayment({
+        const sessionId = cashRegisterStore.currentSession?.id ?? null;
+        const payment = await paymentsStore.registerPayment({
             saleId,
+            sessionId,
             tableNumber:    table?.number ?? null,
-            zoneName:       zone?.name   ?? null,
+            zoneName:       sale.isTakeaway ? 'Para Llevar' : (zone?.name ?? null),
             items:          sale.items.map(i => ({
                 name:     i.menuItemName,
                 qty:      i.quantity,
@@ -333,8 +464,138 @@ export const usePosStore = defineStore('pos', () => {
             change:         parseFloat((amountReceived - sale.total).toFixed(2)),
             receiptType,
             receiptData,
+            note:           sale.isTakeaway ? `Para Llevar #${sale.ticketNumber}` : '',
+            cashierId:      iamStore.currentUser?.id ?? null,
+            sucursalId:     iamStore.activeBranchId ?? null,
         });
 
+        // 4. Registrar movimiento en caja — efectivo como VENTA, digital como VENTA_DIGITAL
+        const paymentId = payment?.id ?? null;
+        if (method === 'cash') {
+            cashRegisterStore.registerSaleMovement({
+                amount:      sale.total,
+                description: `Venta ${saleLabel} — Efectivo`,
+                category:    'venta',
+                paymentId,
+            });
+        } else {
+            cashRegisterStore.registerSaleMovement({
+                amount:      sale.total,
+                description: `Venta ${saleLabel} — ${method.charAt(0).toUpperCase() + method.slice(1)}`,
+                category:    'venta_digital',
+                paymentId,
+            });
+        }
+
+        return true;
+    }
+
+    /**
+     * Confirma el cobro dividido de la orden activa.
+     * Recibe un array de splits, cada uno con su método de pago.
+     * Registra N pagos parciales y un solo cierre de venta.
+     *
+     * @param {{ splits: Array<{ total: number, method: string, label: string }>, receiptType: string, receiptData: object }} splitData
+     * @returns {boolean}
+     */
+    async function confirmSplitPayment({ splits, receiptType, receiptData }) {
+        if (!currentSale.value) return false;
+
+        if (!cashRegisterStore.hasOpenSession) {
+            error.value = 'No hay un turno de caja abierto. Abre un turno en el módulo de Caja antes de cobrar.';
+            return false;
+        }
+
+        const sale    = currentSale.value;
+        const saleId  = sale.id;
+        const tableId = sale.tableId;
+        const table   = sale.isTakeaway ? null : tablesStore.tables.find(t => t.id === tableId);
+        const zone    = sale.isTakeaway ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
+        const saleLabel = sale.isTakeaway
+            ? `Para Llevar #${sale.ticketNumber}${sale.customerName ? ` (${sale.customerName})` : ''}`
+            : `Mesa ${table?.number ?? '?'}`;
+
+        // 1. Persistir PAID en backend
+        if (!_isMock) {
+            try {
+                await api.pay(saleId, {
+                    method: 'split',
+                    amountReceived: sale.total,
+                    receiptType,
+                    splits: splits.map(s => ({ total: s.total, method: s.method, label: s.label })),
+                });
+            } catch {
+                error.value = 'Error al procesar el pago dividido.';
+                return false;
+            }
+        }
+
+        // 2. Actualizar estado local
+        sale.status = SALE_STATUS.PAID;
+        if (!sale.isTakeaway && tableId) {
+            try { tablesStore.freeTable(tableId); } catch { /* non-critical */ }
+        }
+        currentSale.value = null;
+        currentSaleIsRecovered.value = false;
+
+        // 3. Registrar cada split como pago individual
+        const paymentsStore = usePaymentsStore();
+        const sessionId = cashRegisterStore.currentSession?.id ?? null;
+        const splitGroupId = crypto.randomUUID();
+        const splitCount   = splits.length;
+
+        for (let idx = 0; idx < splits.length; idx++) {
+            const split = splits[idx];
+
+            // En modo BY_ITEMS usa los ítems del split; en EQUAL reparte los ítems completos
+            const splitItems = (split.items && split.items.length > 0)
+                ? split.items.map(i => ({ name: i.name ?? i.menuItemName, qty: i.qty ?? i.quantity, subtotal: i.subtotal }))
+                : sale.items.map(i => ({ name: i.menuItemName, qty: i.quantity, subtotal: i.subtotal }));
+
+            const payment = await paymentsStore.registerPayment({
+                saleId,
+                sessionId,
+                tableNumber:    table?.number ?? null,
+                zoneName:       sale.isTakeaway ? 'Para Llevar' : (zone?.name ?? null),
+                items:          splitItems,
+                subtotal:       parseFloat((split.total / (1 + 0.18)).toFixed(2)),
+                tax:            parseFloat((split.total - split.total / (1 + 0.18)).toFixed(2)),
+                discount:       0,
+                total:          split.total,
+                method:         split.method,
+                amountReceived: split.total,
+                change:         0,
+                receiptType,
+                receiptData,
+                cashierId:      iamStore.currentUser?.id ?? null,
+                sucursalId:     iamStore.activeBranchId ?? null,
+                note:           `División: ${split.label}`,
+                splitGroupId,
+                isSplit:        true,
+                splitIndex:     idx,
+                splitCount,
+            });
+
+            // 4. Movimiento de caja por cada split
+            const paymentId = payment?.id ?? null;
+            if (split.method === 'cash') {
+                cashRegisterStore.registerSaleMovement({
+                    amount:      split.total,
+                    description: `Venta ${saleLabel} — ${split.label} (Efectivo)`,
+                    category:    'venta',
+                    paymentId,
+                });
+            } else {
+                cashRegisterStore.registerSaleMovement({
+                    amount:      split.total,
+                    description: `Venta ${saleLabel} — ${split.label} (${split.method})`,
+                    category:    'venta_digital',
+                    paymentId,
+                });
+            }
+        }
+
+        error.value = null;
         return true;
     }
 
@@ -349,10 +610,10 @@ export const usePosStore = defineStore('pos', () => {
         // Sale CRUD
         fetchAll, fetchById, create, update, remove,
         // Orden
-        openSaleForTable,
+        openSaleForTable, openTakeawaySale,
         addItemToCurrentSale, removeItemFromCurrentSale,
         updateItemQuantity, updateItemNote, updateItemDiscount, updateOrderDiscount, clearOrderDiscount, duplicateItemInCurrentSale,
-        sendCurrentSaleToStations, cancelCurrentSale, confirmPayment,
+        sendCurrentSaleToStations, cancelCurrentSale, transferSale, confirmPayment, confirmSplitPayment,
         // Catálogo
         setCatalogCategory, setCatalogSearch,
     };

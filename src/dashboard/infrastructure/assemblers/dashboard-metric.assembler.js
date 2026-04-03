@@ -5,6 +5,9 @@ import { DashboardMetric } from '../../domain/models/dashboard-metric.entity.js'
  *
  * Transforma recursos crudos del API en entidades de dominio.
  * Nunca retorna datos crudos fuera de esta clase.
+ *
+ * NOTA: Actualmente NO se usa — el dashboard agrega datos de sub-stores.
+ * Reservada para cuando el backend provea un endpoint dedicado de métricas.
  */
 export class DashboardMetricAssembler {
 

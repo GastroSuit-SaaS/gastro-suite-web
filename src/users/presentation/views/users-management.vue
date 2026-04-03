@@ -392,6 +392,9 @@ function clearSearch() {
     background: #fff;
     padding: 0 1.25rem;
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .tab-btn {

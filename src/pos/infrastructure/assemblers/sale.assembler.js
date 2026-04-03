@@ -1,4 +1,4 @@
-import { Sale, SALE_STATUS } from '../../domain/models/sale.entity.js';
+import { Sale, SALE_STATUS, SALE_TYPE } from '../../domain/models/sale.entity.js';
 import { SaleItem } from '../../domain/models/sale-item.entity.js';
 
 /**
@@ -34,6 +34,9 @@ export class SaleAssembler {
             id:        r.id         ?? null,
             tableId:   r.tableId    ?? r.table_id    ?? null,
             zoneId:    r.zoneId     ?? r.zone_id     ?? null,
+            saleType:  r.saleType   ?? r.sale_type   ?? SALE_TYPE.DINE_IN,
+            customerName: r.customerName ?? r.customer_name ?? '',
+            ticketNumber: r.ticketNumber ?? r.ticket_number ?? null,
             items,
             subtotal:  r.subtotal   ?? 0,
             tax:       r.tax        ?? 0,
@@ -80,6 +83,9 @@ export class SaleAssembler {
             id:        sale.id,
             tableId:   sale.tableId,
             zoneId:    sale.zoneId,
+            saleType:  sale.saleType,
+            customerName: sale.customerName,
+            ticketNumber: sale.ticketNumber,
             status:    sale.status,
             subtotal:  sale.subtotal,
             tax:       sale.tax,

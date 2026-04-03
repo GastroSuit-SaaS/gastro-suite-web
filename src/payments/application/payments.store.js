@@ -4,6 +4,7 @@ import { PaymentsApi } from '../infrastructure/api/payments.api.js';
 import { PaymentAssembler } from '../infrastructure/assemblers/payment.assembler.js';
 import { Payment, PAYMENT_STATUS, PAYMENT_METHOD, RECEIPT_TYPE } from '../domain/models/payment.entity.js';
 import { MOCK_PAYMENTS } from '../infrastructure/payments.mock.js';
+import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 
 const api = new PaymentsApi();
 
@@ -75,8 +76,11 @@ export const usePaymentsStore = defineStore('payments', () => {
         error.value = null;
         try {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const branchId = localStorage.getItem('gs_branch_id');
-                payments.value = branchId ? MOCK_PAYMENTS.filter(p => p.sucursalId === branchId) : [...MOCK_PAYMENTS];
+                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
+                if (payments.value.length === 0) {
+                    const branchId = localStorage.getItem('gs_branch_id');
+                    payments.value = branchId ? MOCK_PAYMENTS.filter(p => p.sucursalId === branchId) : [...MOCK_PAYMENTS];
+                }
                 return;
             }
             const response = await api.getAll();
@@ -161,14 +165,28 @@ export const usePaymentsStore = defineStore('payments', () => {
     async function refund(id, reason = '') {
         const idx = payments.value.findIndex(p => p.id === id);
         if (idx === -1) return;
-        const snapshot = new Payment({ ...payments.value[idx] });
-        payments.value[idx] = new Payment({ ...payments.value[idx], status: PAYMENT_STATUS.REFUNDED });
+        const payment  = payments.value[idx];
+        const snapshot = new Payment({ ...payment });
+        payments.value[idx] = new Payment({ ...payment, status: PAYMENT_STATUS.REFUNDED });
         try {
             await api.refund(id, reason);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
-            // Rollback: restore original payment status
-            payments.value[idx] = snapshot;
+            if (import.meta.env.VITE_USE_MOCK === 'true') {
+                // En mock mode continuamos para registrar el egreso en caja
+            } else {
+                // Rollback: restore original payment status
+                payments.value[idx] = snapshot;
+                return;
+            }
+        }
+        // Registrar egreso de caja por reembolso
+        const cashRegisterStore = useCashRegisterStore();
+        if (cashRegisterStore.hasOpenSession) {
+            cashRegisterStore.registerRefundMovement({
+                amount:      payment.total,
+                description: `Reembolso pago #${payment.id}${reason ? ` — ${reason}` : ''}`,
+                paymentId:   String(payment.id),
+            });
         }
     }
 

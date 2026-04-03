@@ -12,7 +12,8 @@ export class BaseApi {
 
   constructor() {
     this.#http = axios.create({
-      baseURL: platformApi
+      baseURL: platformApi,
+      timeout: 10000, // 10s — evita que el browser se cuelgue si el backend no responde
     });
 
     this.#http.interceptors.request.use(

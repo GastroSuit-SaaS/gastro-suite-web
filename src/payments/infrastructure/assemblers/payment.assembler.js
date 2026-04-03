@@ -12,6 +12,7 @@ export class PaymentAssembler {
         return new Payment({
             id:             r.id             ?? null,
             saleId:         r.saleId         ?? r.sale_id         ?? null,
+            sessionId:      r.sessionId      ?? r.session_id      ?? null,
             tableNumber:    r.tableNumber     ?? r.table_number    ?? null,
             zoneName:       r.zoneName        ?? r.zone_name       ?? null,
             items:          r.items           ?? [],
@@ -27,6 +28,11 @@ export class PaymentAssembler {
             status:         r.status          ?? PAYMENT_STATUS.COMPLETED,
             cashierId:      r.cashierId       ?? r.cashier_id      ?? null,
             processedAt:    r.processedAt     ?? r.processed_at    ?? null,
+            note:           r.note            ?? '',
+            splitGroupId:   r.splitGroupId    ?? r.split_group_id  ?? null,
+            isSplit:        r.isSplit         ?? r.is_split        ?? false,
+            splitIndex:     r.splitIndex      ?? r.split_index     ?? null,
+            splitCount:     r.splitCount      ?? r.split_count     ?? null,
         });
     }
 
@@ -47,6 +53,7 @@ export class PaymentAssembler {
     static toResourceFromEntity(payment) {
         return {
             saleId:         payment.saleId,
+            sessionId:      payment.sessionId,
             tableNumber:    payment.tableNumber,
             zoneName:       payment.zoneName,
             items:          payment.items,
@@ -61,6 +68,11 @@ export class PaymentAssembler {
             receiptData:    payment.receiptData,
             status:         payment.status,
             cashierId:      payment.cashierId,
+            note:           payment.note           || undefined,
+            splitGroupId:   payment.splitGroupId   || undefined,
+            isSplit:        payment.isSplit         || undefined,
+            splitIndex:     payment.splitIndex      ?? undefined,
+            splitCount:     payment.splitCount      ?? undefined,
         };
     }
 }

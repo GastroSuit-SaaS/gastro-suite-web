@@ -8,6 +8,8 @@ import { ROLES } from '../../shared/presentation/constants/roles.constants.js';
 const TOKEN_KEY    = 'gs_token';
 const BRANCH_KEY   = 'gs_branch_id';
 const BRANCH_NAME  = 'gs_branch_name';
+const USER_KEY     = 'gs_user';
+const _isMock      = import.meta.env.VITE_USE_MOCK === 'true';
 const api = new IamApi();
 
 export const useIamStore = defineStore('iam', () => {
@@ -20,6 +22,9 @@ export const useIamStore = defineStore('iam', () => {
     const isLoading     = ref(false);
     const error         = ref(null);
 
+    // ── Rehidratar usuario desde localStorage al iniciar ──────────────
+    _rehydrateUser();
+
     // ── Getters ───────────────────────────────────────────────────────────
     const isAuthenticated = computed(() => !!token.value);
     const userRole        = computed(() => currentUser.value?.primaryRole ?? '');
@@ -31,6 +36,42 @@ export const useIamStore = defineStore('iam', () => {
         token.value = jwt;
         if (jwt) localStorage.setItem(TOKEN_KEY, jwt);
         else     localStorage.removeItem(TOKEN_KEY);
+    }
+
+    /**
+     * Persiste el usuario en localStorage como JSON serializado.
+     * Se usa para rehidratar currentUser tras un refresh de página.
+     */
+    function _setUser(user) {
+        currentUser.value = user;
+        if (user) {
+            localStorage.setItem(USER_KEY, JSON.stringify({
+                id: user.id, username: user.username, email: user.email,
+                nombres: user.nombres, apellidos: user.apellidos,
+                tipoDocumento: user.tipoDocumento, numeroDocumento: user.numeroDocumento,
+                telefono: user.telefono, roles: user.roles, isActive: user.isActive,
+                empresaId: user.empresaId, sucursalId: user.sucursalId, sucursalNombre: user.sucursalNombre,
+            }));
+        } else {
+            localStorage.removeItem(USER_KEY);
+        }
+    }
+
+    /**
+     * Intenta recuperar el usuario desde localStorage.
+     * Se llama al inicializar el store (refresh de página).
+     * Si existe token pero no hay usuario guardado, el guard redirigirá a sign-in.
+     */
+    function _rehydrateUser() {
+        if (currentUser.value) return; // ya cargado
+        const raw = localStorage.getItem(USER_KEY);
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw);
+            currentUser.value = UserAssembler.toEntityFromResource(parsed);
+        } catch {
+            localStorage.removeItem(USER_KEY);
+        }
     }
 
     function _setBranch(branchId, branchName = '') {
@@ -46,7 +87,7 @@ export const useIamStore = defineStore('iam', () => {
     }
 
     function _clearSession() {
-        currentUser.value = null;
+        _setUser(null);
         _setToken(null);
         _setBranch(null);
     }
@@ -63,21 +104,12 @@ export const useIamStore = defineStore('iam', () => {
         isLoading.value = true;
         error.value     = null;
         try {
-            const response = await api.login(credentials);
-            const { token: jwt, user } = response.data;
-            _setToken(jwt);
-            currentUser.value = UserAssembler.toEntityFromResource(user ?? response.data);
-            // Roles operativos: setear su sucursal automáticamente
-            if (currentUser.value.sucursalId) {
-                _setBranch(currentUser.value.sucursalId, currentUser.value.sucursalNombre);
-            }
-            return true;
-        } catch (err) {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
+            // Si mock está habilitado, intentar mock primero para evitar esperar timeout de API
+            if (_isMock) {
                 try {
                     const mockResponse = mockLogin(credentials);
                     _setToken(mockResponse.token);
-                    currentUser.value = UserAssembler.toEntityFromResource(mockResponse.user);
+                    _setUser(UserAssembler.toEntityFromResource(mockResponse.user));
                     if (currentUser.value.sucursalId) {
                         _setBranch(currentUser.value.sucursalId, currentUser.value.sucursalNombre);
                     }
@@ -88,6 +120,15 @@ export const useIamStore = defineStore('iam', () => {
                     return false;
                 }
             }
+            const response = await api.login(credentials);
+            const { token: jwt, user } = response.data;
+            _setToken(jwt);
+            _setUser(UserAssembler.toEntityFromResource(user ?? response.data));
+            if (currentUser.value.sucursalId) {
+                _setBranch(currentUser.value.sucursalId, currentUser.value.sucursalNombre);
+            }
+            return true;
+        } catch (err) {
             error.value = err.response?.data?.message ?? 'No se pudo iniciar sesión. Verifica tus credenciales e intenta de nuevo.';
             _clearSession();
             return false;
@@ -100,12 +141,14 @@ export const useIamStore = defineStore('iam', () => {
      * Cierra la sesion del usuario autenticado.
      */
     async function logout() {
+        _clearSession();
+        // Si mock está habilitado, no esperar al backend
+        if (_isMock) return;
         isLoading.value = true;
         try {
             await api.logout();
         } catch { /* ignorar error de logout en backend */ }
         finally {
-            _clearSession();
             isLoading.value = false;
         }
     }

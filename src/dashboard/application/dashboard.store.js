@@ -4,6 +4,7 @@ import { usePaymentsStore } from '../../payments/application/payments.store.js';
 import { usePosStore }      from '../../pos/application/pos.store.js';
 import { useTablesStore }   from '../../tables/application/tables.store.js';
 import { useStationsStore } from '../../stations/application/stations.store.js';
+import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 
 export const useDashboardStore = defineStore('dashboard', () => {
 
@@ -12,6 +13,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const posStore      = usePosStore();
     const tablesStore   = useTablesStore();
     const stationsStore = useStationsStore();
+    const cashRegisterStore = useCashRegisterStore();
 
     // ── State ─────────────────────────────────────────────────────────────
     const isLoading = ref(false);
@@ -68,6 +70,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const activeStations    = computed(() => stationsStore.activeStations ?? []);
     const tickets           = computed(() => stationsStore.tickets ?? []);
 
+    // Cash Register
+    const hasOpenSession      = computed(() => cashRegisterStore.hasOpenSession);
+    const sessionExpectedCash = computed(() => cashRegisterStore.sessionExpectedCash);
+    const sessionSalesCount   = computed(() => cashRegisterStore.sessionSalesCount);
+    const sessionBalance      = computed(() => cashRegisterStore.sessionBalance);
+    const currentShiftName    = computed(() => cashRegisterStore.currentSession?.shiftName ?? '');
+
     // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
         isLoading.value = true;
@@ -78,6 +87,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
                 tablesStore.fetchAll(),
                 posStore.fetchAll(),
                 stationsStore.fetchAll(),
+                cashRegisterStore.fetchAll(),
             ]);
         } catch (e) {
             error.value = e;
@@ -98,6 +108,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
         // Kitchen aggregation
         readyCount, receivedTickets, preparingTickets, totalToday,
         activeStations, tickets,
+        // Cash register aggregation
+        hasOpenSession, sessionExpectedCash, sessionSalesCount, sessionBalance, currentShiftName,
         // Actions
         fetchAll,
     };

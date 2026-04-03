@@ -13,11 +13,13 @@ import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class InventoryApi extends BaseApi {
     #endpoint;
+    #categoriesEndpoint;
 
     constructor() {
         super();
         // TODO: set the correct environment variable for this endpoint path
         this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products');
+        this.#categoriesEndpoint = new BaseEndpoint(this, '/inventory/categories');
     }
 
     getAll() {
@@ -47,6 +49,18 @@ export class InventoryApi extends BaseApi {
     getLowStock(threshold = 10) {
         return this.http.get(`${import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products'}/low-stock`, { params: { threshold } });
     }
+
+    // ── Category endpoints ────────────────────────────────────────────────
+    getCategories()              { return this.#categoriesEndpoint.getAll(); }
+    createCategory(resource)     { return this.#categoriesEndpoint.create(resource); }
+    updateCategory(id, resource) { return this.#categoriesEndpoint.update(id, resource); }
+    deleteCategory(id)           { return this.#categoriesEndpoint.delete(id); }
+
+    // ── Movement endpoints ────────────────────────────────────────────────
+    #movementsEndpoint = new BaseEndpoint(this, '/inventory/movements');
+
+    getMovements()           { return this.#movementsEndpoint.getAll(); }
+    createMovement(resource) { return this.#movementsEndpoint.create(resource); }
 }
 
 export const inventoryApi = new InventoryApi();

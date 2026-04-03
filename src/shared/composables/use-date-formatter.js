@@ -157,7 +157,7 @@ export function useDateFormatter() {
    */
   const elapsedTime = (date) => {
     if (!date) return ''
-    const mins = Math.floor((Date.now() - new Date(date)) / 60000)
+    const mins = Math.round(Math.abs(Date.now() - new Date(date)) / 60000)
     if (mins < 60) return `${mins}m`
     return `${Math.floor(mins / 60)}h ${mins % 60}m`
   }

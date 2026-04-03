@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import BranchSwitcher from './branch-switcher.vue'
 
 const props = defineProps({
@@ -27,6 +28,7 @@ const emit = defineEmits(['back'])
 
 const router    = useRouter()
 const iamStore  = useIamStore()
+const { showConfirm } = useConfirmDialog()
 
 const userMenu = ref()
 
@@ -61,6 +63,14 @@ const handleBack = () => {
 }
 
 const handleSignOut = async () => {
+    const confirmed = await showConfirm({
+        message: '¿Estás seguro que deseas cerrar sesión?',
+        header: 'Cerrar sesión',
+        icon: 'pi pi-sign-out',
+        acceptLabel: 'Cerrar sesión',
+        rejectLabel: 'Cancelar',
+    })
+    if (!confirmed) return
     await iamStore.logout()
     router.push({ name: 'sign-in' })
 }

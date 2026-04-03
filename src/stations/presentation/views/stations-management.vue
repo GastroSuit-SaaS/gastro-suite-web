@@ -431,7 +431,7 @@ function urgencyBorderColor(ticket) {
                             <!-- Header -->
                             <div class="focus-ticket__body">
                                 <div class="focus-ticket__meta">
-                                    <span class="focus-ticket__table">Mesa {{ ticket.tableNumber }}</span>
+                                    <span class="focus-ticket__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
                                     <span class="focus-ticket__order">#{{ ticket.saleId }}</span>
                                     <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket)]" style="margin-left:auto">
                                         <i class="pi pi-clock"></i>
@@ -632,7 +632,7 @@ function urgencyBorderColor(ticket) {
                             <!-- Ticket header -->
                             <div class="ticket-card__header">
                                 <div class="flex align-items-center gap-1">
-                                    <span class="ticket-card__table">Mesa {{ ticket.tableNumber }}</span>
+                                    <span class="ticket-card__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
                                     <span class="ticket-card__order">#{{ ticket.saleId }}</span>
                                 </div>
                                 <div class="flex align-items-center gap-1">
@@ -800,7 +800,7 @@ function urgencyBorderColor(ticket) {
 
                     <!-- Table + order -->
                     <div class="history-row__meta">
-                        <span class="history-row__table">Mesa {{ ticket.tableNumber }}</span>
+                        <span class="history-row__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
                         <span class="history-row__order">#{{ ticket.saleId }}</span>
                         <span
                             class="history-row__station"

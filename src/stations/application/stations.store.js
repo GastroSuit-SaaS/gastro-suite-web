@@ -10,6 +10,7 @@ import { MOCK_STATIONS, MOCK_TICKETS } from '../infrastructure/stations.mock.js'
 export { TICKET_STATUS };
 
 const api = new StationsApi();
+const _isMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 /** Statuses that belong in the active kanban board (not history). */
 const ACTIVE_STATUSES = new Set([
@@ -66,11 +67,14 @@ export const useStationsStore = defineStore('stations', () => {
         error.value = null;
         try {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const branchId = localStorage.getItem('gs_branch_id');
-                stations.value = branchId ? MOCK_STATIONS.filter(s => s.sucursalId === branchId) : [...MOCK_STATIONS];
-                const mockTickets = branchId ? MOCK_TICKETS.filter(t => t.sucursalId === branchId) : [...MOCK_TICKETS];
-                tickets.value  = mockTickets;
-                ticketCountToday.value = Math.max(ticketCountToday.value, mockTickets.length);
+                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
+                if (stations.value.length === 0) {
+                    const branchId = localStorage.getItem('gs_branch_id');
+                    stations.value = branchId ? MOCK_STATIONS.filter(s => s.sucursalId === branchId) : [...MOCK_STATIONS];
+                    const mockTickets = branchId ? MOCK_TICKETS.filter(t => t.sucursalId === branchId) : [...MOCK_TICKETS];
+                    tickets.value  = mockTickets;
+                    ticketCountToday.value = Math.max(ticketCountToday.value, mockTickets.length);
+                }
                 return;
             }
             const [stationsResp, ticketsResp] = await Promise.all([
@@ -92,6 +96,7 @@ export const useStationsStore = defineStore('stations', () => {
     async function createStation(data) {
         const optimisticId = Math.max(0, ...stations.value.map(s => s.id)) + 1;
         stations.value.push(new Station({ id: optimisticId, ...data }));
+        if (_isMock) return;
         try {
             const entity = new Station({ id: optimisticId, ...data });
             const response = await api.create(StationAssembler.toResourceFromEntity(entity));
@@ -111,6 +116,7 @@ export const useStationsStore = defineStore('stations', () => {
         tickets.value.forEach(t => {
             if (t.stationId === id) t.stationName = data.name ?? t.stationName;
         });
+        if (_isMock) return;
         try {
             await api.update(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive });
         } catch { /* local change kept */ }
@@ -124,6 +130,7 @@ export const useStationsStore = defineStore('stations', () => {
         );
         if (hasActiveTickets) return;
         stations.value = stations.value.filter(s => s.id !== id);
+        if (_isMock) return;
         try {
             await api.delete(id);
         } catch { /* local change kept */ }
@@ -152,12 +159,12 @@ export const useStationsStore = defineStore('stations', () => {
             ticket.deliveredAt = new Date();
             // Persist DELIVERED immediately so a page refresh still shows it in history.
             // The brief UI delay is purely visual — the API call happens synchronously here.
-            api.updateTicketStatus(ticketId, TICKET_STATUS.DELIVERED).catch(() => {});
+            if (!_isMock) api.updateTicketStatus(ticketId, TICKET_STATUS.DELIVERED).catch(() => {});
             // Mark as ready to archive — the view layer handles the visual delay
             ticket.readyToArchive = true;
             return; // API call already fired above — skip the generic call below
         }
-        api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
+        if (!_isMock) api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
     }
 
     /**
@@ -172,7 +179,7 @@ export const useStationsStore = defineStore('stations', () => {
         ticket.cancelReason = reason;
         ticketHistory.value.unshift(new StationTicket({ ...ticket }));
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
-        api.cancelTicket(ticketId, reason).catch(() => { /* local change kept */ });
+        if (!_isMock) api.cancelTicket(ticketId, reason).catch(() => { /* local change kept */ });
     }
 
     /** Moves a delivered ticket to history (called internally after delay). */
@@ -216,22 +223,25 @@ export const useStationsStore = defineStore('stations', () => {
                 })),
                 status:    TICKET_STATUS.RECEIVED,
                 createdAt: new Date(),
+                sucursalId: sale.sucursalId ?? null,
             });
             tickets.value.push(ticket);
             newTickets.push(ticket);
             ticketCountToday.value++;
         });
         // Reconcile temporary UUIDs with backend IDs when the API responds
-        api.sendToStations(sale.id, newTickets)
-            .then(response => {
-                const saved = response?.data?.data ?? response?.data ?? [];
-                if (Array.isArray(saved)) {
-                    newTickets.forEach((ticket, idx) => {
-                        if (saved[idx]?.id) ticket.id = saved[idx].id;
-                    });
-                }
-            })
-            .catch(() => { /* local tickets kept with temporary UUIDs */ });
+        if (!_isMock) {
+            api.sendToStations(sale.id, newTickets)
+                .then(response => {
+                    const saved = response?.data?.data ?? response?.data ?? [];
+                    if (Array.isArray(saved)) {
+                        newTickets.forEach((ticket, idx) => {
+                            if (saved[idx]?.id) ticket.id = saved[idx].id;
+                        });
+                    }
+                })
+                .catch(() => { /* local tickets kept with temporary UUIDs */ });
+        }
     }
 
     /** @deprecated Use cancelTicket() instead — removeTicket hard-deletes with no history. */
@@ -251,7 +261,7 @@ export const useStationsStore = defineStore('stations', () => {
                 ticket.items.splice(itemIdx, 1);
                 if (ticket.items.length === 0) {
                     cancelTicket(ticket.id, 'Ítem cancelado desde POS');
-                } else {
+                } else if (!_isMock) {
                     api.updateTicketStatus(ticket.id, ticket.status).catch(() => {});
                 }
                 break;

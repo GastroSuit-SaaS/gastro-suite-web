@@ -2,8 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePosStore }          from '../../application/pos.store.js'
-import { posSelectTableRoute }  from '../constants/pos.constants-ui.js'
+import { posSelectTableRoute, posOrderRoute } from '../constants/pos.constants-ui.js'
 import ModuleStateFeedback      from '../../../shared/presentation/components/module-state-feedback.vue'
+import CreateAndEdit            from '../../../shared/presentation/components/create-and-edit.vue'
 
 const router   = useRouter()
 const posStore = usePosStore()
@@ -19,8 +20,32 @@ function selectZone(zone) {
 }
 
 async function openOrder(order) {
-    await posStore.openSaleForTable(order.tableId, order.zoneId)
-    router.push(`/pos/order/${order.tableId}`)
+    if (order.isTakeaway) {
+        posStore.currentSale = order;
+        posStore.currentSaleIsRecovered = true;
+    } else {
+        await posStore.openSaleForTable(order.tableId, order.zoneId)
+    }
+    router.push(posOrderRoute(order.id))
+}
+
+// ── Para Llevar ──────────────────────────────────────────────────────────
+const showTakeawayDialog = ref(false)
+const takeawayName       = ref('')
+
+function openTakeawayDialog() {
+    takeawayName.value = ''
+    showTakeawayDialog.value = true
+}
+
+async function confirmTakeaway() {
+    showTakeawayDialog.value = false
+    try {
+        const sale = await posStore.openTakeawaySale(takeawayName.value.trim())
+        router.push(posOrderRoute(sale.id))
+    } catch (e) {
+        console.error(e)
+    }
 }
 
 onMounted(() => {
@@ -56,11 +81,17 @@ onMounted(() => {
         </div>
 
         <!-- -- Acción principal (siempre visible) ------------------------ -->
-        <div>
+        <div class="flex gap-2 flex-wrap">
             <pv-button
                 label="Seleccionar por Zona/Mesa"
                 icon="pi pi-map-marker"
                 @click="openZoneSelector"
+            />
+            <pv-button
+                label="Para Llevar"
+                icon="pi pi-shopping-bag"
+                severity="warn"
+                @click="openTakeawayDialog"
             />
         </div>
 
@@ -154,19 +185,25 @@ onMounted(() => {
                                 <!-- Ícono coloreado con el color de zona -->
                                 <div
                                     class="order-zone-dot border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                    :style="{ backgroundColor: posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.color ?? 'var(--primary-color)' }"
+                                    :style="{ backgroundColor: order.isTakeaway ? '#f59e0b' : (posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.color ?? 'var(--primary-color)') }"
                                 >
-                                    <i class="pi pi-receipt text-white"></i>
+                                    <i :class="['pi', order.isTakeaway ? 'pi-shopping-bag' : 'pi-receipt']" class="text-white"></i>
                                 </div>
 
-                                <!-- Zona + Mesa -->
+                                <!-- Zona + Mesa / Para Llevar -->
                                 <div class="flex flex-column gap-0">
-                                    <span class="order-row__zone">
-                                        {{ posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.name ?? '—' }}
-                                    </span>
-                                    <span class="order-row__table">
-                                        Mesa {{ posStore.tableById(order.tableId)?.number ?? order.tableId }}
-                                    </span>
+                                    <template v-if="order.isTakeaway">
+                                        <span class="order-row__zone" style="color:#f59e0b">Para Llevar #{{ order.ticketNumber }}</span>
+                                        <span class="order-row__table">{{ order.customerName || 'Sin nombre' }}</span>
+                                    </template>
+                                    <template v-else>
+                                        <span class="order-row__zone">
+                                            {{ posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.name ?? '—' }}
+                                        </span>
+                                        <span class="order-row__table">
+                                            Mesa {{ posStore.tableById(order.tableId)?.number ?? order.tableId }}
+                                        </span>
+                                    </template>
                                 </div>
                             </div>
 
@@ -176,11 +213,13 @@ onMounted(() => {
 
                         <!-- Fila secundaria: personas e ítems -->
                         <div class="order-row__meta flex align-items-center gap-3 mt-2">
-                            <span class="flex align-items-center gap-1">
-                                <i class="pi pi-users"></i>
-                                {{ posStore.tableById(order.tableId)?.seatedGuests ?? 0 }}/{{ posStore.tableById(order.tableId)?.capacity ?? '?' }} personas
-                            </span>
-                            <span class="order-row__meta-sep">·</span>
+                            <template v-if="!order.isTakeaway">
+                                <span class="flex align-items-center gap-1">
+                                    <i class="pi pi-users"></i>
+                                    {{ posStore.tableById(order.tableId)?.seatedGuests ?? 0 }}/{{ posStore.tableById(order.tableId)?.capacity ?? '?' }} personas
+                                </span>
+                                <span class="order-row__meta-sep">·</span>
+                            </template>
                             <span class="flex align-items-center gap-1">
                                 <i class="pi pi-list"></i>
                                 {{ order.items.length }} ítem{{ order.items.length !== 1 ? 's' : '' }}
@@ -195,6 +234,30 @@ onMounted(() => {
         </module-state-feedback>
 
     </div>
+
+    <!-- ── Dialog "Para Llevar" ─────────────────────────────────────────── -->
+    <CreateAndEdit
+        :visible="showTakeawayDialog"
+        entity-name="Orden Para Llevar"
+        custom-button-label="Crear Orden"
+        @canceled-shared="showTakeawayDialog = false"
+        @saved-shared="confirmTakeaway"
+    >
+        <template #content>
+            <div class="flex flex-column gap-3 pt-2">
+                <div class="flex flex-column gap-2">
+                    <label class="text-sm font-medium" style="color: #374151;">
+                        Nombre del cliente <span class="text-color-secondary">(opcional)</span>
+                    </label>
+                    <pv-input-text
+                        v-model="takeawayName"
+                        placeholder="Ej: Juan Pérez"
+                        @keydown.enter="confirmTakeaway"
+                    />
+                </div>
+            </div>
+        </template>
+    </CreateAndEdit>
 </template>
 
 <style scoped>
@@ -336,4 +399,6 @@ onMounted(() => {
     /* Zone panel: hide the long subtitle text */
     .zone-panel__header .text-color-secondary { display: none; }
 }
+
+
 </style>

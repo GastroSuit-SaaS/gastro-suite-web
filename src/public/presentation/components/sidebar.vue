@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 
 const props = defineProps({
   menuItems: {
@@ -19,6 +20,7 @@ const emit = defineEmits(['toggle'])
 const route    = useRoute()
 const router   = useRouter()
 const iamStore = useIamStore()
+const { showConfirm } = useConfirmDialog()
 
 const username = computed(() => iamStore.currentUser?.username || 'Usuario')
 const userRole = computed(() => iamStore.currentUser?.roles?.[0] || 'Usuario')
@@ -33,6 +35,14 @@ function handleNavClick() {
 }
 
 const handleSignOut = async () => {
+  const confirmed = await showConfirm({
+    message: '¿Estás seguro que deseas cerrar sesión?',
+    header: 'Cerrar sesión',
+    icon: 'pi pi-sign-out',
+    acceptLabel: 'Cerrar sesión',
+    rejectLabel: 'Cancelar',
+  })
+  if (!confirmed) return
   await iamStore.logout()
   router.push({ name: 'sign-in' })
 }

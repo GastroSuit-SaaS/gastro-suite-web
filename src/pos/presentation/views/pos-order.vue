@@ -4,16 +4,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast }            from 'primevue/usetoast'
 import { usePosStore }         from '../../application/pos.store.js'
 import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
+import TransferTableDialog from '../components/transfer-table-dialog.vue'
 
 const route         = useRoute()
 const router        = useRouter()
 const toast         = useToast()
 const posStore      = usePosStore()
 
-const tableId = computed(() => Number(route.params.tableId))
-const table   = computed(() => posStore.tableById(tableId.value))
-const zone    = computed(() => posStore.zoneById(table.value?.zoneId))
+const saleId  = computed(() => {
+    const raw = route.params.saleId
+    const num = Number(raw)
+    return isNaN(num) ? raw : num
+})
 const sale    = computed(() => posStore.currentSale)
+const table   = computed(() => sale.value?.tableId ? posStore.tableById(sale.value.tableId) : null)
+const zone    = computed(() => table.value?.zoneId ? posStore.zoneById(table.value.zoneId) : null)
+const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
 
 // Ítems pendientes de enviar a cocina
 const pendingItems = computed(() => sale.value?.items.filter(i => !i.isSent) ?? [])
@@ -21,6 +27,9 @@ const pendingItems = computed(() => sale.value?.items.filter(i => !i.isSent) ?? 
 // ── Nota editable por ítem ───────────────────────────────────────────────────────────────
 const editingNoteId     = ref(null)
 const noteInput         = ref('')
+
+// ── Transferir mesa
+const showTransferDialog = ref(false)
 
 // ── Descuento editable por ítem
 const editingDiscountId   = ref(null)
@@ -125,15 +134,17 @@ async function enviarEstaciones() {
         })
     }
 }
-function dividirCuenta() {
+function procederPago()     { router.push(posPaymentRoute(sale.value.id)) }
+
+function onTransferred(newTableId) {
     toast.add({
-        severity: 'info',
-        summary:  'Próximamente',
-        detail:   'La función de división de cuenta estará disponible en breve.',
+        severity: 'success',
+        summary:  'Mesa transferida',
+        detail:   `Orden transferida a Mesa ${posStore.tableById(newTableId)?.number ?? newTableId}.`,
         life:     3000,
     })
+    // Sale ID stays the same after transfer — no route change needed
 }
-function procederPago()     { router.push(posPaymentRoute(tableId.value)) }
 
 // ── Mobile tab switcher ───────────────────────────────────────────────────
 const mobileView = ref('catalog') // 'catalog' | 'cart'
@@ -151,18 +162,32 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 
                 <!-- Badges de contexto (izquierda) -->
                 <div class="context-badges">
-                    <div class="context-badge context-badge--blue">
-                        <span class="context-badge__label">Mesa</span>
-                        <strong class="context-badge__value">Mesa {{ table?.number ?? '—' }}</strong>
-                    </div>
-                    <div
-                        v-if="zone"
-                        class="context-badge"
-                        :style="{ background: zone.color + '22', borderColor: zone.color }"
-                    >
-                        <span class="context-badge__label" :style="{ color: zone.color }">Zona</span>
-                        <strong class="context-badge__value" :style="{ color: zone.color }">{{ zone.name }}</strong>
-                    </div>
+                    <template v-if="isTakeaway">
+                        <div class="context-badge" style="background:#fef3c722;border-color:#f59e0b">
+                            <span class="context-badge__label" style="color:#f59e0b">Tipo</span>
+                            <strong class="context-badge__value" style="color:#f59e0b">
+                                <i class="pi pi-shopping-bag" style="font-size:0.7rem"></i> Para Llevar #{{ sale?.ticketNumber ?? '—' }}
+                            </strong>
+                        </div>
+                        <div v-if="sale?.customerName" class="context-badge context-badge--blue">
+                            <span class="context-badge__label">Cliente</span>
+                            <strong class="context-badge__value">{{ sale.customerName }}</strong>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div class="context-badge context-badge--blue">
+                            <span class="context-badge__label">Mesa</span>
+                            <strong class="context-badge__value">Mesa {{ table?.number ?? '—' }}</strong>
+                        </div>
+                        <div
+                            v-if="zone"
+                            class="context-badge"
+                            :style="{ background: zone.color + '22', borderColor: zone.color }"
+                        >
+                            <span class="context-badge__label" :style="{ color: zone.color }">Zona</span>
+                            <strong class="context-badge__value" :style="{ color: zone.color }">{{ zone.name }}</strong>
+                        </div>
+                    </template>
                     <div class="context-badge context-badge--blue">
                         <span class="context-badge__label">Orden</span>
                         <div style="display:flex;align-items:center;gap:0.35rem">
@@ -214,7 +239,8 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                 >
                     <!-- Imagen / placeholder -->
                     <div class="product-card__image">
-                        <i class="pi pi-prime product-card__icon"></i>
+                        <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" class="product-card__img" />
+                        <i v-else class="pi pi-prime product-card__icon"></i>
                         <!-- Badge disponibilidad -->
                         <div :class="['product-card__avail', item.isAvailable ? 'product-card__avail--ok' : 'product-card__avail--no']">
                             <i :class="['pi', item.isAvailable ? 'pi-check-circle' : 'pi-times-circle']"></i>
@@ -457,8 +483,8 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                         Enviar a Estaciones
                         <span v-if="pendingItems.length > 0" class="pending-count">{{ pendingItems.length }}</span>
                     </button>
-                    <button class="action-btn action-btn--split" @click="dividirCuenta">
-                        <i class="pi pi-sliders-h"></i> Dividir Cuenta
+                    <button v-if="!isTakeaway" class="action-btn action-btn--transfer" @click="showTransferDialog = true">
+                        <i class="pi pi-arrow-right-arrow-left"></i> Cambiar Mesa
                     </button>
                     <button class="action-btn action-btn--pay" @click="procederPago">
                         Proceder al Pago
@@ -467,8 +493,10 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
             </div>
 
         </div>
+
         <!-- Mobile tab bar (only visible on <=768px screens) -->
         <div class="mobile-tab-bar">
+
             <button
                 class="mobile-tab-bar__tab"
                 :class="{ 'mobile-tab-bar__tab--active': mobileView === 'catalog' }"
@@ -488,7 +516,14 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                 </span>
                 <span>Orden</span>
             </button>
-        </div>    </div>
+        </div>
+    </div>
+
+    <!-- Diálogo de transferencia de mesa -->
+    <transfer-table-dialog
+        v-model:visible="showTransferDialog"
+        @transferred="onTransferred"
+    />
 </template>
 
 <style scoped>
@@ -662,6 +697,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     overflow: hidden;
 }
 .product-card__icon { font-size: 3rem; color: #a5b4fc; opacity: 0.8; }
+.product-card__img  { width: 100%; height: 100%; object-fit: cover; }
 
 .product-card__avail {
     position: absolute;
@@ -956,7 +992,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     pointer-events: none;
 }
 .action-btn--stations { background: #059669; }
-.action-btn--split    { background: #7c3aed; }
+.action-btn--transfer { background: #0891b2; }
 .action-btn--pay      { background: #2563eb; }
 
 .pending-count {

@@ -8,16 +8,18 @@ import {
     PAYMENT_METHODS,
     RECEIPT_TYPES,
 } from '../constants/pos.constants-ui.js'
+import SplitBillDialog from '../components/split-bill-dialog.vue'
 
 const route    = useRoute()
 const router   = useRouter()
 const toast    = useToast()
 const posStore = usePosStore()
 
-const tableId = computed(() => Number(route.params.tableId))
-const table   = computed(() => posStore.tableById(tableId.value))
-const zone    = computed(() => posStore.zoneById(table.value?.zoneId))
+const tableId = computed(() => sale.value?.tableId ?? null)
+const table   = computed(() => tableId.value ? posStore.tableById(tableId.value) : null)
+const zone    = computed(() => table.value?.zoneId ? posStore.zoneById(table.value.zoneId) : null)
 const sale    = computed(() => posStore.currentSale)
+const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
 
 onMounted(() => {
     if (!posStore.currentSale) router.replace(POS_ROUTES.TERMINAL)
@@ -85,7 +87,7 @@ const canConfirm = computed(() => {
 
 // ── Acciones ───────────────────────────────────────────────────────────────
 function goBack() {
-    router.push(`${POS_ROUTES.ORDER}/${tableId.value}`)
+    router.push(`${POS_ROUTES.ORDER}/${sale.value?.id ?? ''}`)
 }
 
 async function cancelOrder() {
@@ -93,34 +95,117 @@ async function cancelOrder() {
     toast.add({
         severity: 'warn',
         summary:  'Orden cancelada',
-        detail:   'La orden fue cancelada y la mesa liberada.',
+        detail:   isTakeaway.value ? 'La orden para llevar fue cancelada.' : 'La orden fue cancelada y la mesa liberada.',
         life:     3000,
     })
     router.push(POS_ROUTES.TERMINAL)
 }
 
+// ── División de cuenta ──────────────────────────────────────────────────
+const showSplitDialog = ref(false)
+
+function dividirCuenta() {
+    showSplitDialog.value = true
+}
+
+async function onSplitConfirmed({ splits }) {
+    const ok = await posStore.confirmSplitPayment({
+        splits,
+        receiptType: receiptType.value,
+        receiptData: { ...customerData },
+    })
+    if (!ok) {
+        toast.add({
+            severity: 'error',
+            summary:  'Error al procesar pago dividido',
+            detail:   posStore.error || 'No se pudo confirmar. Verifica que haya un turno de caja abierto.',
+            life:     5000,
+        })
+        return
+    }
+    toast.add({
+        severity: 'success',
+        summary:  'Pago dividido confirmado',
+        detail:   isTakeaway.value
+            ? `Se registraron ${splits.length} pagos parciales. Orden para llevar cerrada.`
+            : `Se registraron ${splits.length} pagos parciales. Mesa liberada.`,
+        life:     3000,
+    })
+    router.push('/payments')
+}
+
 function printPreCuenta() {
-    // TODO: integrate with printing service / PDF export
+    if (!sale.value) return
+    const s = sale.value
+    const t = table.value
+    const z = zone.value
+    const now = new Date().toLocaleString('es-PE')
+
+    const rows = s.items.map(i =>
+        `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">S/ ${i.subtotal.toFixed(2)}</td></tr>`
+    ).join('')
+
+    const html = `<!DOCTYPE html><html><head><title>Pre-cuenta</title>
+<style>body{font-family:monospace;width:280px;margin:0 auto;padding:16px;font-size:12px}
+h2{text-align:center;margin:0 0 4px}p.sub{text-align:center;margin:0 0 12px;color:#666}
+table{width:100%;border-collapse:collapse}th,td{padding:3px 0;border-bottom:1px dashed #ccc}
+th{text-align:left;font-size:11px}
+.totals{margin-top:10px;border-top:2px solid #000;padding-top:6px}
+.totals div{display:flex;justify-content:space-between}
+.totals .grand{font-weight:bold;font-size:14px;margin-top:4px}
+.footer{text-align:center;margin-top:14px;font-size:10px;color:#999}
+@media print{body{margin:0}}</style></head><body>
+<h2>GastroSuite</h2>
+<p class="sub">Pre-cuenta · ${s.isTakeaway ? `Para Llevar #${s.ticketNumber ?? ''}${s.customerName ? ` · ${s.customerName}` : ''}` : `Mesa ${t?.number ?? '—'}${z ? ` · ${z.name}` : ''}`}</p>
+<p style="text-align:center;font-size:10px;color:#888">${now}</p>
+<table><thead><tr><th>Ítem</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="totals">
+<div><span>Subtotal</span><span>S/ ${s.subtotal.toFixed(2)}</span></div>
+<div><span>IGV (18%)</span><span>S/ ${s.tax.toFixed(2)}</span></div>
+${s.discount > 0 ? `<div><span>Descuento</span><span>-S/ ${s.discount.toFixed(2)}</span></div>` : ''}
+<div class="grand"><span>TOTAL</span><span>S/ ${s.total.toFixed(2)}</span></div>
+</div>
+<p class="footer">*** Este documento no es comprobante de pago ***</p>
+</body></html>`
+
+    const win = window.open('', '_blank', 'width=320,height=500')
+    if (win) {
+        win.document.write(html)
+        win.document.close()
+        win.focus()
+        win.print()
+    }
+
     toast.add({
         severity: 'info',
         summary:  'Pre-cuenta',
-        detail:   'Enviando pre-cuenta a impresora...',
+        detail:   'Pre-cuenta generada para impresión.',
         life:     2500,
     })
 }
 
 async function confirmPayment() {
     if (!canConfirm.value) return
-    await posStore.confirmPayment({
+    const ok = await posStore.confirmPayment({
         method:         selectedMethod.value,
         amountReceived: cashParsed.value ?? sale.value.total,
         receiptType:    receiptType.value,
         receiptData:    { ...customerData },
     })
+    if (!ok) {
+        toast.add({
+            severity: 'error',
+            summary:  'Error al procesar pago',
+            detail:   posStore.error || 'No se pudo confirmar el pago. Verifica que haya un turno de caja abierto.',
+            life:     5000,
+        })
+        return
+    }
     toast.add({
         severity: 'success',
         summary:  'Pago confirmado',
-        detail:   'Orden cerrada exitosamente. Mesa liberada.',
+        detail:   isTakeaway.value ? 'Orden para llevar cerrada exitosamente.' : 'Orden cerrada exitosamente. Mesa liberada.',
         life:     3000,
     })
     router.push('/payments')
@@ -145,14 +230,26 @@ async function confirmPayment() {
                             <i class="pi pi-hashtag"></i>
                             Orden {{ sale?.id ?? '—' }}
                         </span>
-                        <span class="hdr-chip hdr-chip--table">
-                            <i class="pi pi-th-large"></i>
-                            Mesa {{ table?.number ?? '—' }}
-                        </span>
-                        <span v-if="zone" class="hdr-chip" :style="{ background: zone.color + '18', borderColor: zone.color, color: zone.color }">
-                            <i class="pi pi-map-marker"></i>
-                            {{ zone.name }}
-                        </span>
+                        <template v-if="isTakeaway">
+                            <span class="hdr-chip" style="background:#f59e0b18;border-color:#f59e0b;color:#f59e0b">
+                                <i class="pi pi-shopping-bag"></i>
+                                Para Llevar #{{ sale?.ticketNumber ?? '' }}
+                            </span>
+                            <span v-if="sale?.customerName" class="hdr-chip" style="background:#6366f118;border-color:#6366f1;color:#6366f1">
+                                <i class="pi pi-user"></i>
+                                {{ sale.customerName }}
+                            </span>
+                        </template>
+                        <template v-else>
+                            <span class="hdr-chip hdr-chip--table">
+                                <i class="pi pi-th-large"></i>
+                                Mesa {{ table?.number ?? '—' }}
+                            </span>
+                            <span v-if="zone" class="hdr-chip" :style="{ background: zone.color + '18', borderColor: zone.color, color: zone.color }">
+                                <i class="pi pi-map-marker"></i>
+                                {{ zone.name }}
+                            </span>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -445,6 +542,10 @@ async function confirmPayment() {
                     Confirmar Pago
                 </button>
                 <div class="pay-btn-row">
+                    <button class="pay-btn pay-btn--split" @click="dividirCuenta">
+                        <i class="pi pi-sliders-h"></i>
+                        Dividir Cuenta
+                    </button>
                     <button class="pay-btn pay-btn--secondary" @click="printPreCuenta">
                         <i class="pi pi-print"></i>
                         Pre-cuenta
@@ -458,6 +559,13 @@ async function confirmPayment() {
 
         </div>
     </div>
+
+    <!-- Diálogo de división de cuenta -->
+    <SplitBillDialog
+        v-model:visible="showSplitDialog"
+        :sale="sale"
+        @confirmed="onSplitConfirmed"
+    />
 </template>
 
 <style scoped>
@@ -1085,6 +1193,13 @@ async function confirmPayment() {
     color: #dc2626;
 }
 .pay-btn--danger:hover { background: #fee2e2; }
+
+.pay-btn--split {
+    background: #f5f3ff;
+    border-color: #c4b5fd;
+    color: #7c3aed;
+}
+.pay-btn--split:hover { background: #ede9fe; }
 
 .pay-btn--secondary {
     background: #f3f4f6;

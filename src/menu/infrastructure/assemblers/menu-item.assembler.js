@@ -35,7 +35,10 @@ export class MenuItemAssembler {
     }
 
     static toEntityFromResponse(response) {
-        return MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
+        if (response.status !== 200 && response.status !== 201) return null;
+        const data = response.data?.data ?? response.data;
+        if (!data) return null;
+        return MenuItemAssembler.toEntityFromResource(data);
     }
 
     static toResourceFromEntity(entity) {

@@ -44,6 +44,13 @@ export function authenticationGuard(to, from, next) {
         return next({ path: IAM_ROUTES.SIGN_IN, query: { redirect: to.fullPath } });
     }
 
+    // Si hay token pero no hay usuario cargado (localStorage corrupto o borrado),
+    // limpiar sesión y redirigir a login
+    if (!iamStore.currentUser) {
+        iamStore.logout();
+        return next({ path: IAM_ROUTES.SIGN_IN, query: { redirect: to.fullPath } });
+    }
+
     // Verificar acceso por rol (solo si el usuario está cargado)
     const role = iamStore.userRole;
     if (role && !hasRouteAccess(role, to.path)) {

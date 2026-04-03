@@ -65,9 +65,12 @@ export const useMenuStore = defineStore('menu', () => {
         error.value = null;
         try {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const branchId = localStorage.getItem('gs_branch_id');
-                categoriesData.value = branchId ? MOCK_CATEGORIES.filter(c => c.sucursalId === branchId) : [...MOCK_CATEGORIES];
-                items.value          = branchId ? MOCK_ITEMS.filter(i => i.sucursalId === branchId)      : [...MOCK_ITEMS];
+                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
+                if (items.value.length === 0) {
+                    const branchId = localStorage.getItem('gs_branch_id');
+                    categoriesData.value = branchId ? MOCK_CATEGORIES.filter(c => c.sucursalId === branchId) : [...MOCK_CATEGORIES];
+                    items.value          = branchId ? MOCK_ITEMS.filter(i => i.sucursalId === branchId)      : [...MOCK_ITEMS];
+                }
                 return;
             }
             const [itemsResp, catsResp] = await Promise.all([

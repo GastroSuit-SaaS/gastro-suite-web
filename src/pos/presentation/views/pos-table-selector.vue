@@ -23,7 +23,7 @@ const tables = computed(() => posStore.tablesForZone(zoneId.value))
 
 async function selectTable(table) {
     await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests ?? 0)
-    router.push(posOrderRoute(table.id))
+    router.push(posOrderRoute(posStore.currentSale.id))
 }
 </script>
 

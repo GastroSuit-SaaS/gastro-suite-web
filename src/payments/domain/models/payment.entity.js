@@ -28,6 +28,7 @@ export class Payment {
     constructor({
         id             = null,
         saleId         = null,
+        sessionId      = null,
         tableNumber    = null,
         zoneName       = null,
         items          = [],        // snapshot [{name, qty, subtotal}]
@@ -45,9 +46,15 @@ export class Payment {
         processedAt    = null,
         pendingSync    = false,
         sucursalId     = null,
+        note           = '',
+        splitGroupId   = null,      // UUID compartido por todos los splits de una misma división
+        isSplit        = false,
+        splitIndex     = null,      // 0-based index dentro del grupo
+        splitCount     = null,      // total de splits en el grupo
     } = {}) {
         this.id             = id;
         this.saleId         = saleId;
+        this.sessionId      = sessionId;
         this.tableNumber    = tableNumber;
         this.zoneName       = zoneName;
         this.items          = items;
@@ -65,6 +72,11 @@ export class Payment {
         this.processedAt    = processedAt ?? new Date();
         this.pendingSync    = pendingSync;
         this.sucursalId     = sucursalId;
+        this.note           = note;
+        this.splitGroupId   = splitGroupId;
+        this.isSplit        = isSplit;
+        this.splitIndex     = splitIndex;
+        this.splitCount     = splitCount;
     }
 
     /** Devuelve true si el pago fue procesado hoy (fecha local). */

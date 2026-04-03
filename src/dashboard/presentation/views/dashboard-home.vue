@@ -70,6 +70,14 @@ const formatSoles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`
                     <div class="kpi-card__label">Listos para recoger</div>
                 </div>
             </div>
+
+            <div :class="['kpi-card', store.hasOpenSession ? 'kpi-card--cyan' : 'kpi-card--gray']">
+                <div class="kpi-card__icon"><i class="pi pi-box"></i></div>
+                <div class="kpi-card__body">
+                    <div class="kpi-card__value">{{ store.hasOpenSession ? formatSoles(store.sessionExpectedCash) : 'Cerrada' }}</div>
+                    <div class="kpi-card__label">{{ store.hasOpenSession ? `Caja · ${store.sessionSalesCount} ventas` : 'Caja sin turno' }}</div>
+                </div>
+            </div>
         </div>
 
         <!-- ── Row 2: Methods + Top items ───────────────────────── -->
@@ -206,6 +214,8 @@ const formatSoles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`
 .kpi-card--orange .kpi-card__icon { background: #ffedd5; color: #ea580c; }
 .kpi-card--yellow .kpi-card__icon { background: #fef9c3; color: #ca8a04; }
 .kpi-card--teal   .kpi-card__icon { background: #ccfbf1; color: #0d9488; }
+.kpi-card--cyan   .kpi-card__icon { background: #cffafe; color: #0891b2; }
+.kpi-card--gray   .kpi-card__icon { background: #f3f4f6; color: #9ca3af; }
 
 .kpi-card__value {
     font-size: 1.4rem; font-weight: 800; color: #111827; line-height: 1;

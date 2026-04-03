@@ -1,11 +1,12 @@
 /**
  * Dashboard Infrastructure - API Service
- * 
+ *
  * Responsabilidad: Comunicación HTTP con el backend del módulo Dashboard.
- * Maneja endpoints, requests, responses y errores HTTP.
  * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
+ *
+ * NOTA: Actualmente NO se usa — el dashboard agrega datos de sub-stores.
+ * Reservada para cuando el backend provea GET /dashboard/metrics
+ * con métricas pre-calculadas server-side.
  */
 
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';

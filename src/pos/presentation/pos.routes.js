@@ -39,18 +39,18 @@ const posRoutes = [
         },
     },
     {
-        path: 'order/:tableId',
+        path: 'order/:saleId',
         name: 'pos-order',
         component: posOrder,
         meta: {
-            title: 'Orden de Mesa',
+            title: 'Orden',
             titleModule: 'Punto de venta',
             description: '',
             showBackButton: false,
         },
     },
     {
-        path: 'payment/:tableId',
+        path: 'payment/:saleId',
         name: 'pos-payment',
         component: posPayment,
         meta: {

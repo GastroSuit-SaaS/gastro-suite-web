@@ -15,10 +15,13 @@ export class BaseEndpoint {
 
     /**
      * Fetches all resources from the endpoint.
+     * @param {Object} [params] - Optional query params (page, size, sort, filters, etc.).
      * @returns {Promise} A promise that resolves with the response.
      */
-    getAll() {
-        return this.http.get(this.endpointPath);
+    getAll(params) {
+        return params
+            ? this.http.get(this.endpointPath, { params })
+            : this.http.get(this.endpointPath);
     }
 
     /**

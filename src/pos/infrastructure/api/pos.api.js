@@ -50,6 +50,11 @@ export class PosApi extends BaseApi {
     pay(id, paymentSummary) {
         return this.http.patch(`${this.#path}/${id}/pay`, paymentSummary);
     }
+
+    /** PATCH /pos/sales/:id/transfer — transfiere la venta a otra mesa. */
+    transfer(id, { tableId, zoneId }) {
+        return this.http.patch(`${this.#path}/${id}/transfer`, { tableId, zoneId });
+    }
 }
 
 export const posApi = new PosApi();

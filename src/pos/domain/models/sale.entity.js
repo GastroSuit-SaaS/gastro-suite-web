@@ -13,6 +13,11 @@ export const SALE_STATUS = Object.freeze({
     PENDING:   'pending',
 });
 
+export const SALE_TYPE = Object.freeze({
+    DINE_IN:   'dine_in',
+    TAKEAWAY:  'takeaway',
+});
+
 /** IGV rate (18%) — single source of truth for all tax calculations. */
 export const SALE_TAX_RATE = 0.18;
 
@@ -21,6 +26,9 @@ export class Sale {
         id        = null,
         tableId   = null,
         zoneId    = null,
+        saleType  = SALE_TYPE.DINE_IN,
+        customerName = '',
+        ticketNumber = null,
         items     = [],
         subtotal  = 0,
         tax       = 0,
@@ -34,6 +42,9 @@ export class Sale {
         this.id        = id;
         this.tableId   = tableId;
         this.zoneId    = zoneId;
+        this.saleType  = saleType;
+        this.customerName = customerName;
+        this.ticketNumber = ticketNumber;
         this.items     = items;
         this.subtotal  = subtotal;
         this.tax       = tax;
@@ -46,6 +57,10 @@ export class Sale {
     }
 
     // ── Getters ──────────────────────────────────────────────────────────
+
+    get isTakeaway() {
+        return this.saleType === SALE_TYPE.TAKEAWAY;
+    }
 
     get totalItems() {
         return this.items.reduce((sum, i) => sum + i.quantity, 0);
@@ -154,6 +169,16 @@ export class Sale {
             note:         '',
         }));
         this._recalculate();
+    }
+
+    /**
+     * Transfiere la orden a otra mesa/zona.
+     * @param {number} newTableId
+     * @param {number|null} newZoneId
+     */
+    transferToTable(newTableId, newZoneId = null) {
+        this.tableId = newTableId;
+        if (newZoneId !== null) this.zoneId = newZoneId;
     }
 
     // ── Private ──────────────────────────────────────────────────────────

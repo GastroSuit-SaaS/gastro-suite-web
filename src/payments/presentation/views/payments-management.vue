@@ -15,6 +15,16 @@ onMounted(() => {
     store.fetchAll()
 })
 
+// ── Paginación ───────────────────────────────────────────────────────────
+const PAGE_SIZE = 10
+const currentPage = ref(1)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(store.filteredPayments.length / PAGE_SIZE)))
+const paginatedPayments = computed(() => {
+    const start = (currentPage.value - 1) * PAGE_SIZE
+    return store.filteredPayments.slice(start, start + PAGE_SIZE)
+})
+
 // ── Detalle en popup ─────────────────────────────────────────────────────
 const detailPayment = ref(null)
 function openDetail(p)  { detailPayment.value = p }
@@ -36,6 +46,16 @@ function formatTime(date) {
 function formatDate(date) {
     return new Date(date).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
 }
+
+// ── Dropdown options ─────────────────────────────────────────────────────
+const methodOptions = [
+    { label: 'Todos', value: 'all' },
+    ...METHOD_FILTER_OPTIONS.filter(m => m.key !== 'all').map(m => ({ label: m.label, value: m.key })),
+]
+const receiptOptions = [
+    { label: 'Todos', value: 'all' },
+    ...Object.entries(RECEIPT_LABELS).map(([key, label]) => ({ label, value: key })),
+]
 </script>
 
 <template>
@@ -86,59 +106,58 @@ function formatDate(date) {
         </div>
 
         <!-- ══ Filtros ════════════════════════════════════════════════════ -->
-        <div class="filters-bar">
+        <div class="flex align-items-center flex-wrap gap-3">
             <!-- Búsqueda -->
-            <div class="search-wrap">
-                <i class="pi pi-search search-wrap__icon"></i>
-                <input
-                    :value="store.searchQuery"
-                    @input="store.setSearchQuery($event.target.value)"
-                    class="search-wrap__input"
+            <pv-icon-field class="flex-1" style="min-width: 200px">
+                <pv-input-icon class="pi pi-search" />
+                <pv-input-text
+                    :modelValue="store.searchQuery"
+                    @update:modelValue="store.setSearchQuery($event); currentPage = 1"
                     placeholder="Buscar por mesa, orden, DNI, RUC..."
+                    class="w-full"
+                    size="small"
+                />
+            </pv-icon-field>
+
+            <!-- Método de pago -->
+            <div class="flex align-items-center gap-2">
+                <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Método</label>
+                <pv-select
+                    :modelValue="store.filterMethod"
+                    @update:modelValue="store.setFilterMethod($event); currentPage = 1"
+                    :options="methodOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Todos"
+                    size="small"
+                    style="min-width: 140px"
                 />
             </div>
 
-            <!-- Método de pago -->
-            <div class="filter-group">
-                <span class="filter-group__label">Método</span>
-                <button
-                    v-for="m in METHOD_FILTER_OPTIONS"
-                    :key="m.key"
-                    :class="['filter-pill', store.filterMethod === m.key ? 'filter-pill--active' : '']"
-                    @click="store.setFilterMethod(m.key)"
-                >
-                    <i :class="['pi', m.icon]"></i>
-                    {{ m.label }}
-                </button>
-            </div>
-
-            <span class="filter-divider"></span>
-
             <!-- Comprobante -->
-            <div class="filter-group">
-                <span class="filter-group__label">Comprobante</span>
-                <button
-                    :class="['filter-pill', store.filterReceipt === 'all' ? 'filter-pill--active' : '']"
-                    @click="store.setFilterReceipt('all')"
-                >Todos</button>
-                <button
-                    v-for="[key, label] in Object.entries(RECEIPT_LABELS)"
-                    :key="key"
-                    :class="['filter-pill', store.filterReceipt === key ? 'filter-pill--active' : '']"
-                    @click="store.setFilterReceipt(key)"
-                >{{ label }}</button>
+            <div class="flex align-items-center gap-2">
+                <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Comprobante</label>
+                <pv-select
+                    :modelValue="store.filterReceipt"
+                    @update:modelValue="store.setFilterReceipt($event); currentPage = 1"
+                    :options="receiptOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Todos"
+                    size="small"
+                    style="min-width: 160px"
+                />
             </div>
-
-            <span class="filter-divider"></span>
 
             <!-- Hoy / Historial -->
-            <button
-                :class="['filter-pill', store.showAll && 'filter-pill--active']"
-                @click="store.setShowAll(!store.showAll)"
-            >
-                <i class="pi pi-history"></i>
-                {{ store.showAll ? 'Historial completo' : 'Solo hoy' }}
-            </button>
+            <pv-button
+                :label="store.showAll ? 'Historial completo' : 'Solo hoy'"
+                icon="pi pi-history"
+                :outlined="!store.showAll"
+                size="small"
+                severity="secondary"
+                @click="store.setShowAll(!store.showAll); currentPage = 1"
+            />
         </div>
 
         <!-- ══ Empty ═══════════════════════════════════════════════════════════ -->
@@ -153,7 +172,7 @@ function formatDate(date) {
             <table class="pay-table">
                 <thead>
                     <tr>
-                        <th>Hora</th>
+                        <th>{{ store.showAll ? 'Fecha' : 'Hora' }}</th>
                         <th>Orden</th>
                         <th>Mesa / Zona</th>
                         <th>Método</th>
@@ -166,13 +185,25 @@ function formatDate(date) {
                 </thead>
                 <tbody>
                     <tr
-                        v-for="p in store.filteredPayments"
+                        v-for="p in paginatedPayments"
                         :key="p.id"
                         class="pay-row"
                         @click="openDetail(p)"
                     >
-                            <td class="td-time">{{ formatTime(p.processedAt) }}</td>
-                            <td class="td-order">#{{ p.saleId }}</td>
+                            <td class="td-time">
+                                <template v-if="store.showAll">
+                                    <span class="td-date">{{ formatDate(p.processedAt) }}</span>
+                                    <span class="td-hour">{{ formatTime(p.processedAt) }}</span>
+                                </template>
+                                <template v-else>{{ formatTime(p.processedAt) }}</template>
+                            </td>
+                            <td class="td-order">
+                                #{{ p.saleId }}
+                                <span v-if="p.isSplit" class="badge badge--split" title="Pago dividido">
+                                    <i class="pi pi-users" style="font-size:0.6rem"></i>
+                                    {{ p.splitIndex + 1 }}/{{ p.splitCount }}
+                                </span>
+                            </td>
                             <td class="td-table">
                                 <span v-if="p.tableNumber">Mesa {{ p.tableNumber }}</span>
                                 <span v-else class="td-na">—</span>
@@ -208,6 +239,23 @@ function formatDate(date) {
             </table>
         </div>
 
+        <!-- Paginación -->
+        <div v-if="store.filteredPayments.length > PAGE_SIZE" class="pay-pagination">
+            <span class="pay-pagination__info">
+                {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, store.filteredPayments.length) }}
+                de {{ store.filteredPayments.length }}
+            </span>
+            <div class="pay-pagination__controls">
+                <button class="pay-pagination__btn" :disabled="currentPage <= 1" @click="currentPage--">
+                    <i class="pi pi-chevron-left"></i>
+                </button>
+                <span class="pay-pagination__page">{{ currentPage }} / {{ totalPages }}</span>
+                <button class="pay-pagination__btn" :disabled="currentPage >= totalPages" @click="currentPage++">
+                    <i class="pi pi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+
     </div>
     </module-state-feedback>
 
@@ -222,6 +270,10 @@ function formatDate(date) {
                         <div class="dlg-title">
                             <i class="pi pi-receipt" style="color:#6366f1;font-size:1rem"></i>
                             <span>Pago <strong>#{{ detailPayment.id }}</strong></span>
+                            <span v-if="detailPayment.isSplit" class="badge badge--split">
+                                <i class="pi pi-users" style="font-size:0.6rem"></i>
+                                División {{ detailPayment.splitIndex + 1 }}/{{ detailPayment.splitCount }}
+                            </span>
                             <span
                                 class="badge"
                                 :style="{ background: METHOD_COLORS[detailPayment.method] + '22', color: METHOD_COLORS[detailPayment.method], border: '1px solid ' + METHOD_COLORS[detailPayment.method] + '66' }"
@@ -304,6 +356,10 @@ function formatDate(date) {
                                 <span class="detail-field__label">Hora</span>
                                 <span class="detail-field__val">{{ formatTime(detailPayment.processedAt) }}</span>
                             </div>
+                            <div v-if="detailPayment.note" class="detail-field">
+                                <span class="detail-field__label">Nota</span>
+                                <span class="detail-field__val">{{ detailPayment.note }}</span>
+                            </div>
                         </div>
 
                         <!-- Columna: Comprobante (solo si aplica) -->
@@ -374,8 +430,6 @@ function formatDate(date) {
     flex-direction: column;
     gap: 1.25rem;
     padding: 1.5rem;
-    height: 100%;
-    overflow-y: auto;
     background: #f3f4f6;
 }
 
@@ -437,90 +491,7 @@ function formatDate(date) {
 
 .stat-card__value--sm { font-size: 1.2rem; }
 
-/* ── Filtros ─────────────────────────────────────────────────────────────── */
-.filters-bar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-}
-
-.search-wrap {
-    position: relative;
-    flex: 1;
-    min-width: 200px;
-    max-width: 320px;
-}
-.search-wrap__icon {
-    position: absolute;
-    left: 0.7rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #9ca3af;
-    font-size: 0.85rem;
-    pointer-events: none;
-}
-.search-wrap__input {
-    width: 100%;
-    padding: 0.45rem 0.75rem 0.45rem 2.1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-size: 0.83rem;
-    background: #fff;
-    color: #111827;
-    outline: none;
-    transition: border-color 0.15s;
-}
-.search-wrap__input:focus { border-color: #6366f1; }
-
-.filter-group {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-}
-
-.filter-group__label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #9ca3af;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-right: 0.15rem;
-    white-space: nowrap;
-}
-
-.filter-divider {
-    display: block;
-    width: 1px;
-    height: 1.5rem;
-    background: #e5e7eb;
-    flex-shrink: 0;
-    align-self: center;
-}
-
-.filter-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 999px;
-    background: #fff;
-    color: #4b5563;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.12s;
-    white-space: nowrap;
-}
-.filter-pill:hover { border-color: #6366f1; color: #4338ca; background: #eef2ff; }
-.filter-pill--active {
-    background: #6366f1;
-    border-color: #6366f1;
-    color: #fff;
-    font-weight: 600;
-}
+/* ── (Filtros ahora usan pv-select / PrimeFlex, sin CSS custom) ────────── */
 
 /* ── Estados ─────────────────────────────────────────────────────────────── */
 .state-msg {
@@ -541,7 +512,7 @@ function formatDate(date) {
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 .pay-table {
@@ -580,6 +551,8 @@ function formatDate(date) {
 }
 
 .td-time   { color: #6b7280; white-space: nowrap; }
+.td-date   { display: block; font-size: 0.75rem; font-weight: 600; color: #374151; line-height: 1.2; }
+.td-hour   { display: block; font-size: 0.75rem; color: #9ca3af; line-height: 1.2; }
 .td-order  { font-weight: 600; color: #6366f1; }
 .td-table  { white-space: nowrap; }
 .td-zone   { color: #9ca3af; font-size: 0.78rem; }
@@ -588,14 +561,67 @@ function formatDate(date) {
 .td-change { color: #059669; }
 .td-expand { width: 2rem; text-align: center; color: #9ca3af; }
 
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+.pay-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.25rem;
+}
+
+.pay-pagination__info {
+    font-size: 0.78rem;
+    color: #6b7280;
+}
+
+.pay-pagination__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pay-pagination__page {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 3.5rem;
+    text-align: center;
+}
+
+.pay-pagination__btn {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    color: #374151;
+    transition: background 0.12s, border-color 0.12s;
+}
+.pay-pagination__btn:hover:not(:disabled) { background: #f3f4f6; border-color: #d1d5db; }
+.pay-pagination__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ── Badge ───────────────────────────────────────────────────────────────── */
 .badge {
     display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
     padding: 0.15rem 0.55rem;
     border-radius: 999px;
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
+}
+
+.badge--split {
+    background: #ede9fe;
+    color: #7c3aed;
+    border: 1px solid #c4b5fd;
+    margin-left: 0.3rem;
 }
 
 /* ── Popup dialog ────────────────────────────────────────────────────────── */
@@ -709,15 +735,6 @@ function formatDate(date) {
 }
 
 /* Loading/Error states handled by shared ModuleStateFeedback component */
-
-/* History toggle */
-.filter-divider {
-    width: 1px;
-    height: 1.5rem;
-    background: #e5e7eb;
-    align-self: center;
-    flex-shrink: 0;
-}
 
 /* Transition */
 .dlg-fade-enter-active,

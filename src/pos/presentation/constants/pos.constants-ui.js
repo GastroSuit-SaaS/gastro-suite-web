@@ -27,16 +27,16 @@ export function posSelectTableRoute(zoneId) {
 }
 
 /**
- * Helper para construir la ruta de la orden de una mesa.
- * @param {number} tableId
+ * Helper para construir la ruta de la orden de una venta.
+ * @param {number|string} saleId
  * @returns {string}
  */
-export function posOrderRoute(tableId) {
-    return `/pos/order/${tableId}`;
+export function posOrderRoute(saleId) {
+    return `/pos/order/${saleId}`;
 }
 
-export function posPaymentRoute(tableId) {
-    return `/pos/payment/${tableId}`;
+export function posPaymentRoute(saleId) {
+    return `/pos/payment/${saleId}`;
 }
 
 export const PAYMENT_METHODS = [

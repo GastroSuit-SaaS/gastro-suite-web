@@ -8,6 +8,7 @@ import { Zone } from '../domain/models/zone.entity.js';
 import { MOCK_ZONES, MOCK_TABLES } from '../infrastructure/tables.mock.js';
 
 const api = new TablesApi();
+const _isMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const useTablesStore = defineStore('tables', () => {
 
@@ -65,9 +66,12 @@ export const useTablesStore = defineStore('tables', () => {
         error.value = null;
         try {
             if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const branchId = localStorage.getItem('gs_branch_id');
-                zonesData.value = branchId ? MOCK_ZONES.filter(z => z.sucursalId === branchId) : [...MOCK_ZONES];
-                tables.value    = branchId ? MOCK_TABLES.filter(t => t.sucursalId === branchId) : [...MOCK_TABLES];
+                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
+                if (zonesData.value.length === 0) {
+                    const branchId = localStorage.getItem('gs_branch_id');
+                    zonesData.value = branchId ? MOCK_ZONES.filter(z => z.sucursalId === branchId) : [...MOCK_ZONES];
+                    tables.value    = branchId ? MOCK_TABLES.filter(t => t.sucursalId === branchId) : [...MOCK_TABLES];
+                }
                 return;
             }
             const [tablesResp, zonesResp] = await Promise.all([
@@ -84,6 +88,7 @@ export const useTablesStore = defineStore('tables', () => {
     }
 
     async function fetchById(id) {
+        if (_isMock) return;
         isLoading.value = true;
         error.value = null;
         try {
@@ -106,6 +111,7 @@ export const useTablesStore = defineStore('tables', () => {
             seatedGuests:  0,
             occupiedSince: null,
         }));
+        if (_isMock) return;
         try {
             const response = await api.create(TableAssembler.toResourceFromEntity(tableData));
             if (response.status === 201 || response.status === 200) {
@@ -126,10 +132,10 @@ export const useTablesStore = defineStore('tables', () => {
                 ? new Table({ ...t, ...tableData, id, zone: zone?.name ?? t.zone })
                 : t
         );
+        if (_isMock) return;
         try {
             await api.update(id, TableAssembler.toResourceFromEntity(tableData));
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             tables.value = snapshot;
         }
     }
@@ -137,10 +143,10 @@ export const useTablesStore = defineStore('tables', () => {
     async function remove(id) {
         const snapshot = [...tables.value];
         tables.value = tables.value.filter(t => t.id !== id);
+        if (_isMock) return;
         try {
             await api.delete(id);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             tables.value = snapshot;
         }
     }
@@ -150,10 +156,10 @@ export const useTablesStore = defineStore('tables', () => {
         if (!table) return;
         const prevStatus = table.status;
         table.status = status;
+        if (_isMock) return;
         try {
             await api.updateStatus(id, status);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status = prevStatus;
         }
     }
@@ -167,10 +173,10 @@ export const useTablesStore = defineStore('tables', () => {
         table.status        = TABLE_STATUS.OCCUPIED;
         table.seatedGuests  = seatedGuests;
         table.occupiedSince = new Date();
+        if (_isMock) return;
         try {
             await api.assign(tableId, { seatedGuests });
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.seatedGuests  = prevGuests;
             table.occupiedSince = prevOccupiedSince;
@@ -196,10 +202,10 @@ export const useTablesStore = defineStore('tables', () => {
         table.seatedGuests  = 0;
         table.occupiedSince = null;
         table.orderId       = null;
+        if (_isMock) return;
         try {
             await api.free(tableId);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.seatedGuests  = prevGuests;
             table.occupiedSince = prevOccupiedSince;
@@ -215,10 +221,10 @@ export const useTablesStore = defineStore('tables', () => {
         const prevReservationId = table.reservationId;
         table.status        = TABLE_STATUS.AVAILABLE;
         table.reservationId = null;
+        if (_isMock) return;
         try {
             await api.updateStatus(tableId, TABLE_STATUS.AVAILABLE);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             table.status        = prevStatus;
             table.reservationId = prevReservationId;
         }
@@ -234,10 +240,10 @@ export const useTablesStore = defineStore('tables', () => {
         tables.value    = tables.value.filter(t => t.zoneId !== zoneId);
         zonesData.value = zonesData.value.filter(z => z.id !== zoneId);
         if (selectedZoneId.value === zoneId) selectedZoneId.value = null;
+        if (_isMock) return;
         try {
             await api.deleteZone(zoneId);
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             tables.value    = snapshotTables;
             zonesData.value = snapshotZones;
         }
@@ -254,10 +260,10 @@ export const useTablesStore = defineStore('tables', () => {
                 ? new Table({ ...t, zone: updatedZone.name })
                 : t
         );
+        if (_isMock) return;
         try {
             await api.updateZone(updatedZone.id, ZoneAssembler.toResourceFromEntity(updatedZone));
         } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             zonesData.value = snapshotZones;
             tables.value    = snapshotTables;
         }
@@ -266,6 +272,7 @@ export const useTablesStore = defineStore('tables', () => {
     async function createZone(newZone) {
         const optimisticId = Math.max(0, ...zonesData.value.map(z => z.id)) + 1;
         zonesData.value.push(new Zone({ id: optimisticId, name: newZone.name, color: newZone.color ?? '#3b82f6', description: newZone.description ?? '' }));
+        if (_isMock) return;
         try {
             const response = await api.createZone(ZoneAssembler.toResourceFromEntity(newZone));
             if (response.status === 201 || response.status === 200) {
