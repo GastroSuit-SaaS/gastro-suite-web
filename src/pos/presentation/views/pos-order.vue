@@ -202,7 +202,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                     </div>
                 </div>
 
-                <!-- BÃºsqueda (derecha) -->
+                <!-- Búsqueda -->
                 <div class="search-wrapper">
                     <i class="pi pi-search search-wrapper__icon"></i>
                     <pv-input-text
@@ -213,10 +213,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                     />
                 </div>
 
-            </div>
-
-            <!-- Filtro de categorías -->
-            <div class="cat-bar">
+                <!-- Filtro de categorías -->
                 <pv-select
                     v-model="selectedCategoryFilter"
                     :options="categoryFilterOptions"
@@ -250,6 +247,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                         </div>
                     </template>
                 </pv-select>
+
             </div>
 
             <!-- Grilla de productos (estilo menÃº) -->
@@ -638,16 +636,8 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     white-space: nowrap;
 }
 
-/* ── Category bar ─────────────────────────────────────────────────────────────── */
-.cat-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1.25rem;
-    background: #fff;
-    border-bottom: 1px solid var(--surface-border, #e5e7eb);
-}
-.pos-cat-filter-select { width: 280px; }
+/* ── Category filter ───────────────────────────────────────────────────────── */
+.pos-cat-filter-select { width: 240px; flex-shrink: 0; }
 .pos-cat-filter-dot {
     width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }

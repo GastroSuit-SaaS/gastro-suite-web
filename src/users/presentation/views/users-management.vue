@@ -7,6 +7,7 @@ import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog
 import { USER_ROLE_CONFIG } from '../constants/users.constants-ui.js'
 import { ROLE_ALLOWED_ROUTES } from '../../../shared/presentation/constants/roles.constants.js'
 import CreateAndEditUser from './create-and-edit-user.vue'
+import UserDetailDialog from './user-detail-dialog.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store       = useUsersStore()
@@ -17,6 +18,8 @@ const { confirmDelete } = useConfirmDialog()
 const activeTab    = ref('users')  // 'users' | 'roles'
 const showDialog   = ref(false)
 const editingUser  = ref(null)
+const showDetail   = ref(false)
+const detailUser   = ref(null)
 const searchQuery  = ref('')
 const filterRole   = ref('')
 const filterBranch = ref('')
@@ -127,6 +130,11 @@ function openEdit(user) {
     showDialog.value = true
 }
 
+function openDetail(user) {
+    detailUser.value = user
+    showDetail.value = true
+}
+
 function onDelete(user) {
     confirmDelete('el usuario', user.fullName, () => store.remove(user.id))
 }
@@ -205,43 +213,32 @@ function clearSearch() {
             </div>
 
             <!-- ── Toolbar ───────────────────────────────────────────── -->
-            <div class="user-mgmt__toolbar">
-                <div class="user-mgmt__search">
-                    <i class="pi pi-search user-mgmt__search-icon"></i>
-                    <input
+            <div class="flex align-items-center gap-2">
+                <div class="search-wrapper flex-1">
+                    <i class="pi pi-search search-wrapper__icon"></i>
+                    <pv-input-text
                         v-model="searchQuery"
-                        type="text"
-                        class="user-mgmt__search-input"
                         placeholder="Buscar por nombre, usuario, email, documento..."
+                        class="w-full search-wrapper__input"
                     />
-                    <button v-if="searchQuery" class="user-mgmt__search-clear" @click="clearSearch">
-                        <i class="pi pi-times"></i>
-                    </button>
                 </div>
-
-                <div class="user-mgmt__filters">
-                    <select v-model="filterBranch" class="user-mgmt__filter-select">
-                        <option value="">Todas las sucursales</option>
-                        <option v-for="b in branchOptions" :key="b.value" :value="b.value">{{ b.label }}</option>
-                    </select>
-                    <select v-model="filterRole" class="user-mgmt__filter-select">
-                        <option value="">Todos los roles</option>
-                        <option v-for="r in roleOptions" :key="r.value" :value="r.value">{{ r.label }}</option>
-                    </select>
-                    <button v-if="filterBranch || filterRole || selectedStatus" class="user-mgmt__filter-clear" @click="clearFilters">
-                        <i class="pi pi-filter-slash"></i>
-                    </button>
-                </div>
-
-                <div class="user-mgmt__toolbar-right">
-                    <span v-if="filteredUsers.length !== store.users.length" class="user-mgmt__results-count">
-                        {{ filteredUsers.length }} resultado{{ filteredUsers.length !== 1 ? 's' : '' }}
-                    </span>
-                    <button class="user-mgmt__btn-new" @click="openCreate">
-                        <i class="pi pi-plus"></i>
-                        Nuevo Usuario
-                    </button>
-                </div>
+                <pv-select
+                    v-model="filterBranch"
+                    :options="[{ value: '', label: 'Todas las sucursales' }, ...branchOptions]"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Sucursal"
+                    class="user-filter-select"
+                />
+                <pv-select
+                    v-model="filterRole"
+                    :options="[{ value: '', label: 'Todos los roles' }, ...roleOptions]"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Rol"
+                    class="user-filter-select"
+                />
+                <pv-button label="Nuevo Usuario" icon="pi pi-plus" size="small" severity="info" @click="openCreate" />
             </div>
 
             <!-- ── Loading / Empty ───────────────────────────────────── -->
@@ -253,84 +250,81 @@ function clearSearch() {
                 empty-subtitle="Cree usuarios para asignarlos a las sucursales."
             />
 
-            <!-- ── Grid ──────────────────────────────────────────────── -->
-            <div v-if="!store.isLoading && filteredUsers.length > 0" class="user-mgmt__grid">
-                <div
-                    v-for="user in filteredUsers"
-                    :key="user.id"
-                    :class="['user-card', !user.isActive && 'user-card--inactive']"
-                >
-                    <!-- Color bar -->
-                    <div class="user-card__bar" :style="{ background: user.isActive ? roleConfig(user.role).color : '#9ca3af' }"></div>
-
-                    <!-- Header -->
-                    <div class="user-card__header">
-                        <div class="user-card__avatar" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
-                            {{ user.initials }}
-                        </div>
-                        <div class="user-card__info">
-                            <div class="user-card__name">{{ user.fullName }}</div>
-                            <div class="user-card__username">@{{ user.username }}</div>
-                        </div>
-                        <div class="flex flex-column align-items-end gap-1">
-                            <span class="user-card__role-badge" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
-                                <i :class="['pi', roleConfig(user.role).icon]"></i>
-                                {{ roleConfig(user.role).label }}
-                            </span>
-                            <span :class="['user-card__active-badge', user.isActive ? 'user-card__active-badge--on' : 'user-card__active-badge--off']">
-                                {{ user.isActive ? 'Activo' : 'Inactivo' }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Body -->
-                    <div class="user-card__body">
-                        <div class="user-card__field">
-                            <i class="pi pi-envelope"></i>
-                            <span>{{ user.email }}</span>
-                        </div>
-                        <div v-if="user.telefono" class="user-card__field">
-                            <i class="pi pi-phone"></i>
-                            <span>{{ user.telefono }}</span>
-                        </div>
-                        <div class="user-card__field">
-                            <i class="pi pi-id-card"></i>
-                            <span>{{ user.tipoDocumento }} {{ user.numeroDocumento }}</span>
-                        </div>
-                        <div class="user-card__field">
-                            <i class="pi pi-building"></i>
-                            <span>{{ user.sucursalNombre || 'Sin sucursal' }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Footer / Actions -->
-                    <div class="user-card__footer">
-                        <div class="user-card__actions">
-                            <button
-                                :class="['user-card__icon-btn', 'user-card__icon-btn--power', user.isActive ? 'user-card__icon-btn--power-on' : 'user-card__icon-btn--power-off']"
-                                :title="user.isActive ? 'Desactivar usuario' : 'Activar usuario'"
-                                @click="store.toggleActive(user.id)"
-                            >
-                                <i class="pi pi-power-off"></i>
-                            </button>
-                            <button class="user-card__icon-btn user-card__icon-btn--edit" @click="openEdit(user)">
-                                <i class="pi pi-pencil"></i>
-                            </button>
-                            <button class="user-card__icon-btn user-card__icon-btn--delete" @click="onDelete(user)">
-                                <i class="pi pi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <!-- ── Table ──────────────────────────────────────────────── -->
+            <div v-if="!store.isLoading && filteredUsers.length > 0" class="user-table-wrap">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Rol</th>
+                            <th>Sucursal</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="user in filteredUsers"
+                            :key="user.id"
+                            :class="['user-row', !user.isActive && 'user-row--inactive']"
+                            @click="openDetail(user)"
+                        >
+                            <td>
+                                <div class="user-cell-name">
+                                    <div class="user-cell-avatar" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
+                                        {{ user.initials }}
+                                    </div>
+                                    <div>
+                                        <span class="user-cell-fullname">{{ user.fullName }}</span>
+                                        <span class="user-cell-username">@{{ user.username }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="td-email">{{ user.email }}</td>
+                            <td>
+                                <span class="user-role-badge" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
+                                    <i :class="['pi', roleConfig(user.role).icon]"></i>
+                                    {{ roleConfig(user.role).label }}
+                                </span>
+                            </td>
+                            <td class="td-branch">{{ user.sucursalNombre || '—' }}</td>
+                            <td>
+                                <span :class="['status-badge', user.isActive ? 'status-badge--on' : 'status-badge--off']">
+                                    {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                                </span>
+                            </td>
+                            <td class="td-actions">
+                                <pv-button icon="pi pi-power-off" text rounded size="small"
+                                    :severity="user.isActive ? 'success' : 'secondary'"
+                                    :title="user.isActive ? 'Desactivar' : 'Activar'"
+                                    @click.stop="store.toggleActive(user.id)"
+                                />
+                                <pv-button icon="pi pi-pencil" text rounded size="small" severity="info"
+                                    @click.stop="openEdit(user)"
+                                />
+                                <pv-button icon="pi pi-trash" text rounded size="small" severity="danger"
+                                    @click.stop="onDelete(user)"
+                                />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <!-- Dialog -->
+            <!-- Dialog crear/editar -->
             <CreateAndEditUser
                 v-if="showDialog"
                 :visible="showDialog"
                 :user="editingUser"
                 @close="showDialog = false"
                 @saved="onDialogSaved"
+            />
+
+            <!-- Dialog detalle -->
+            <UserDetailDialog
+                v-model:visible="showDetail"
+                :user="detailUser"
             />
         </div>
 
@@ -484,296 +478,142 @@ function clearSearch() {
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
-.user-mgmt__toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.user-mgmt__search {
+.search-wrapper {
     position: relative;
-    flex: 1;
-    max-width: 22rem;
 }
 
-.user-mgmt__search-icon {
+.search-wrapper__icon {
     position: absolute;
-    left: 0.85rem;
+    left: 0.75rem;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 0.85rem;
-    color: #9ca3af;
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.9rem;
+    z-index: 1;
     pointer-events: none;
 }
 
-.user-mgmt__search-input {
-    width: 100%;
-    padding: 0.55rem 2.2rem 0.55rem 2.4rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
+.search-wrapper__input {
+    padding-left: 2.25rem !important;
+}
+
+.user-filter-select { width: 220px; }
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+.user-table-wrap {
     background: #fff;
-    font-size: 0.82rem;
-    color: #374151;
-    outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-.user-mgmt__search-input::placeholder { color: #9ca3af; }
-.user-mgmt__search-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-}
-
-.user-mgmt__search-clear {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1.5rem;
-    height: 1.5rem;
-    border: none;
-    background: #f3f4f6;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    color: #6b7280;
-}
-.user-mgmt__search-clear:hover { background: #e5e7eb; }
-
-.user-mgmt__filters {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.user-mgmt__filter-select {
-    padding: 0.55rem 0.75rem;
     border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    background: #fff;
-    font-size: 0.82rem;
-    color: #374151;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.15s;
-}
-.user-mgmt__filter-select:focus { border-color: #3b82f6; }
-
-.user-mgmt__filter-clear {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    color: #6b7280;
-    transition: background 0.12s;
-}
-.user-mgmt__filter-clear:hover { background: #fef2f2; color: #dc2626; }
-
-.user-mgmt__toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-left: auto;
-}
-
-.user-mgmt__results-count {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: #6b7280;
-    white-space: nowrap;
-}
-
-.user-mgmt__btn-new {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1.25rem;
-    background: #3b82f6;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, box-shadow 0.15s;
-    white-space: nowrap;
-}
-.user-mgmt__btn-new:hover {
-    background: #2563eb;
-    box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-}
-
-/* ── Grid ────────────────────────────────────────────────────────────────── */
-.user-mgmt__grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1rem;
-}
-
-/* ── User Card ───────────────────────────────────────────────────────────── */
-.user-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    background: #fff;
-    border-radius: 14px;
-    border: 1px solid #e5e7eb;
-    overflow: hidden;
-    transition: box-shadow 0.15s;
-}
-.user-card:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.09);
-}
-
-.user-card--inactive {
-    opacity: 0.55;
-    filter: grayscale(0.7);
-    transition: opacity 0.2s, filter 0.2s;
-}
-.user-card--inactive:hover {
-    opacity: 0.75;
-    filter: grayscale(0.4);
-}
-
-.user-card__bar {
-    height: 4px;
-    flex-shrink: 0;
-}
-
-.user-card__header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem 1rem 0;
-}
-
-.user-card__avatar {
-    width: 2.8rem;
-    height: 2.8rem;
     border-radius: 12px;
+    overflow: hidden;
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+}
+
+.user-table thead tr {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.user-table th {
+    padding: 0.7rem 0.85rem;
+    text-align: left;
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.user-row {
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.user-row:hover { background: #fafafe; }
+.user-row--inactive { opacity: 0.55; }
+.user-row--inactive:hover { opacity: 0.75; }
+
+.user-table td {
+    padding: 0.65rem 0.85rem;
+    color: #374151;
+    vertical-align: middle;
+}
+
+/* Name cell: avatar + name/username */
+.user-cell-name {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.user-cell-avatar {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 700;
     flex-shrink: 0;
 }
 
-.user-card__info {
-    flex: 1;
-    min-width: 0;
+.user-cell-fullname {
+    display: block;
+    font-weight: 600;
+    color: #111827;
+    white-space: nowrap;
 }
 
-.user-card__name {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #111827;
+.user-cell-username {
+    display: block;
+    font-size: 0.72rem;
+    color: #9ca3af;
+}
+
+.td-email {
+    max-width: 200px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #6b7280;
+    font-size: 0.8rem;
 }
 
-.user-card__username {
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #9ca3af;
-    margin-top: 1px;
+.td-branch {
+    white-space: nowrap;
+    color: #6b7280;
+    font-size: 0.8rem;
 }
 
-.user-card__role-badge {
+.user-role-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 600;
     padding: 0.2rem 0.55rem;
     border-radius: 999px;
-    flex-shrink: 0;
     white-space: nowrap;
 }
 
-.user-card__active-badge {
-    font-size: 0.63rem;
-    font-weight: 600;
+.status-badge {
+    display: inline-flex;
+    padding: 0.15rem 0.55rem;
     border-radius: 999px;
-    padding: 0.15rem 0.5rem;
-    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
 }
-.user-card__active-badge--on  { background: #dcfce7; color: #15803d; }
-.user-card__active-badge--off { background: #fee2e2; color: #b91c1c; }
+.status-badge--on  { background: #dcfce7; color: #15803d; }
+.status-badge--off { background: #fee2e2; color: #b91c1c; }
 
-.user-card__body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.75rem 1rem 0;
-    flex: 1;
-}
-
-.user-card__field {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    font-size: 0.8rem;
-    color: #6b7280;
-    line-height: 1.35;
-}
-.user-card__field i {
-    margin-top: 0.15rem;
-    flex-shrink: 0;
-    font-size: 0.75rem;
-    color: #9ca3af;
-}
-
-.user-card__footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 0.65rem 1rem;
-    margin-top: 0.5rem;
-    border-top: 1px solid #f3f4f6;
-}
-
-.user-card__actions {
-    display: flex;
-    gap: 0.35rem;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-.user-card:hover .user-card__actions { opacity: 1; }
-
-.user-card__icon-btn {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    color: #6b7280;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.user-card__icon-btn--edit:hover   { background: #eff6ff; color: #2563eb; border-color: #93c5fd; }
-.user-card__icon-btn--delete:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
-
-/* Power toggle button */
-.user-card__icon-btn--power { transition: background 0.15s, color 0.15s, border-color 0.15s; }
-.user-card__icon-btn--power-on  { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
-.user-card__icon-btn--power-on:hover  { background: #dcfce7; color: #15803d; border-color: #86efac; }
-.user-card__icon-btn--power-off { color: #9ca3af; border-color: #e5e7eb; background: #f9fafb; }
-.user-card__icon-btn--power-off:hover { background: #f0fdf4; color: #16a34a; border-color: #86efac; }
+.td-actions { white-space: nowrap; width: 7rem; }
 
 /* ══════════════════ ROLES & PERMISSIONS TAB ═══════════════════════════ */
 
@@ -911,11 +751,6 @@ function clearSearch() {
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .user-mgmt__toolbar { flex-direction: column; align-items: stretch; }
-    .user-mgmt__search  { max-width: none; }
-    .user-mgmt__filters { flex-wrap: wrap; }
-    .user-mgmt__toolbar-right { justify-content: space-between; }
-    .user-mgmt__grid { grid-template-columns: 1fr; }
     .roles-grid { grid-template-columns: 1fr; }
     .stat-row { flex-direction: column; }
 }
