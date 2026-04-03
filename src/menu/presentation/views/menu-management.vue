@@ -13,6 +13,16 @@ onMounted(() => store.fetchAll())
 
 const selectedAvailability = ref(null) // null | true | false
 
+// ── Category dropdown filter ────────────────────────────────────────────
+const categoryFilterOptions = computed(() => [
+    { label: `Todas (${store.totalItems})`, value: '__all__', color: null },
+    ...store.categories.map(c => ({ label: `${c.name} (${c.count})`, value: c.id, color: c.color })),
+])
+const selectedCategoryFilter = computed({
+    get: () => store.selectedCategoryId ?? '__all__',
+    set: (val) => store.selectCategory(val === '__all__' ? null : val),
+})
+
 const visibleItems = computed(() => {
     if (selectedAvailability.value === null) return store.filteredItems
     return store.filteredItems.filter(i => i.isAvailable === selectedAvailability.value)
@@ -140,32 +150,40 @@ function onCategorySaved(data) {
                         class="w-full search-wrapper__input"
                     />
                 </div>
+                <pv-select
+                    v-model="selectedCategoryFilter"
+                    :options="categoryFilterOptions"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Selecciona una categoría"
+                    filter
+                    filter-placeholder="Buscar categoría..."
+                    class="category-filter-select"
+                >
+                    <template #value="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="categoryFilterOptions.find(o => o.value === slotProps.value)?.color"
+                                class="category-filter-dot"
+                                :style="{ background: categoryFilterOptions.find(o => o.value === slotProps.value)?.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ categoryFilterOptions.find(o => o.value === slotProps.value)?.label ?? 'Todas' }}
+                        </div>
+                    </template>
+                    <template #option="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="slotProps.option.color"
+                                class="category-filter-dot"
+                                :style="{ background: slotProps.option.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ slotProps.option.label }}
+                        </div>
+                    </template>
+                </pv-select>
                 <pv-button label="Nuevo Producto" icon="pi pi-plus" size="small" severity="success" @click="openCreateItem" />
-            </div>
-
-            <!-- Category filter pills (solo lectura) -->
-            <div class="flex flex-column gap-2">
-                <div class="flex align-items-center gap-2">
-                    <i class="pi pi-tag text-color-secondary"></i>
-                    <span class="text-sm text-color-secondary font-medium">Filtrar por Categoría:</span>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <button
-                        :class="['filter-pill', store.selectedCategoryId === null && 'filter-pill--active']"
-                        @click="store.selectCategory(null)"
-                    >
-                        Todas ({{ store.totalItems }})
-                    </button>
-                    <button
-                        v-for="cat in store.categories"
-                        :key="cat.id"
-                        :class="['filter-pill', store.selectedCategoryId === cat.id && 'filter-pill--active']"
-                        :style="{ borderLeft: `4px solid ${cat.color}` }"
-                        @click="store.selectCategory(cat.id)"
-                    >
-                        {{ cat.name }} ({{ cat.count }})
-                    </button>
-                </div>
             </div>
 
             <!-- Items grid -->
@@ -291,6 +309,12 @@ function onCategorySaved(data) {
 </template>
 
 <style scoped>
+/* ── Category filter dropdown ─────────────────────────────────────────── */
+.category-filter-select { width: 280px; }
+.category-filter-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
 /* ── Layout ──────────────────────────────────────────────────────────── */
 .menu-layout {
     display: flex;

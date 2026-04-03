@@ -48,6 +48,17 @@ const tableSearch       = ref('')
 const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning'
 const activeConsumption = computed(() => posStore.totalInProcess)
 const occupancyRate = computed(() => store.occupancyRate)
+
+// ── Zona dropdown filter ──────────────────────────────────────────────────
+const zoneFilterOptions = computed(() => [
+    { label: `Todas las Zonas (${store.totalTables})`, value: '__all__', color: null },
+    ...store.zones.map(z => ({ label: `${z.name} (${z.tableCount})`, value: z.id, color: z.color })),
+])
+const selectedZoneFilter = computed({
+    get: () => store.selectedZoneId ?? '__all__',
+    set: (val) => store.selectZone(val === '__all__' ? null : val),
+})
+
 const filteredAndSearched = computed(() => {
     let base = store.filteredTables
     if (selectedStatus.value) base = base.filter(t => t.status === selectedStatus.value)
@@ -159,7 +170,7 @@ function onTableSaved(table) {
                 :class="['tab-btn', activeTab === 'manage' && 'tab-btn--active']"
                 @click="activeTab = 'manage'"
             >
-                <i class="pi pi-cog"></i> Gestionar Mesas
+                <i class="pi pi-map-marker"></i> Zonas
             </button>
         </div>
 
@@ -206,38 +217,50 @@ function onTableSaved(table) {
                 </div>
             </div>
 
-            <!-- Zone filter pills (solo lectura en esta pestaña) -->
-            <div class="flex flex-column gap-2">
-                <div class="flex align-items-center gap-2">
-                    <i class="pi pi-map-marker text-color-secondary"></i>
-                    <span class="text-sm text-color-secondary font-medium">Filtrar por Zona:</span>
+            <!-- Toolbar: búsqueda + zona + nueva mesa -->
+            <div class="flex align-items-center gap-2">
+                <div class="search-wrapper flex-1">
+                    <i class="pi pi-search search-wrapper__icon"></i>
+                    <pv-input-text
+                        v-model="tableSearch"
+                        placeholder="Buscar mesa por número..."
+                        class="w-full search-wrapper__input"
+                    />
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <button
-                        :class="['filter-pill', store.selectedZoneId === null && 'filter-pill--active']"
-                        @click="store.selectZone(null)"
-                    >
-                        Todas las Zonas ({{ store.totalTables }})
-                    </button>
-                    <button
-                        v-for="zone in store.zones"
-                        :key="zone.id"
-                        :class="['filter-pill', store.selectedZoneId === zone.id && 'filter-pill--active']"
-                        :style="{ borderLeft: `4px solid ${zone.color}` }"
-                        @click="store.selectZone(zone.id)"
-                    >
-                        {{ zone.name }} ({{ zone.tableCount }})
-                    </button>
-                </div>
-            </div>
-
-            <!-- Búsqueda por número de mesa -->
-            <div class="table-search">
-                <i class="pi pi-search"></i>
-                <input v-model="tableSearch" type="text" placeholder="Buscar mesa..." />
-                <button v-if="tableSearch" class="table-search__clear" @click="tableSearch = ''">
-                    <i class="pi pi-times"></i>
-                </button>
+                <pv-select
+                    v-model="selectedZoneFilter"
+                    :options="zoneFilterOptions"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Selecciona una zona"
+                    filter
+                    filter-placeholder="Buscar zona..."
+                    class="zone-filter-select"
+                >
+                    <template #value="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="zoneFilterOptions.find(o => o.value === slotProps.value)?.color"
+                                class="zone-filter-dot"
+                                :style="{ background: zoneFilterOptions.find(o => o.value === slotProps.value)?.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ zoneFilterOptions.find(o => o.value === slotProps.value)?.label ?? 'Todas las Zonas' }}
+                        </div>
+                    </template>
+                    <template #option="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="slotProps.option.color"
+                                class="zone-filter-dot"
+                                :style="{ background: slotProps.option.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ slotProps.option.label }}
+                        </div>
+                    </template>
+                </pv-select>
+                <pv-button label="Nueva Mesa" icon="pi pi-plus" size="small" severity="success" @click="openCreateTable" />
             </div>
 
             <!-- Grilla de mesas -->
@@ -315,7 +338,7 @@ function onTableSaved(table) {
             </module-state-feedback>
         </div>
 
-        <!-- ══════════════════ TAB: GESTIONAR MESAS ══════════════════════ -->
+        <!-- ══════════════════ TAB: ZONAS ════════════════════════════════ -->
         <div v-else class="p-4 flex flex-column gap-4">
 
             <!-- ── Zonas ─────────────────────────────────────────────────── -->
@@ -369,56 +392,6 @@ function onTableSaved(table) {
                 <span class="text-color-secondary">No hay zonas configuradas</span>
             </div>
 
-            <!-- Divider -->
-            <div style="height:1px; background: var(--surface-border); margin: 0.5rem 0;"></div>
-
-            <!-- ── Mesas ──────────────────────────────────────────────────── -->
-            <div class="flex align-items-center justify-content-between">
-                <span class="text-base font-bold text-color">Mesas</span>
-                <pv-button label="Nueva Mesa" icon="pi pi-plus" size="small" severity="success" @click="openCreateTable" />
-            </div>
-
-            <div v-if="store.tables.length > 0" class="manage-tables-grid">
-                <div
-                    v-for="table in store.tables"
-                    :key="table.id"
-                    class="manage-table-card"
-                    :style="{ '--zone-color': zoneColorMap[table.zoneId]?.color ?? '#6b7280' }"
-                >
-                    <div class="manage-table-card__top-bar" :style="{ background: zoneColorMap[table.zoneId]?.color ?? '#6b7280' }"></div>
-                    <div class="manage-table-card__body">
-                        <div class="manage-table-card__num">{{ table.number }}</div>
-                        <div class="manage-table-card__info">
-                            <div class="manage-table-card__name">Mesa {{ table.number }}</div>
-                            <div class="manage-table-card__zone">{{ zoneColorMap[table.zoneId]?.name ?? 'Sin zona' }}</div>
-                        </div>
-                        <div
-                            class="manage-table-card__status"
-                            :style="{ background: TABLE_STATUS_CONFIG[table.status]?.bg, color: TABLE_STATUS_CONFIG[table.status]?.color }"
-                        >
-                            {{ TABLE_STATUS_CONFIG[table.status]?.label ?? table.status }}
-                        </div>
-                    </div>
-                    <div class="manage-table-card__detail">
-                        <i class="pi pi-users" style="font-size:0.75rem; color:#9ca3af"></i>
-                        <span>{{ table.capacity }} personas</span>
-                        <span class="manage-table-card__shape">{{ table.shape }}</span>
-                    </div>
-                    <div class="manage-table-card__actions">
-                        <button class="zone-mgmt-btn zone-mgmt-btn--edit" title="Editar" @click="openEditTable(table)">
-                            <i class="pi pi-pencil"></i>
-                        </button>
-                        <button class="zone-mgmt-btn zone-mgmt-btn--delete" title="Eliminar" @click="onDeleteTable(table)">
-                            <i class="pi pi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-4">
-                <i class="pi pi-table text-3xl text-color-secondary"></i>
-                <span class="text-color-secondary">No hay mesas configuradas</span>
-            </div>
-
         </div>
 
     </div>
@@ -447,6 +420,12 @@ function onTableSaved(table) {
 </template>
 
 <style scoped>
+/* ── Zone filter dropdown ─────────────────────────────────────────────── */
+.zone-filter-select { width: 280px; }
+.zone-filter-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
 .tables-layout {
     display: flex;
     flex-direction: column;
@@ -577,34 +556,25 @@ function onTableSaved(table) {
     transition: width 0.4s ease;
 }
 
-/* ── Table search ─────────────────────────────────────────────────────── */
-.table-search {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.85rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: #fff;
-    max-width: 240px;
-    transition: border-color 0.15s;
+/* ── Search bar ───────────────────────────────────────────────────────── */
+.search-wrapper {
+    position: relative;
 }
-.table-search:focus-within { border-color: #6366f1; }
-.table-search input {
-    border: none;
-    outline: none;
-    font-size: 0.85rem;
-    color: #111827;
-    background: transparent;
-    width: 100%;
+
+.search-wrapper__icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.9rem;
+    z-index: 1;
+    pointer-events: none;
 }
-.table-search input::placeholder { color: #9ca3af; }
-.table-search .pi { color: #9ca3af; font-size: 0.82rem; }
-.table-search__clear {
-    border: none; background: transparent; cursor: pointer;
-    color: #9ca3af; padding: 0; display: flex; align-items: center;
+
+.search-wrapper__input {
+    padding-left: 2.25rem !important;
 }
-.table-search__clear:hover { color: #6b7280; }
 
 /* ── Urgency borders ─────────────────────────────────────────────────── */
 .table-card--warning  { border-color: #f59e0b !important; }
@@ -824,97 +794,6 @@ function onTableSaved(table) {
     transition: opacity 0.15s;
 }
 .zone-card:hover .zone-card__actions { opacity: 1; }
-
-/* ── Manage table cards ──────────────────────────────────────────────── */
-.manage-tables-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
-}
-
-.manage-table-card {
-    position: relative;
-    background: #fff;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    overflow: hidden;
-    transition: box-shadow 0.15s;
-}
-.manage-table-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.09); }
-
-.manage-table-card__top-bar { height: 4px; }
-
-.manage-table-card__body {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem 0.5rem;
-}
-
-.manage-table-card__num {
-    width: 2.4rem;
-    height: 2.4rem;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--zone-color, #6b7280);
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 800;
-    flex-shrink: 0;
-}
-
-.manage-table-card__info { flex: 1; min-width: 0; }
-
-.manage-table-card__name {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: #111827;
-}
-
-.manage-table-card__zone {
-    font-size: 0.72rem;
-    color: #6b7280;
-    margin-top: 1px;
-}
-
-.manage-table-card__status {
-    font-size: 0.68rem;
-    font-weight: 600;
-    border-radius: 999px;
-    padding: 0.2rem 0.55rem;
-    flex-shrink: 0;
-}
-
-.manage-table-card__detail {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0 1rem 0.5rem;
-    font-size: 0.75rem;
-    color: #9ca3af;
-}
-
-.manage-table-card__shape {
-    margin-left: auto;
-    text-transform: capitalize;
-    font-size: 0.7rem;
-    background: #f3f4f6;
-    border-radius: 4px;
-    padding: 0.1rem 0.35rem;
-    color: #6b7280;
-}
-
-.manage-table-card__actions {
-    display: flex;
-    gap: 0.4rem;
-    padding: 0 1rem 0.85rem;
-    justify-content: flex-end;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-.manage-table-card:hover .manage-table-card__actions { opacity: 1; }
 
 /* ── Shared manage action buttons ────────────────────────────────────── */
 .zone-mgmt-btn {

@@ -63,10 +63,15 @@ onMounted(() => {
 })
 
 // ── Catálogo ───────────────────────────────────────────────────────────────
-function selectCategory(catId) {
-    // null = "Todos"
-    posStore.setCatalogCategory(catId === 'all' ? null : catId)
-}
+const categoryFilterOptions = computed(() => [
+    { label: `Todos (${posStore.filteredCatalog.length})`, value: '__all__', color: null },
+    ...posStore.menuCategories.map(c => ({ label: `${c.name} (${c.count})`, value: c.id, color: c.color })),
+])
+const selectedCategoryFilter = computed({
+    get: () => posStore.catalogCategory ?? '__all__',
+    set: (val) => posStore.setCatalogCategory(val === '__all__' ? null : val),
+})
+
 function addItem(menuItem) {
     posStore.addItemToCurrentSale(menuItem)
 }
@@ -210,23 +215,41 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 
             </div>
 
-            <!-- Filtro de categorÃ­as -->
+            <!-- Filtro de categorías -->
             <div class="cat-bar">
-                <button
-                    :class="['cat-btn', posStore.catalogCategory === null ? 'cat-btn--active' : 'cat-btn--inactive']"
-                    @click="selectCategory('all')"
+                <pv-select
+                    v-model="selectedCategoryFilter"
+                    :options="categoryFilterOptions"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Categoría"
+                    filter
+                    filter-placeholder="Buscar categoría..."
+                    class="pos-cat-filter-select"
                 >
-                    Todos ({{ posStore.filteredCatalog.length }})
-                </button>
-                <button
-                    v-for="cat in posStore.menuCategories"
-                    :key="cat.id"
-                    :class="['cat-btn', posStore.catalogCategory === cat.id ? 'cat-btn--active' : 'cat-btn--inactive']"
-                    :style="posStore.catalogCategory !== cat.id ? { borderLeft: `4px solid ${cat.color}` } : {}"
-                    @click="selectCategory(cat.id)"
-                >
-                    {{ cat.name }} ({{ cat.count }})
-                </button>
+                    <template #value="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="categoryFilterOptions.find(o => o.value === slotProps.value)?.color"
+                                class="pos-cat-filter-dot"
+                                :style="{ background: categoryFilterOptions.find(o => o.value === slotProps.value)?.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ categoryFilterOptions.find(o => o.value === slotProps.value)?.label ?? 'Todos' }}
+                        </div>
+                    </template>
+                    <template #option="slotProps">
+                        <div class="flex align-items-center gap-2">
+                            <span
+                                v-if="slotProps.option.color"
+                                class="pos-cat-filter-dot"
+                                :style="{ background: slotProps.option.color }"
+                            ></span>
+                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
+                            {{ slotProps.option.label }}
+                        </div>
+                    </template>
+                </pv-select>
             </div>
 
             <!-- Grilla de productos (estilo menÃº) -->
@@ -620,36 +643,13 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
     padding: 0.6rem 1.25rem;
     background: #fff;
     border-bottom: 1px solid var(--surface-border, #e5e7eb);
 }
-.cat-btn {
-    background-color: #fff;
-    border-top:    1px solid var(--border-color, #e5e7eb);
-    border-right:  1px solid var(--border-color, #e5e7eb);
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
-    border-left:   1px solid var(--border-color, #e5e7eb);
-    border-radius: 999px;
-    padding: 0.3rem 0.85rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background-color 0.15s, color 0.15s;
-}
-.cat-btn--active {
-    background-color: var(--color-primary, #6366f1);
-    color: #fff;
-    border-color: var(--color-primary, #6366f1) !important;
-}
-.cat-btn--inactive {
-    color: #111827;
-}
-.cat-btn--inactive:hover {
-    background-color: var(--bg-hover, #f3f4f6);
-    color: #111827;
+.pos-cat-filter-select { width: 280px; }
+.pos-cat-filter-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
 
 /* ── Product grid ─────────────────────────────────────────────────────────────── */

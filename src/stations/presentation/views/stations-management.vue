@@ -71,6 +71,22 @@ function clearSearch() {
     statusFilter.value = ''
 }
 
+// ── Station filter dropdown ─────────────────────────────────────────────
+const stationFilterOptions = computed(() => {
+    const all = { label: `Todas (${store.totalToday})`, value: '__all__', color: null }
+    const perStation = store.activeStations.map(st => ({
+        label: `${st.name} (${store.tickets.filter(t => t.stationId === st.id).length})`,
+        value: st.id,
+        color: st.color,
+    }))
+    return [all, ...perStation]
+})
+
+const selectedStationFilter = computed({
+    get: () => store.selectedStationId ?? '__all__',
+    set: v  => store.selectStation(v === '__all__' ? null : v),
+})
+
 // ── Live clock for reactive timers ──────────────────────────────────────
 const now = ref(Date.now())
 let _timerInterval = null
@@ -561,28 +577,37 @@ function urgencyBorderColor(ticket) {
 
                 <div class="toolbar__sep"></div>
 
-                <div class="toolbar__stations">
-                    <button
-                        :class="['st-pill', store.selectedStationId === null && 'st-pill--all']"
-                        @click="store.selectStation(null)"
-                    >
-                        <i class="pi pi-th-large"></i>
-                        Todas
-                        <span class="st-pill__count">{{ store.totalToday }}</span>
-                    </button>
-                    <button
-                        v-for="st in store.activeStations"
-                        :key="st.id"
-                        :class="['st-pill', store.selectedStationId === st.id && 'st-pill--active']"
-                        :style="store.selectedStationId === st.id
-                            ? { background: st.color, borderColor: st.color, color: '#fff' }
-                            : { borderLeftColor: st.color }"
-                        @click="store.selectStation(st.id)"
-                    >
-                        {{ st.name }}
-                        <span class="st-pill__count">{{ store.tickets.filter(t => t.stationId === st.id).length }}</span>
-                    </button>
-                </div>
+                <pv-select
+                    v-model="selectedStationFilter"
+                    :options="stationFilterOptions"
+                    option-label="label"
+                    option-value="value"
+                    filter
+                    filter-placeholder="Buscar estación…"
+                    placeholder="Estación"
+                    class="station-filter-select"
+                >
+                    <template #value="{ value: val }">
+                        <span v-if="val" class="station-filter-option">
+                            <span
+                                v-if="stationFilterOptions.find(o => o.value === val)?.color"
+                                class="station-filter-dot"
+                                :style="{ background: stationFilterOptions.find(o => o.value === val).color }"
+                            ></span>
+                            {{ stationFilterOptions.find(o => o.value === val)?.label ?? 'Estación' }}
+                        </span>
+                    </template>
+                    <template #option="{ option }">
+                        <span class="station-filter-option">
+                            <span
+                                v-if="option.color"
+                                class="station-filter-dot"
+                                :style="{ background: option.color }"
+                            ></span>
+                            {{ option.label }}
+                        </span>
+                    </template>
+                </pv-select>
 
                 <span v-if="hasActiveSearch" class="toolbar__results">
                     {{ searchedTickets.length }} resultado{{ searchedTickets.length !== 1 ? 's' : '' }}
@@ -970,32 +995,14 @@ function urgencyBorderColor(ticket) {
     background: #e5e7eb; flex-shrink: 0;
 }
 
-.toolbar__stations {
-    display: flex; align-items: center;
-    flex-wrap: wrap; gap: 0.3rem;
+.station-filter-select { width: 280px; }
+
+.station-filter-option {
+    display: flex; align-items: center; gap: 0.4rem;
 }
 
-.st-pill {
-    display: inline-flex; align-items: center; gap: 0.3rem;
-    padding: 0.25rem 0.6rem;
-    border-radius: 999px;
-    border: 1.5px solid #e5e7eb;
-    border-left-width: 3px;
-    background: #fff;
-    font-size: 0.72rem; font-weight: 600;
-    color: #374151; cursor: pointer;
-    transition: all 0.15s;
-}
-.st-pill:hover { background: #f3f4f6; }
-.st-pill--all { background: #ede9fe; border-color: #6366f1; color: #4338ca; }
-.st-pill--active { color: #fff; }
-
-.st-pill__count {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 1.1rem; height: 1.1rem;
-    border-radius: 999px; font-size: 0.65rem; font-weight: 700;
-    background: rgba(0,0,0,0.12); color: inherit;
-    padding: 0 0.2rem;
+.station-filter-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
 
 .toolbar__results {
