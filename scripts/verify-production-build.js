@@ -35,9 +35,16 @@ if (violations.length > 0) {
     process.exit(1);
 }
 
-const apiUrl = process.env.VITE_PLATFORM_API_URL?.trim();
-if (apiUrl) {
-    console.info(`[verify-production-build] OK — API embebida: ${apiUrl}`);
-} else {
-    console.info('[verify-production-build] OK — sin /support/auth (define VITE_PLATFORM_API_URL en CI para prod).');
+const indexJs = files.find((f) => f.startsWith('index-') && f.endsWith('.js'));
+if (indexJs) {
+    const main = fs.readFileSync(path.join(ASSETS_DIR, indexJs), 'utf8');
+    if (main.includes('Falta VITE_PLATFORM_API_URL')) {
+        console.error('[verify-production-build] El bundle NO tiene VITE_PLATFORM_API_URL embebida.');
+        console.error('  Asegura .env.production en el repo o variables en Cloudflare Pages antes del build.');
+        process.exit(1);
+    }
+    const apiMatch = main.match(/https:\/\/[a-z0-9.-]+\.railway\.app\/api\/v1/i);
+    if (apiMatch) {
+        console.info(`[verify-production-build] OK — API en bundle: ${apiMatch[0]}`);
+    }
 }
