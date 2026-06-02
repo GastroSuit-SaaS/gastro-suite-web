@@ -3,6 +3,7 @@ import { reactive, ref, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import FileUploader  from '../../../shared/presentation/components/file-uploader.vue'
 import { useStationsStore } from '../../../stations/application/stations.store.js'
+import { formatCategoryOptionLabel } from '../../domain/menu-sort.js'
 
 // ===========================
 // PROPS & EMITS
@@ -23,7 +24,12 @@ const stationsStore = useStationsStore()
 
 const stationOptions = computed(() => [
     { id: null, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
-    ...stationsStore.activeStations.map(s => ({ id: s.id, name: s.name, icon: s.icon, color: s.color })),
+    ...stationsStore.activeStations.map(s => ({
+        id: s.id,
+        name: s.name,
+        icon: 'pi-bolt',
+        color: s.color ?? '#3b82f6',
+    })),
 ])
 
 // ===========================
@@ -36,7 +42,7 @@ const form = reactive({
     sku:         '',
     price:       0,
     cost:        0,
-    prepTime:    0,
+    prepTime:    null,
     stationId:   null,
     isAvailable: true,
 })
@@ -48,8 +54,11 @@ const errors = reactive({ name: false, categoryId: false, sku: false, price: fal
 // ===========================
 // WATCHERS
 // ===========================
-watch(() => props.visible, (val) => {
+watch(() => props.visible, async (val) => {
     if (val) {
+        try {
+            await stationsStore.fetchStations()
+        } catch { /* opciones quedan con lo ya cargado */ }
         const src = props.item
         form.name        = src?.name        ?? ''
         form.description = src?.description ?? ''
@@ -57,7 +66,8 @@ watch(() => props.visible, (val) => {
         form.sku         = src?.sku         ?? ''
         form.price       = src?.price       ?? 0
         form.cost        = src?.cost        ?? 0
-        form.prepTime    = src?.prepTime    ?? 0
+        const pt = src?.prepTime
+        form.prepTime    = pt != null && pt > 0 ? pt : null
         form.stationId   = src?.stationId   ?? null
         form.isAvailable = src?.isAvailable ?? true
         imageFile.value  = null
@@ -88,13 +98,12 @@ function onSave() {
         sku:         form.sku.trim(),
         price:       form.price,
         cost:        form.cost,
-        prepTime:    form.prepTime,
+        prepTime:    form.prepTime != null && form.prepTime > 0 ? form.prepTime : null,
         stationId:   form.stationId,
         station:     selectedStation?.id !== null ? selectedStation?.name ?? null : null,
         isAvailable: form.isAvailable,
         imageFile:   imageFile.value,
     })
-    emit('update:visible', false)
 }
 
 function onClose() {
@@ -151,7 +160,17 @@ function onClose() {
                             placeholder="Seleccionar categoría"
                             :invalid="errors.categoryId"
                             class="w-full"
-                        />
+                        >
+                            <template #value="{ value }">
+                                <span v-if="value != null">
+                                    {{ formatCategoryOptionLabel(categories.find(c => c.id === value) ?? {}) }}
+                                </span>
+                                <span v-else class="text-color-secondary">Seleccionar categoría</span>
+                            </template>
+                            <template #option="{ option }">
+                                <span>{{ formatCategoryOptionLabel(option) }}</span>
+                            </template>
+                        </pv-select>
                         <small v-if="errors.categoryId" class="text-red-500">Seleccione una categoría</small>
                     </div>
                     <div class="flex flex-column gap-1 flex-1">
@@ -194,16 +213,18 @@ function onClose() {
                     </div>
                 </div>
 
-                <!-- Tiempo de Preparación -->
+                <!-- Tiempo de Preparación (opcional) -->
                 <div class="flex flex-column gap-1">
-                    <label class="field-label">Tiempo de Preparación</label>
+                    <label class="field-label">Tiempo de preparación <span class="text-color-secondary font-normal">(opcional)</span></label>
                     <pv-input-number
                         v-model="form.prepTime"
-                        :min="0"
+                        :min="1"
+                        placeholder="Sin tiempo definido"
                         suffix=" min"
                         class="w-full"
+                        showClear
                     />
-                    <small class="text-color-secondary">Tiempo estimado hasta que el plato esté listo</small>
+                    <small class="text-color-secondary">Déjalo vacío si el producto no requiere tiempo de preparación en cocina</small>
                 </div>
 
                 <!-- Estación de Preparación -->

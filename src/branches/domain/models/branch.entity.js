@@ -19,6 +19,7 @@ export class Branch {
         encargadoId     = null,
         encargadoNombre = '',
         isActive        = true,
+        posBillableRequiresSent = null,
         createdAt       = null,
     } = {}) {
         this.id              = id;
@@ -34,6 +35,7 @@ export class Branch {
         this.encargadoId     = encargadoId;
         this.encargadoNombre = encargadoNombre;
         this.isActive        = isActive;
+        this.posBillableRequiresSent = posBillableRequiresSent;
         this.createdAt       = createdAt;
     }
 

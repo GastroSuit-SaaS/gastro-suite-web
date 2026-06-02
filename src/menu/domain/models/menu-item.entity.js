@@ -15,7 +15,7 @@ export class MenuItem {
         category    = '',
         imageUrl    = '',
         isAvailable = true,
-        prepTime    = 0,
+        prepTime    = null,
         station     = null,
         stationId   = null,
         sku         = '',

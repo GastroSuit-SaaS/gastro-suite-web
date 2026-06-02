@@ -2,49 +2,43 @@ import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class CashRegisterApi extends BaseApi {
-    #endpoint;
-    #sessionsPath;
+    #movements;
+    #sessions;
 
     constructor() {
         super();
-        this.#endpoint     = new BaseEndpoint(this, import.meta.env.VITE_CASH_REGISTER_ENDPOINT ?? '/cash-register/movements');
-        this.#sessionsPath = import.meta.env.VITE_CASH_REGISTER_SESSIONS_ENDPOINT ?? '/cash-register/sessions';
+        this.#movements = new BaseEndpoint(this, import.meta.env.VITE_CASH_REGISTER_ENDPOINT ?? '/cash-register/movements');
+        this.#sessions  = new BaseEndpoint(this, import.meta.env.VITE_CASH_REGISTER_SESSIONS_ENDPOINT ?? '/cash-register/sessions');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listSessionsByBranch(branchId, params) {
+        return this.#sessions.listAt(`/branches/${branchId}/cash-register/sessions`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
+    getOpenSessionByBranch(branchId) {
+        return this.#sessions.listAt(`/branches/${branchId}/cash-register/sessions/open`);
     }
 
-    create(resource) {
-        return this.#endpoint.create(resource);
+    getCollectorSummary(sessionId) {
+        return this.http.get(`/cash-register/sessions/${sessionId}/collectors-summary`);
     }
 
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
-
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
-
-    // ── Session (turno) endpoints ───────────────────────────────
-    getCurrentSession() {
-        return this.http.get(`${this.#sessionsPath}/current`);
+    listMovementsByBranch(branchId, params) {
+        return this.#movements.listAt(`/branches/${branchId}/cash-register/movements`, params);
     }
 
     openSession(data) {
-        return this.http.post(`${this.#sessionsPath}/open`, data);
+        return this.#sessions.postAt(`${this.#sessions.endpointPath}/open`, data);
     }
 
-    closeSession(id, data) {
-        return this.http.post(`${this.#sessionsPath}/${id}/close`, data);
+    closeSession(data) {
+        return this.#sessions.postAt(`${this.#sessions.endpointPath}/close`, data);
     }
 
-    getAllSessions(params) {
-        return this.http.get(this.#sessionsPath, { params });
-    }
+    getSessionById(sessionId)           { return this.#sessions.getById(sessionId); }
+    createMovement(resource)            { return this.#movements.create(resource); }
+    updateMovement(id, resource)        { return this.#movements.update(id, resource); }
+    deleteMovement(id)                  { return this.#movements.delete(id); }
 }
+
+export const cashRegisterApi = new CashRegisterApi();

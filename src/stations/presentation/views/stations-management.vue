@@ -5,6 +5,11 @@ import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
 import CreateAndEditStation      from './create-and-edit-station.vue'
 import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
+import ModuleTabBar              from '../../../shared/presentation/components/module-tab-bar.vue'
+import ModuleTab                 from '../../../shared/presentation/components/module-tab.vue'
+import StationsHistoryPanel      from '../components/stations-history-panel.vue'
+import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
+import { ticketDisplayRef, ticketOrderRef } from '../utils/stations-history.utils.js'
 
 const store = useStationsStore()
 const { confirmDelete } = useConfirmDialog()
@@ -36,7 +41,9 @@ const focusedTickets = computed(() => {
     const q = searchQuery.value.trim().toLowerCase().replace(/^#/, '')
     if (q) list = list.filter(t =>
         String(t.tableNumber).includes(q) ||
-        String(t.saleId).includes(q) ||
+        String(t.saleDisplayNumber ?? '').includes(q) ||
+        ticketDisplayRef(t).toLowerCase().includes(q) ||
+        ticketOrderRef(t).toLowerCase().includes(q) ||
         t.items.some(i => i.menuItemName.toLowerCase().includes(q))
     )
     return list
@@ -52,7 +59,9 @@ const searchedTickets = computed(() => {
     if (q) {
         list = list.filter(t => {
             if (String(t.tableNumber).includes(q))     return true
-            if (String(t.saleId).includes(q))          return true
+            if (String(t.saleDisplayNumber ?? '').includes(q)) return true
+            if (ticketDisplayRef(t).toLowerCase().includes(q)) return true
+            if (ticketOrderRef(t).toLowerCase().includes(q)) return true
             if (t.stationName.toLowerCase().includes(q)) return true
             if (t.items.some(i => i.menuItemName.toLowerCase().includes(q))) return true
             return false
@@ -90,11 +99,27 @@ const selectedStationFilter = computed({
 // ── Live clock for reactive timers ──────────────────────────────────────
 const now = ref(Date.now())
 let _timerInterval = null
+let _syncInterval  = null
 onMounted(() => {
     store.fetchAll()
     _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000)
+    // Sincroniza tickets con el servidor (otras pantallas / pestañas de cocina)
+    _syncInterval = setInterval(() => store.fetchTicketsSilent(), 60_000)
 })
-onUnmounted(() => { clearInterval(_timerInterval) })
+onUnmounted(() => {
+    clearInterval(_timerInterval)
+    clearInterval(_syncInterval)
+    clearToolbarContext()
+})
+
+/** Ocultar tabs al editar estación o en modo estación dedicado (pantalla de cocina). */
+watch(
+    () => [showStationDialog.value, focusedStation.value],
+    ([dialogOpen, focused]) => {
+        setToolbarContext({ hideModuleTabs: dialogOpen || !!focused })
+    },
+    { immediate: true },
+)
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function elapsedMins(date) {
@@ -114,11 +139,11 @@ function timeUrgency(ticket) {
     return ticket.urgencyLevel
 }
 
-// Progreso de la orden: cuántos tickets del mismo saleId están listos
+// Progreso de esta comanda (solo ítems de este ticket)
 function orderProgress(ticket) {
-    const all   = store.tickets.filter(t => t.saleId === ticket.saleId)
-    const ready = all.filter(t => t.status === 'ready').length
-    return { ready, total: all.length, complete: ready === all.length }
+    const total = (ticket.items ?? []).length
+    const ready = ticket.status === 'ready' ? total : 0
+    return { ready, total, complete: total > 0 && ready === total }
 }
 
 function ticketsByColumn(colKey) {
@@ -221,7 +246,7 @@ function urgencyBorderColor(ticket) {
 </script>
 
 <template>
-    <div class="stations-layout">
+    <div class="stations-layout" :class="{ 'stations-layout--focus': focusedStation }">
 
         <!-- ── Loading / Error / Contenido ───────────────────────────── -->
         <module-state-feedback
@@ -231,37 +256,30 @@ function urgencyBorderColor(ticket) {
             @retry="store.fetchAll()"
         >
 
-        <!-- ── Tab navigation ──────────────────────────────────────────── -->
-        <div class="stations-tabs">
-            <button
-                :class="['tab-btn', activeTab === 'display' && 'tab-btn--active']"
-                @click="activeTab = 'display'"
-            >
-                <i class="pi pi-th-large"></i> Pantalla de Cocina
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'stations' && 'tab-btn--active']"
-                @click="activeTab = 'stations'"
-            >
-                <i class="pi pi-cog"></i> Gestionar Estaciones
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'history' && 'tab-btn--active']"
-                @click="activeTab = 'history'"
-            >
-                <i class="pi pi-history"></i> Historial
+        <!-- Tabs: ocultos en modo estación y al editar una estación en diálogo -->
+        <module-tab-bar v-if="!focusedStation" v-model="activeTab" aria-label="Estaciones de cocina">
+            <module-tab value="display" icon="pi-th-large">
+                Pantalla de Cocina
+            </module-tab>
+            <module-tab value="stations" icon="pi-cog">
+                Gestionar Estaciones
+            </module-tab>
+            <module-tab value="history" icon="pi-history">
+                Historial
                 <span v-if="store.ticketHistory.length" class="tab-badge">{{ store.ticketHistory.length }}</span>
-            </button>
-            <!-- Modo estación: separado a la derecha -->
-            <div class="tab-spacer"></div>
-            <button
-                class="tab-btn tab-btn--focus"
-                title="Ver solo una estación (pantalla de cocina)"
-                @click="showStationPicker = true"
-            >
-                <i class="pi pi-desktop"></i> Modo Estación
-            </button>
-        </div>
+            </module-tab>
+
+            <template #end>
+                <module-tab
+                    variant="focus"
+                    icon="pi-desktop"
+                    title="Ver solo una estación (pantalla de cocina)"
+                    @click="showStationPicker = true"
+                >
+                    Modo Estación
+                </module-tab>
+            </template>
+        </module-tab-bar>
 
         <!-- ── Station picker overlay ─────────────────────────────────── -->
         <Teleport to="body">
@@ -448,7 +466,8 @@ function urgencyBorderColor(ticket) {
                             <div class="focus-ticket__body">
                                 <div class="focus-ticket__meta">
                                     <span class="focus-ticket__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
-                                    <span class="focus-ticket__order">#{{ ticket.saleId }}</span>
+                                    <span class="focus-ticket__comanda" :title="`Comanda ${ticketDisplayRef(ticket)}`">Comanda {{ ticketDisplayRef(ticket) }}</span>
+                                    <span class="focus-ticket__order">{{ ticketOrderRef(ticket) }}</span>
                                     <span :class="['ticket-time', 'ticket-time--' + timeUrgency(ticket)]" style="margin-left:auto">
                                         <i class="pi pi-clock"></i>
                                         {{ elapsedTime(ticket.createdAt) }}
@@ -658,7 +677,8 @@ function urgencyBorderColor(ticket) {
                             <div class="ticket-card__header">
                                 <div class="flex align-items-center gap-1">
                                     <span class="ticket-card__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
-                                    <span class="ticket-card__order">#{{ ticket.saleId }}</span>
+                                    <span class="ticket-card__comanda">Comanda {{ ticketDisplayRef(ticket) }}</span>
+                                    <span class="ticket-card__order">{{ ticketOrderRef(ticket) }}</span>
                                 </div>
                                 <div class="flex align-items-center gap-1">
                                     <span
@@ -798,69 +818,7 @@ function urgencyBorderColor(ticket) {
         </div>
 
         <!-- ══════════════════ TAB: HISTORIAL ════════════════════════════ -->
-        <div v-else-if="activeTab === 'history'" class="p-4 flex flex-column gap-3 display-tab">
-
-            <!-- Empty state -->
-            <div v-if="store.filteredHistory.length === 0" class="flex flex-column align-items-center justify-content-center gap-2 py-6">
-                <i class="pi pi-history text-4xl text-color-secondary"></i>
-                <span class="text-color-secondary">Sin historial para este turno</span>
-            </div>
-
-            <!-- History list -->
-            <div v-else class="history-list">
-                <div
-                    v-for="ticket in store.filteredHistory"
-                    :key="ticket.id"
-                    class="history-row"
-                    :style="{ borderLeft: `4px solid ${TICKET_STATUS_CONFIG[ticket.status]?.color ?? '#9ca3af'}` }"
-                >
-                    <!-- Status chip -->
-                    <span
-                        class="history-row__status"
-                        :style="{ background: TICKET_STATUS_CONFIG[ticket.status]?.bg ?? '#f3f4f6', color: TICKET_STATUS_CONFIG[ticket.status]?.color ?? '#6b7280' }"
-                    >
-                        <i :class="['pi', TICKET_STATUS_CONFIG[ticket.status]?.icon ?? 'pi-circle']"></i>
-                        {{ TICKET_STATUS_CONFIG[ticket.status]?.label ?? ticket.status }}
-                    </span>
-
-                    <!-- Table + order -->
-                    <div class="history-row__meta">
-                        <span class="history-row__table">{{ typeof ticket.tableNumber === 'number' ? `Mesa ${ticket.tableNumber}` : (ticket.tableNumber ?? '—') }}</span>
-                        <span class="history-row__order">#{{ ticket.saleId }}</span>
-                        <span
-                            class="history-row__station"
-                            :style="{ background: store.stations.find(s => s.id === ticket.stationId)?.color + '22', color: store.stations.find(s => s.id === ticket.stationId)?.color }"
-                        >{{ ticket.stationName }}</span>
-                    </div>
-
-                    <!-- Items summary -->
-                    <div class="history-row__items">
-                        <span v-for="(item, i) in ticket.items" :key="i" class="history-row__item">
-                            {{ item.quantity }}× {{ item.menuItemName }}<template v-if="i < ticket.items.length - 1">, </template>
-                        </span>
-                    </div>
-
-                    <!-- Timestamps -->
-                    <div class="history-row__times">
-                        <span v-if="ticket.createdAt" class="history-row__ts">
-                            <i class="pi pi-inbox"></i> {{ new Date(ticket.createdAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
-                        </span>
-                        <span v-if="ticket.readyAt" class="history-row__ts history-row__ts--ready">
-                            <i class="pi pi-check"></i> {{ new Date(ticket.readyAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
-                        </span>
-                        <span v-if="ticket.deliveredAt" class="history-row__ts history-row__ts--delivered">
-                            <i class="pi pi-user"></i> {{ new Date(ticket.deliveredAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
-                        </span>
-                        <span v-if="ticket.cancelledAt" class="history-row__ts history-row__ts--cancelled">
-                            <i class="pi pi-times-circle"></i> {{ new Date(ticket.cancelledAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) }}
-                        </span>
-                        <span v-if="ticket.cancelReason" class="history-row__reason">
-                            "{{ ticket.cancelReason }}"
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <stations-history-panel v-else-if="activeTab === 'history'" class="module-tab-body" />
 
         </module-state-feedback>
     </div>
@@ -880,6 +838,12 @@ function urgencyBorderColor(ticket) {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+}
+
+.stations-layout--focus {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* Loading/Error states handled by shared ModuleStateFeedback component */
@@ -1009,54 +973,6 @@ function urgencyBorderColor(ticket) {
     font-size: 0.72rem; font-weight: 600;
     color: #6366f1; white-space: nowrap; margin-left: auto;
 }
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.stations-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 2px solid var(--surface-border);
-    background: #fff;
-    padding: 0 1.25rem;
-    flex-shrink: 0;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: var(--text-color-secondary, #6b7280);
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: color 0.15s;
-}
-.tab-btn--active {
-    color: var(--p-primary-color, #6366f1);
-    border-bottom-color: var(--p-primary-color, #6366f1);
-    font-weight: 600;
-}
-.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
-
-/* Modo Estación button in tab bar */
-.tab-spacer { flex: 1; }
-
-.tab-btn--focus {
-    color: #7c3aed;
-    font-weight: 600;
-    margin-left: auto;
-    border: 1.5px solid #ede9fe;
-    border-radius: 8px;
-    margin: 0.35rem 0;
-    padding: 0.35rem 1rem;
-    background: #f5f3ff;
-    transition: background 0.15s, border-color 0.15s;
-}
-.tab-btn--focus:hover { background: #ede9fe; border-color: #c4b5fd; }
 
 /* ── Station picker overlay ───────────────────────────────────────────── */
 .station-picker-overlay {
@@ -1332,8 +1248,14 @@ function urgencyBorderColor(ticket) {
     font-size: 1.1rem; font-weight: 800; color: #111827;
 }
 
+.focus-ticket__comanda {
+    font-size: 0.78rem; font-weight: 600; color: #4f46e5;
+    background: #eef2ff; border-radius: 5px;
+    padding: 0.15rem 0.4rem;
+}
+
 .focus-ticket__order {
-    font-size: 0.8rem; color: #6b7280;
+    font-size: 0.78rem; color: #6b7280;
     background: #f3f4f6; border-radius: 5px;
     padding: 0.15rem 0.4rem;
 }
@@ -1493,6 +1415,15 @@ function urgencyBorderColor(ticket) {
     font-size: 0.88rem;
     font-weight: 700;
     color: #111827;
+}
+
+.ticket-card__comanda {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4f46e5;
+    background: #eef2ff;
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
 }
 
 .ticket-card__order {
@@ -1870,15 +1801,6 @@ function urgencyBorderColor(ticket) {
     cursor: pointer; transition: background 0.12s;
 }
 .cancel-dialog__btn-danger:hover { background: #b91c1c; }
-
-/* ── Tab badge (history count) ───────────────────────────────────────── */
-.tab-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 1.1rem; height: 1.1rem;
-    background: #ef4444; color: #fff;
-    border-radius: 999px; font-size: 0.62rem; font-weight: 700;
-    padding: 0 0.2rem; margin-left: 0.25rem;
-}
 
 /* ── History list ────────────────────────────────────────────────────── */
 .history-list {

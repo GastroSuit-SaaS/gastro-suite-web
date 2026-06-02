@@ -15,9 +15,9 @@ onMounted(async () => {
     await branchesStore.fetchAll()
 })
 
-function handleSelect() {
+async function handleSelect() {
     if (!selectedBranch.value) return
-    iamStore.selectBranch(selectedBranch.value.id, selectedBranch.value.nombre)
+    await iamStore.selectBranch(selectedBranch.value.id, selectedBranch.value.nombre)
     const redirect = route.query.redirect ?? '/dashboard'
     router.push(redirect)
 }

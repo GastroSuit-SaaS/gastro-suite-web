@@ -1,66 +1,40 @@
-/**
- * Inventory Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo Inventory.
- * Maneja endpoints de productos, stock, categorías, etc.
- * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class InventoryApi extends BaseApi {
-    #endpoint;
-    #categoriesEndpoint;
+    #products;
+    #categories;
+    #movements;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products');
-        this.#categoriesEndpoint = new BaseEndpoint(this, '/inventory/categories');
+        this.#products    = new BaseEndpoint(this, import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products');
+        this.#categories  = new BaseEndpoint(this, '/inventory/categories');
+        this.#movements   = new BaseEndpoint(this, '/inventory/movements');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listProductsByBranch(branchId, params) {
+        return this.#products.listAt(`/branches/${branchId}/inventory/products`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
+    listCategoriesByBranch(branchId, params) {
+        return this.#categories.listAt(`/branches/${branchId}/inventory/categories`, params);
     }
 
-    create(resource) {
-        return this.#endpoint.create(resource);
+    listMovementsByBranch(branchId, params) {
+        return this.#movements.listAt(`/branches/${branchId}/inventory/movements`, params);
     }
 
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
+    getProductById(id)              { return this.#products.getById(id); }
+    createProduct(resource)         { return this.#products.create(resource); }
+    updateProduct(id, resource)     { return this.#products.update(id, resource); }
+    deleteProduct(id)               { return this.#products.delete(id); }
 
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
+    createCategory(resource)        { return this.#categories.create(resource); }
+    updateCategory(id, resource)    { return this.#categories.update(id, resource); }
+    deleteCategory(id)              { return this.#categories.delete(id); }
 
-    updateStock(id, quantity) {
-        return this.http.patch(`${import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products'}/${id}/stock`, { quantity });
-    }
-
-    getLowStock(threshold = 10) {
-        return this.http.get(`${import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products'}/low-stock`, { params: { threshold } });
-    }
-
-    // ── Category endpoints ────────────────────────────────────────────────
-    getCategories()              { return this.#categoriesEndpoint.getAll(); }
-    createCategory(resource)     { return this.#categoriesEndpoint.create(resource); }
-    updateCategory(id, resource) { return this.#categoriesEndpoint.update(id, resource); }
-    deleteCategory(id)           { return this.#categoriesEndpoint.delete(id); }
-
-    // ── Movement endpoints ────────────────────────────────────────────────
-    #movementsEndpoint = new BaseEndpoint(this, '/inventory/movements');
-
-    getMovements()           { return this.#movementsEndpoint.getAll(); }
-    createMovement(resource) { return this.#movementsEndpoint.create(resource); }
+    createMovement(resource)        { return this.#movements.create(resource); }
 }
 
 export const inventoryApi = new InventoryApi();

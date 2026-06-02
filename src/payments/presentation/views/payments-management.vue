@@ -1,19 +1,47 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { usePaymentsStore }         from '../../application/payments.store.js'
 import { PAYMENT_STATUS }           from '../../domain/models/payment.entity.js'
 import {
     METHOD_LABELS, METHOD_COLORS, METHOD_FILTER_OPTIONS,
     RECEIPT_LABELS, RECEIPT_COLORS,
     PAYMENT_STATUS_CONFIG,
+    PAYMENTS_MESSAGES,
 } from '../constants/payments.constants-ui.js'
 import ModuleStateFeedback           from '../../../shared/presentation/components/module-state-feedback.vue'
+import { formatSaleOrderHash, formatSaleOrderLabel } from '../../../shared/utils/order-display.js'
+import { exportPaymentsExcel } from '../utils/payments-excel.js'
+import { useNotification } from '../../../shared/composables/use-notification.js'
+import { paymentNetCollected } from '../../domain/payment-net.js'
 
 const store = usePaymentsStore()
+const { showSuccess, showError } = useNotification()
+const route = useRoute()
+const router = useRouter()
 
-onMounted(() => {
-    store.fetchAll()
+function openPaymentFromQuery() {
+    const paymentId = route.query.paymentId
+    if (!paymentId) return
+    const payment = store.payments.find(p => String(p.id) === String(paymentId))
+    if (payment) {
+        store.setShowAll(true)
+        detailPayment.value = payment
+        router.replace({ name: route.name, query: {} })
+    }
+}
+
+onMounted(async () => {
+    await store.fetchAll()
+    openPaymentFromQuery()
 })
+
+watch(
+    () => route.query.paymentId,
+    () => {
+        if (store.payments.length) openPaymentFromQuery()
+    },
+)
 
 // ── Paginación ───────────────────────────────────────────────────────────
 const PAGE_SIZE = 10
@@ -27,24 +55,140 @@ const paginatedPayments = computed(() => {
 
 // ── Detalle en popup ─────────────────────────────────────────────────────
 const detailPayment = ref(null)
-function openDetail(p)  { detailPayment.value = p }
-function closeDetail()  { detailPayment.value = null }
+const refundHistory = ref([])
+const refundHistoryLoading = ref(false)
 
-const confirmRefundId = ref(null)
-function openRefundConfirm(id) { confirmRefundId.value = id }
-function cancelRefund()        { confirmRefundId.value = null }
-async function confirmRefund() {
-    if (!confirmRefundId.value) return
-    await store.refund(confirmRefundId.value)
-    confirmRefundId.value = null
-    closeDetail()
+async function openDetail(p) {
+    detailPayment.value = p
+    refundPanelOpen.value = false
+    refundHistory.value = []
+    refundHistoryLoading.value = true
+    try {
+        refundHistory.value = await store.listRefunds(p.id)
+    } finally {
+        refundHistoryLoading.value = false
+    }
 }
+
+function closeDetail() {
+    detailPayment.value = null
+    refundHistory.value = []
+    refundPanelOpen.value = false
+}
+
+function formatRefundDate(iso) {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString('es-PE', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    })
+}
+
+const refundPanelOpen = ref(false)
+const refundMode = ref('TOTAL')
+const refundAmount = ref(0)
+const refundIncludeTip = ref(false)
+const refundReason = ref('')
+const refundPreview = ref(null)
+const refundLineQty = ref({})
+const refundSubmitting = ref(false)
+
+const refundableBalance = computed(() => {
+    const p = detailPayment.value
+    if (!p) return 0
+    return p.refundableBalance ?? Math.max(0, (p.total ?? 0) - (p.refundedAmount ?? 0))
+})
+
+const refundableItems = computed(() =>
+    (detailPayment.value?.items ?? []).filter(i => (i.quantityRefundable ?? 0) > 0),
+)
+
+const linesRefundBlocked = computed(() =>
+    Boolean(detailPayment.value?.isSplit && (detailPayment.value?.splitCount ?? 0) > 1),
+)
+
+function buildRefundBody() {
+    const mode = refundMode.value
+    const body = { mode, reason: refundReason.value?.trim() || undefined }
+    if (mode === 'AMOUNT') {
+        body.amount = Number(refundAmount.value) || 0
+        body.includeTip = refundIncludeTip.value
+    } else if (mode === 'LINES') {
+        body.lines = refundableItems.value
+            .map(i => ({
+                saleItemId: i.saleItemId,
+                quantity: Number(refundLineQty.value[i.saleItemId] ?? 0),
+            }))
+            .filter(l => l.quantity > 0)
+        body.refundTip = false
+    }
+    return body
+}
+
+function openRefundPanel() {
+    refundPanelOpen.value = true
+    refundMode.value = 'TOTAL'
+    refundAmount.value = refundableBalance.value
+    refundIncludeTip.value = false
+    refundReason.value = ''
+    refundPreview.value = null
+    const qty = {}
+    for (const i of refundableItems.value) {
+        qty[i.saleItemId] = 0
+    }
+    refundLineQty.value = qty
+}
+
+function closeRefundPanel() {
+    refundPanelOpen.value = false
+    refundPreview.value = null
+}
+
+async function refreshRefundPreview() {
+    if (!detailPayment.value) return
+    refundPreview.value = await store.previewRefund(detailPayment.value.id, buildRefundBody())
+}
+
+async function submitRefund() {
+    if (!detailPayment.value || refundSubmitting.value) return
+    refundSubmitting.value = true
+    try {
+        const updated = await store.createRefund(detailPayment.value.id, buildRefundBody())
+        if (updated) {
+            detailPayment.value = updated
+            refundHistory.value = await store.listRefunds(updated.id)
+            showSuccess(PAYMENTS_MESSAGES.REFUND_SUCCESS)
+            closeRefundPanel()
+            await store.fetchAll()
+        } else if (store.error) {
+            showError(store.error)
+        }
+    } finally {
+        refundSubmitting.value = false
+    }
+}
+
+watch([refundMode, refundAmount, refundIncludeTip, refundLineQty], () => {
+    if (refundPanelOpen.value) refreshRefundPreview()
+}, { deep: true })
 
 function formatTime(date) {
     return new Date(date).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
 }
 function formatDate(date) {
     return new Date(date).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function exportFilteredPaymentsExcel() {
+    if (!store.filteredPayments.length) return
+    try {
+        const scope = store.showAll ? 'historial' : 'hoy'
+        const date = new Date().toISOString().slice(0, 10)
+        exportPaymentsExcel(store.filteredPayments, { filename: `pagos_${scope}_${date}` })
+        showSuccess('Listado exportado a Excel')
+    } catch {
+        showError('No se pudo exportar a Excel')
+    }
 }
 
 // ── Dropdown options ─────────────────────────────────────────────────────
@@ -119,35 +263,27 @@ const receiptOptions = [
                 />
             </pv-icon-field>
 
-            <!-- Método de pago -->
-            <div class="flex align-items-center gap-2">
-                <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Método</label>
-                <pv-select
-                    :modelValue="store.filterMethod"
-                    @update:modelValue="store.setFilterMethod($event); currentPage = 1"
-                    :options="methodOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Todos"
-                    size="small"
-                    style="min-width: 140px"
-                />
-            </div>
+            <pv-select
+                :modelValue="store.filterMethod"
+                @update:modelValue="store.setFilterMethod($event); currentPage = 1"
+                :options="methodOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="MÉTODO"
+                size="small"
+                style="min-width: 150px"
+            />
 
-            <!-- Comprobante -->
-            <div class="flex align-items-center gap-2">
-                <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Comprobante</label>
-                <pv-select
-                    :modelValue="store.filterReceipt"
-                    @update:modelValue="store.setFilterReceipt($event); currentPage = 1"
-                    :options="receiptOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Todos"
-                    size="small"
-                    style="min-width: 160px"
-                />
-            </div>
+            <pv-select
+                :modelValue="store.filterReceipt"
+                @update:modelValue="store.setFilterReceipt($event); currentPage = 1"
+                :options="receiptOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="COMPROBANTE"
+                size="small"
+                style="min-width: 170px"
+            />
 
             <!-- Hoy / Historial -->
             <pv-button
@@ -157,6 +293,16 @@ const receiptOptions = [
                 size="small"
                 severity="secondary"
                 @click="store.setShowAll(!store.showAll); currentPage = 1"
+            />
+
+            <pv-button
+                label="Exportar Excel"
+                icon="pi pi-file-excel"
+                size="small"
+                severity="success"
+                outlined
+                :disabled="store.filteredPayments.length === 0"
+                @click="exportFilteredPaymentsExcel"
             />
         </div>
 
@@ -174,9 +320,11 @@ const receiptOptions = [
                     <tr>
                         <th>{{ store.showAll ? 'Fecha' : 'Hora' }}</th>
                         <th>Orden</th>
+                        <th>Cobrado por</th>
                         <th>Mesa / Zona</th>
                         <th>Método</th>
                         <th>Comprobante</th>
+                        <th>Estado</th>
                         <th style="text-align:right">Total</th>
                         <th style="text-align:right">Recibido</th>
                         <th style="text-align:right">Vuelto</th>
@@ -198,11 +346,14 @@ const receiptOptions = [
                                 <template v-else>{{ formatTime(p.processedAt) }}</template>
                             </td>
                             <td class="td-order">
-                                #{{ p.saleId }}
+                                {{ formatSaleOrderHash(p.saleDisplayNumber) }}
                                 <span v-if="p.isSplit" class="badge badge--split" title="Pago dividido">
                                     <i class="pi pi-users" style="font-size:0.6rem"></i>
                                     {{ p.splitIndex + 1 }}/{{ p.splitCount }}
                                 </span>
+                            </td>
+                            <td class="td-cashier">
+                                {{ p.collectedByDisplayName || '—' }}
                             </td>
                             <td class="td-table">
                                 <span v-if="p.tableNumber">Mesa {{ p.tableNumber }}</span>
@@ -225,7 +376,22 @@ const receiptOptions = [
                                     {{ RECEIPT_LABELS[p.receiptType] ?? p.receiptType }}
                                 </span>
                             </td>
-                            <td class="td-amount">S/ {{ p.total.toFixed(2) }}</td>
+                            <td>
+                                <span
+                                    v-if="PAYMENT_STATUS_CONFIG[p.status]"
+                                    class="badge"
+                                    :style="{ background: PAYMENT_STATUS_CONFIG[p.status].bg, color: PAYMENT_STATUS_CONFIG[p.status].color, border: '1px solid ' + PAYMENT_STATUS_CONFIG[p.status].color + '66' }"
+                                >
+                                    {{ PAYMENT_STATUS_CONFIG[p.status].label }}
+                                </span>
+                            </td>
+                            <td class="td-amount">
+                                <template v-if="p.refundedAmount > 0">
+                                    <span class="td-amount-net">S/ {{ paymentNetCollected(p).toFixed(2) }}</span>
+                                    <span class="td-amount-gross">S/ {{ p.total.toFixed(2) }}</span>
+                                </template>
+                                <template v-else>S/ {{ p.total.toFixed(2) }}</template>
+                            </td>
                             <td class="td-amount">S/ {{ p.amountReceived.toFixed(2) }}</td>
                             <td class="td-amount td-change">
                                 <span v-if="p.change > 0">S/ {{ p.change.toFixed(2) }}</span>
@@ -324,8 +490,16 @@ const receiptOptions = [
                                     <span>Descuento</span>
                                     <span>- S/ {{ detailPayment.discount.toFixed(2) }}</span>
                                 </div>
+                                <div v-if="detailPayment.refundedAmount > 0" class="detail-total-row detail-total-row--disc">
+                                    <span>Reembolsado</span>
+                                    <span>- S/ {{ detailPayment.refundedAmount.toFixed(2) }}</span>
+                                </div>
                                 <div class="detail-total-row detail-total-row--grand">
-                                    <span>Total</span>
+                                    <span>{{ detailPayment.refundedAmount > 0 ? 'Neto cobrado' : 'Total' }}</span>
+                                    <span>S/ {{ paymentNetCollected(detailPayment).toFixed(2) }}</span>
+                                </div>
+                                <div v-if="detailPayment.refundedAmount > 0" class="detail-total-row detail-total-row--muted">
+                                    <span>Total original</span>
                                     <span>S/ {{ detailPayment.total.toFixed(2) }}</span>
                                 </div>
                             </div>
@@ -343,6 +517,14 @@ const receiptOptions = [
                                 <span class="detail-field__val" :style="detailPayment.change > 0 ? 'color:#059669;font-weight:600' : ''">
                                     {{ detailPayment.change > 0 ? 'S/ ' + detailPayment.change.toFixed(2) : '—' }}
                                 </span>
+                            </div>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Orden</span>
+                                <span class="detail-field__val">{{ formatSaleOrderLabel(detailPayment.saleDisplayNumber) }}</span>
+                            </div>
+                            <div class="detail-field">
+                                <span class="detail-field__label">Cobrado por</span>
+                                <span class="detail-field__val">{{ detailPayment.collectedByDisplayName || '—' }}</span>
                             </div>
                             <div class="detail-field" v-if="detailPayment.tableNumber">
                                 <span class="detail-field__label">Mesa</span>
@@ -393,22 +575,74 @@ const receiptOptions = [
 
                     </div>
 
+                    <div v-if="refundHistory.length || refundHistoryLoading" class="dlg-refund-history">
+                        <p class="detail-col__title">Historial de reembolsos</p>
+                        <p v-if="refundHistoryLoading" class="dlg-refund-history__loading">Cargando…</p>
+                        <ul v-else class="dlg-refund-history__list">
+                            <li v-for="r in refundHistory" :key="r.refundId ?? r.refund_id" class="dlg-refund-history__item">
+                                <span class="dlg-refund-history__amount">S/ {{ Number(r.refundAmount ?? r.refund_amount ?? 0).toFixed(2) }}</span>
+                                <span class="dlg-refund-history__meta">
+                                    {{ formatRefundDate(r.createdAt ?? r.created_at) }}
+                                    <template v-if="r.refundedByDisplayName ?? r.refunded_by_display_name">
+                                        · {{ r.refundedByDisplayName ?? r.refunded_by_display_name }}
+                                    </template>
+                                </span>
+                                <span v-if="r.reason" class="dlg-refund-history__reason">{{ r.reason }}</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Reembolso -->
+                    <div v-if="refundPanelOpen" class="dlg-refund-panel">
+                        <p class="dlg-refund-balance">
+                            Saldo reembolsable: <strong>S/ {{ refundableBalance.toFixed(2) }}</strong>
+                            <span v-if="detailPayment.refundedAmount > 0" class="dlg-refund-prior">
+                                (ya reembolsado S/ {{ detailPayment.refundedAmount.toFixed(2) }})
+                            </span>
+                        </p>
+                        <div class="dlg-refund-modes">
+                            <button type="button" class="dlg-refund-mode" :class="{ active: refundMode === 'TOTAL' }" @click="refundMode = 'TOTAL'">Total</button>
+                            <button type="button" class="dlg-refund-mode" :class="{ active: refundMode === 'AMOUNT' }" @click="refundMode = 'AMOUNT'">Monto</button>
+                            <button
+                                type="button"
+                                class="dlg-refund-mode"
+                                :class="{ active: refundMode === 'LINES', disabled: linesRefundBlocked }"
+                                :disabled="linesRefundBlocked"
+                                :title="linesRefundBlocked ? 'Cuenta dividida: use reembolso por monto' : ''"
+                                @click="refundMode = 'LINES'"
+                            >Por ítem</button>
+                        </div>
+                        <div v-if="refundMode === 'AMOUNT'" class="dlg-refund-fields">
+                            <label>Monto (S/)</label>
+                            <input v-model.number="refundAmount" type="number" min="0.01" :max="refundableBalance" step="0.01" class="dlg-input" />
+                            <label class="dlg-check"><input v-model="refundIncludeTip" type="checkbox" /> Incluir propina en la devolución</label>
+                        </div>
+                        <div v-else-if="refundMode === 'LINES' && !linesRefundBlocked" class="dlg-refund-lines">
+                            <div v-for="item in refundableItems" :key="item.saleItemId" class="dlg-refund-line">
+                                <span>{{ item.name }} (disp. {{ item.quantityRefundable }})</span>
+                                <input v-model.number="refundLineQty[item.saleItemId]" type="number" min="0" :max="item.quantityRefundable" class="dlg-input dlg-input--qty" />
+                            </div>
+                        </div>
+                        <label>Motivo (opcional)</label>
+                        <input v-model="refundReason" type="text" class="dlg-input" maxlength="300" />
+                        <p v-if="refundPreview" class="dlg-refund-preview">
+                            Vista previa: <strong>S/ {{ Number(refundPreview.refundAmount ?? 0).toFixed(2) }}</strong>
+                        </p>
+                    </div>
+
                     <!-- Footer -->
                     <div class="dlg-footer">
-                        <!-- Confirmación de reembolso -->
-                        <template v-if="confirmRefundId === detailPayment.id">
-                            <span class="dlg-refund-confirm-text">
-                                <i class="pi pi-exclamation-circle"></i>
-                                ¿Confirmar reembolso?
-                            </span>
-                            <button class="dlg-btn dlg-btn--danger" @click="confirmRefund">Sí, reembolsar</button>
-                            <button class="dlg-btn" @click="cancelRefund">Cancelar</button>
+                        <template v-if="refundPanelOpen">
+                            <button class="dlg-btn" @click="closeRefundPanel">Atrás</button>
+                            <button class="dlg-btn dlg-btn--danger" :disabled="refundSubmitting" @click="submitRefund">
+                                {{ refundSubmitting ? 'Procesando…' : 'Confirmar reembolso' }}
+                            </button>
                         </template>
                         <template v-else>
                             <button
-                                v-if="detailPayment.status === PAYMENT_STATUS.COMPLETED"
+                                v-if="detailPayment.isRefundable"
                                 class="dlg-btn dlg-btn--danger"
-                                @click="openRefundConfirm(detailPayment.id)"
+                                @click="openRefundPanel"
                             >
                                 <i class="pi pi-replay"></i> Reembolsar
                             </button>
@@ -724,6 +958,48 @@ const receiptOptions = [
 .dlg-btn--danger:hover { background: #fecaca; }
 
 .dlg-footer { gap: 0.5rem; align-items: center; }
+.dlg-refund-panel {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+.dlg-refund-balance { font-size: 0.9rem; color: #374151; margin: 0; }
+.dlg-refund-prior { color: #6b7280; font-size: 0.8rem; margin-left: 0.35rem; }
+.dlg-refund-modes { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.dlg-refund-mode {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.dlg-refund-mode.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.dlg-refund-mode.disabled { opacity: 0.45; cursor: not-allowed; }
+.dlg-refund-fields, .dlg-refund-lines { display: flex; flex-direction: column; gap: 0.5rem; }
+.dlg-refund-line { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.dlg-input { border: 1px solid #d1d5db; border-radius: 8px; padding: 0.4rem 0.6rem; width: 100%; }
+.dlg-input--qty { width: 4rem; }
+.dlg-check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+.dlg-refund-preview { font-size: 0.85rem; color: #059669; margin: 0; }
+.dlg-refund-history {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+.dlg-refund-history__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.dlg-refund-history__item { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; font-size: 0.85rem; align-items: baseline; }
+.dlg-refund-history__amount { font-weight: 600; color: #b45309; }
+.dlg-refund-history__meta { color: #6b7280; }
+.dlg-refund-history__reason { flex: 1 1 100%; color: #374151; font-style: italic; }
+.dlg-refund-history__loading { font-size: 0.85rem; color: #6b7280; margin: 0; }
+.detail-total-row--muted { color: #9ca3af; font-size: 0.85rem; }
+.td-amount-net { display: block; font-weight: 600; color: #059669; }
+.td-amount-gross { display: block; font-size: 0.75rem; color: #9ca3af; text-decoration: line-through; }
+
 .dlg-refund-confirm-text {
     margin-right: auto;
     display: flex;

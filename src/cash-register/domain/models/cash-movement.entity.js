@@ -22,6 +22,7 @@ export const MOVEMENT_CATEGORY = Object.freeze({
     RETIRO:        'retiro',
     DEPOSITO:      'deposito',
     CIERRE:        'cierre',
+    PROPIA:        'PROPIA',
     OTRO:          'otro',
 });
 
@@ -39,6 +40,12 @@ export class CashMovement {
         createdAt   = null,
         sucursalId  = null,
         paymentId   = null,
+        saleDisplayNumber = null,
+        saleId      = null,
+        paymentMethod = null,
+        collectedByDisplayName = null,
+        tableNumber = null,
+        zoneName    = null,
     } = {}) {
         this.id          = id;
         this.type        = type;
@@ -52,6 +59,16 @@ export class CashMovement {
         this.createdAt   = createdAt;
         this.sucursalId  = sucursalId;
         this.paymentId   = paymentId;
+        this.saleDisplayNumber = saleDisplayNumber;
+        this.saleId      = saleId;
+        this.paymentMethod = paymentMethod;
+        this.collectedByDisplayName = collectedByDisplayName;
+        this.tableNumber = tableNumber;
+        this.zoneName    = zoneName;
+    }
+
+    get isLinkedToPayment() {
+        return Boolean(this.paymentId);
     }
 
     get isIncome()  { return this.type === MOVEMENT_TYPE.INCOME;  }

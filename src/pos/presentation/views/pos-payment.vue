@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { setToolbarContext, clearToolbarContext, toolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import { useRoute, useRouter }  from 'vue-router'
 import { useToast }             from 'primevue/usetoast'
 import { usePosStore }          from '../../application/pos.store.js'
@@ -9,24 +10,95 @@ import {
     RECEIPT_TYPES,
 } from '../constants/pos.constants-ui.js'
 import SplitBillDialog from '../components/split-bill-dialog.vue'
+import { useCentralCashSession } from '../../../shared/composables/use-central-cash-session.js'
 
 const route    = useRoute()
 const router   = useRouter()
 const toast    = useToast()
 const posStore = usePosStore()
+const centralCash = useCentralCashSession()
 
 const tableId = computed(() => sale.value?.tableId ?? null)
 const table   = computed(() => tableId.value ? posStore.tableById(tableId.value) : null)
 const zone    = computed(() => table.value?.zoneId ? posStore.zoneById(table.value.zoneId) : null)
 const sale    = computed(() => posStore.currentSale)
+const orderTotals = computed(() => posStore.currentOrderTotals)
+const billableItems = computed(() =>
+    (sale.value?.items ?? []).filter(i => posStore.isItemBillable(i)),
+)
+const saleForSplit = computed(() => {
+    if (!sale.value) return null
+    return {
+        ...sale.value,
+        items: billableItems.value,
+        total: orderTotals.value.total,
+    }
+})
+const orderDisplayNumber = computed(() =>
+    sale.value?.saleDisplayNumber ?? sale.value?.ticketNumber ?? null,
+)
 const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
 
-onMounted(() => {
-    if (!posStore.currentSale) router.replace(POS_ROUTES.TERMINAL)
+async function ensurePaymentContext() {
+    const loaded = await posStore.loadSaleContext(route.params.saleId)
+    if (!loaded) {
+        toast.add({
+            severity: 'warn',
+            summary:  'Orden no disponible',
+            detail:   posStore.error ?? 'No se pudo cargar la orden para cobrar.',
+            life:     5000,
+        })
+        router.replace(POS_ROUTES.TERMINAL)
+    }
+    return loaded
+}
+
+onMounted(async () => {
+    await centralCash.refresh()
+    if (await ensurePaymentContext()) {
+        await posStore.refreshKitchenTickets()
+        syncPaymentToolbar()
+    }
+})
+
+watch(() => route.params.saleId, syncPaymentToolbar, { immediate: true })
+
+watch(() => route.params.saleId, (id) => {
+    if (id) ensurePaymentContext()
 })
 
 // ── Método de pago ─────────────────────────────────────────────────────────
 const selectedMethod = ref('cash')
+
+// ── Propina ────────────────────────────────────────────────────────────────
+const tipMode  = ref('none')
+const tipInput = ref('')
+
+const tipValueParsed = computed(() => {
+    const v = parseFloat(tipInput.value)
+    return Number.isNaN(v) || v < 0 ? 0 : v
+})
+
+const consumptionTotal = computed(() => orderTotals.value.total)
+
+const tipAmount = computed(() => {
+    if (tipMode.value === 'percent') {
+        return parseFloat((consumptionTotal.value * tipValueParsed.value / 100).toFixed(2))
+    }
+    if (tipMode.value === 'fixed') {
+        return parseFloat(tipValueParsed.value.toFixed(2))
+    }
+    return 0
+})
+
+const amountToPay = computed(() =>
+    parseFloat((consumptionTotal.value + tipAmount.value).toFixed(2)),
+)
+
+const tipPayload = computed(() => ({
+    type:  tipMode.value,
+    value: tipValueParsed.value,
+}))
 
 // ── Detalle efectivo ───────────────────────────────────────────────────────
 const cashReceived = ref('')
@@ -38,20 +110,20 @@ const cashParsed = computed(() => {
 
 const cashChange = computed(() => {
     if (cashParsed.value === null || !sale.value) return null
-    const diff = cashParsed.value - sale.value.total
+    const diff = cashParsed.value - amountToPay.value
     return diff >= 0 ? parseFloat(diff.toFixed(2)) : null
 })
 
 const cashShortfall = computed(() => {
     if (cashParsed.value === null || !sale.value) return null
-    const diff = cashParsed.value - sale.value.total
+    const diff = cashParsed.value - amountToPay.value
     return diff < 0 ? parseFloat(Math.abs(diff).toFixed(2)) : null
 })
 
 // Montos rápidos redondeados al múltiplo superior más cercano
 const quickAmounts = computed(() => {
     if (!sale.value) return []
-    const t = sale.value.total
+    const t = amountToPay.value
     const candidates = [
         Math.ceil(t / 10)  * 10,
         Math.ceil(t / 20)  * 20,
@@ -76,8 +148,9 @@ const customerData = reactive({
 const canConfirm = computed(() => {
     if (!sale.value || sale.value.items.length === 0) return false
     if (selectedMethod.value === 'cash') {
-        if (cashParsed.value === null || cashParsed.value < sale.value.total) return false
+        if (cashParsed.value === null || cashParsed.value < amountToPay.value) return false
     }
+    if (tipMode.value !== 'none' && tipValueParsed.value <= 0) return false
     if (receiptType.value === 'boleta'  && !customerData.dni.trim())           return false
     if (receiptType.value === 'factura' && (
         !customerData.ruc.trim() || !customerData.razonSocial.trim()
@@ -89,6 +162,19 @@ const canConfirm = computed(() => {
 function goBack() {
     router.push(`${POS_ROUTES.ORDER}/${sale.value?.id ?? ''}`)
 }
+
+function syncPaymentToolbar() {
+    const saleId = sale.value?.id ?? route.params.saleId
+    setToolbarContext({
+        showBackButton: true,
+        backLabel: 'Volver a la orden',
+        onBack: goBack,
+        backRoute: saleId ? { name: 'pos-order', params: { saleId: String(saleId) } } : { name: 'pos-terminal' },
+        chips: [],
+    })
+}
+
+onUnmounted(() => clearToolbarContext())
 
 async function cancelOrder() {
     await posStore.cancelCurrentSale()
@@ -113,6 +199,7 @@ async function onSplitConfirmed({ splits }) {
         splits,
         receiptType: receiptType.value,
         receiptData: { ...customerData },
+        tip:         tipPayload.value,
     })
     if (!ok) {
         toast.add({
@@ -141,8 +228,11 @@ function printPreCuenta() {
     const z = zone.value
     const now = new Date().toLocaleString('es-PE')
 
-    const rows = s.items.map(i =>
-        `<tr><td>${i.name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">S/ ${i.subtotal.toFixed(2)}</td></tr>`
+    const items = billableItems.value
+    const totals = orderTotals.value
+    const tip    = tipAmount.value
+    const rows = items.map(i =>
+        `<tr><td>${i.menuItemName}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">S/ ${i.subtotal.toFixed(2)}</td></tr>`
     ).join('')
 
     const html = `<!DOCTYPE html><html><head><title>Pre-cuenta</title>
@@ -156,15 +246,16 @@ th{text-align:left;font-size:11px}
 .footer{text-align:center;margin-top:14px;font-size:10px;color:#999}
 @media print{body{margin:0}}</style></head><body>
 <h2>GastroSuite</h2>
-<p class="sub">Pre-cuenta · ${s.isTakeaway ? `Para Llevar #${s.ticketNumber ?? ''}${s.customerName ? ` · ${s.customerName}` : ''}` : `Mesa ${t?.number ?? '—'}${z ? ` · ${z.name}` : ''}`}</p>
+<p class="sub">Pre-cuenta · ${s.isTakeaway ? `Para Llevar #${s.saleDisplayNumber ?? s.ticketNumber ?? ''}${s.customerName ? ` · ${s.customerName}` : ''}` : `Orden #${s.saleDisplayNumber ?? '—'} · Mesa ${t?.number ?? '—'}${z ? ` · ${z.name}` : ''}`}</p>
 <p style="text-align:center;font-size:10px;color:#888">${now}</p>
 <table><thead><tr><th>Ítem</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="totals">
-<div><span>Subtotal</span><span>S/ ${s.subtotal.toFixed(2)}</span></div>
-<div><span>IGV (18%)</span><span>S/ ${s.tax.toFixed(2)}</span></div>
-${s.discount > 0 ? `<div><span>Descuento</span><span>-S/ ${s.discount.toFixed(2)}</span></div>` : ''}
-<div class="grand"><span>TOTAL</span><span>S/ ${s.total.toFixed(2)}</span></div>
+<div><span>Subtotal</span><span>S/ ${totals.subtotal.toFixed(2)}</span></div>
+<div><span>IGV (18%)</span><span>S/ ${totals.tax.toFixed(2)}</span></div>
+${totals.discount > 0 ? `<div><span>Descuento</span><span>-S/ ${totals.discount.toFixed(2)}</span></div>` : ''}
+${tip > 0 ? `<div><span>Propina</span><span>S/ ${tip.toFixed(2)}</span></div>` : ''}
+<div class="grand"><span>TOTAL</span><span>S/ ${(totals.total + tip).toFixed(2)}</span></div>
 </div>
 <p class="footer">*** Este documento no es comprobante de pago ***</p>
 </body></html>`
@@ -189,9 +280,10 @@ async function confirmPayment() {
     if (!canConfirm.value) return
     const ok = await posStore.confirmPayment({
         method:         selectedMethod.value,
-        amountReceived: cashParsed.value ?? sale.value.total,
+        amountReceived: cashParsed.value ?? amountToPay.value,
         receiptType:    receiptType.value,
         receiptData:    { ...customerData },
+        tip:            tipPayload.value,
     })
     if (!ok) {
         toast.add({
@@ -218,40 +310,18 @@ async function confirmPayment() {
         <!-- ══════════════════════════ LEFT: Formulario de pago ═════════════ -->
         <div class="payment-form">
 
-            <!-- Cabecera -->
-            <div class="payment-form__header">
-                <button class="back-btn" title="Volver a la orden" @click="goBack">
-                    <i class="pi pi-arrow-left"></i>
-                </button>
-                <div class="payment-form__title-group">
-                    <h2 class="payment-form__title">Procesar Pago</h2>
-                    <div class="payment-form__chips">
-                        <span class="hdr-chip hdr-chip--order">
-                            <i class="pi pi-hashtag"></i>
-                            Orden {{ sale?.id ?? '—' }}
-                        </span>
-                        <template v-if="isTakeaway">
-                            <span class="hdr-chip" style="background:#f59e0b18;border-color:#f59e0b;color:#f59e0b">
-                                <i class="pi pi-shopping-bag"></i>
-                                Para Llevar #{{ sale?.ticketNumber ?? '' }}
-                            </span>
-                            <span v-if="sale?.customerName" class="hdr-chip" style="background:#6366f118;border-color:#6366f1;color:#6366f1">
-                                <i class="pi pi-user"></i>
-                                {{ sale.customerName }}
-                            </span>
-                        </template>
-                        <template v-else>
-                            <span class="hdr-chip hdr-chip--table">
-                                <i class="pi pi-th-large"></i>
-                                Mesa {{ table?.number ?? '—' }}
-                            </span>
-                            <span v-if="zone" class="hdr-chip" :style="{ background: zone.color + '18', borderColor: zone.color, color: zone.color }">
-                                <i class="pi pi-map-marker"></i>
-                                {{ zone.name }}
-                            </span>
-                        </template>
-                    </div>
-                </div>
+            <!-- Contexto en móvil (chips van en toolbar en desktop) -->
+            <div v-if="toolbarContext.chips.length" class="payment-mobile-context">
+                <span
+                    v-for="(chip, idx) in toolbarContext.chips"
+                    :key="idx"
+                    class="payment-mobile-chip"
+                    :class="chip.variant ? `payment-mobile-chip--${chip.variant}` : ''"
+                    :style="chip.color ? { color: chip.color, borderColor: chip.color, background: chip.background ?? chip.color + '18' } : undefined"
+                >
+                    <i v-if="chip.icon" :class="['pi', chip.icon]"></i>
+                    {{ chip.label }}
+                </span>
             </div>
 
             <!-- ─── Sección 1: Método de pago ──────────────────────────── -->
@@ -286,7 +356,7 @@ async function confirmPayment() {
                             <span class="cash-total-ref__label">Total a cobrar</span>
                             <strong class="cash-total-ref__amount">
                                 <span class="cash-total-ref__currency">S/</span>
-                                {{ (sale?.total ?? 0).toFixed(2) }}
+                                {{ amountToPay.toFixed(2) }}
                             </strong>
                         </div>
                         <div class="cash-row">
@@ -338,11 +408,63 @@ async function confirmPayment() {
                                 {{ PAYMENT_METHODS.find(m => m.key === selectedMethod)?.label }} · Pago digital
                             </span>
                             <span class="digital-note__sub">
-                                Monto a cobrar: <strong>S/ {{ (sale?.total ?? 0).toFixed(2) }}</strong>
+                                Monto a cobrar: <strong>S/ {{ amountToPay.toFixed(2) }}</strong>
                             </span>
                         </div>
                     </div>
                 </Transition>
+            </div>
+
+            <!-- ─── Sección: Propina ───────────────────────────────────── -->
+            <div class="form-section">
+                <h3 class="form-section__title">
+                    <i class="pi pi-heart"></i>
+                    Propina
+                </h3>
+                <div class="method-grid method-grid--tip">
+                    <button
+                        type="button"
+                        :class="['method-btn', tipMode === 'none' ? 'method-btn--active' : '']"
+                        @click="tipMode = 'none'; tipInput = ''"
+                    >
+                        <span>Sin propina</span>
+                    </button>
+                    <button
+                        type="button"
+                        :class="['method-btn', tipMode === 'percent' ? 'method-btn--active' : '']"
+                        @click="tipMode = 'percent'"
+                    >
+                        <span>%</span>
+                    </button>
+                    <button
+                        type="button"
+                        :class="['method-btn', tipMode === 'fixed' ? 'method-btn--active' : '']"
+                        @click="tipMode = 'fixed'"
+                    >
+                        <span>Monto fijo</span>
+                    </button>
+                </div>
+                <div v-if="tipMode !== 'none'" class="cash-row" style="margin-top:0.75rem">
+                    <label class="cash-row__label">
+                        {{ tipMode === 'percent' ? 'Porcentaje' : 'Monto' }}
+                    </label>
+                    <div class="cash-input-wrap">
+                        <span v-if="tipMode === 'fixed'" class="cash-input-prefix">S/</span>
+                        <span v-else class="cash-input-prefix">%</span>
+                        <input
+                            v-model="tipInput"
+                            type="number"
+                            min="0"
+                            :step="tipMode === 'percent' ? '1' : '0.10'"
+                            class="cash-input"
+                            placeholder="0"
+                            inputmode="decimal"
+                        />
+                    </div>
+                </div>
+                <p v-if="tipAmount > 0" class="tip-preview">
+                    Propina: <strong>S/ {{ tipAmount.toFixed(2) }}</strong>
+                </p>
             </div>
 
             <!-- ─── Sección 2: Tipo de comprobante ─────────────────────── -->
@@ -435,6 +557,23 @@ async function confirmPayment() {
         <!-- ══════════════════════════ RIGHT: Resumen + Acciones ═════════════ -->
         <div class="payment-panel">
 
+            <div
+                v-if="centralCash.isOpen"
+                class="pos-cash-context"
+                role="status"
+            >
+                <i class="pi pi-wallet pos-cash-context__icon" aria-hidden="true"></i>
+                <span>
+                    <strong>Turno central abierto</strong>
+                    · Abierto por {{ centralCash.openedByLabel }}
+                    · Cobras como {{ centralCash.collectorLabel }}
+                </span>
+            </div>
+            <div v-else class="pos-cash-context pos-cash-context--warn" role="alert">
+                <i class="pi pi-exclamation-triangle pos-cash-context__icon" aria-hidden="true"></i>
+                <span>No hay turno de caja abierto. Pide al cajero que abra caja antes de cobrar.</span>
+            </div>
+
             <!-- Cabecera del panel -->
             <div class="payment-panel__header">
                 <div class="flex align-items-center gap-2">
@@ -456,6 +595,7 @@ async function confirmPayment() {
                         v-for="item in sale.items"
                         :key="item.id"
                         class="summary-item"
+                        :class="{ 'summary-item--excluded': !posStore.isItemBillable(item) }"
                     >
                         <span class="summary-item__qty">{{ item.quantity }}×</span>
                         <div class="summary-item__info">
@@ -470,7 +610,10 @@ async function confirmPayment() {
                             </span>
                         </div>
                         <span class="summary-item__price">
-                            S/ {{ item.subtotal.toFixed(2) }}
+                            <template v-if="posStore.isItemBillable(item)">
+                                S/ {{ item.subtotal.toFixed(2) }}
+                            </template>
+                            <template v-else>No cobrado</template>
                         </span>
                     </div>
                 </div>
@@ -480,19 +623,27 @@ async function confirmPayment() {
             <div class="payment-panel__totals">
                 <div class="total-row">
                     <span>Subtotal</span>
-                    <span>S/ {{ (sale?.subtotal ?? 0).toFixed(2) }}</span>
+                    <span>S/ {{ orderTotals.subtotal.toFixed(2) }}</span>
                 </div>
                 <div class="total-row">
                     <span>IGV (18%)</span>
-                    <span>S/ {{ (sale?.tax ?? 0).toFixed(2) }}</span>
+                    <span>S/ {{ orderTotals.tax.toFixed(2) }}</span>
                 </div>
-                <div v-if="(sale?.discount ?? 0) > 0" class="total-row total-row--discount">
+                <div v-if="orderTotals.discount > 0" class="total-row total-row--discount">
                     <span>Descuento</span>
-                    <span>- S/ {{ sale.discount.toFixed(2) }}</span>
+                    <span>- S/ {{ orderTotals.discount.toFixed(2) }}</span>
+                </div>
+                <div class="total-row">
+                    <span>Consumo</span>
+                    <span>S/ {{ consumptionTotal.toFixed(2) }}</span>
+                </div>
+                <div v-if="tipAmount > 0" class="total-row">
+                    <span>Propina</span>
+                    <span>S/ {{ tipAmount.toFixed(2) }}</span>
                 </div>
                 <div class="total-row total-row--grand">
                     <span>TOTAL A PAGAR</span>
-                    <span>S/ {{ (sale?.total ?? 0).toFixed(2) }}</span>
+                    <span>S/ {{ amountToPay.toFixed(2) }}</span>
                 </div>
 
                 <!-- Resumen del pago seleccionado -->
@@ -563,7 +714,7 @@ async function confirmPayment() {
     <!-- Diálogo de división de cuenta -->
     <SplitBillDialog
         v-model:visible="showSplitDialog"
-        :sale="sale"
+        :sale="saleForSplit"
         @confirmed="onSplitConfirmed"
     />
 </template>
@@ -578,6 +729,46 @@ async function confirmPayment() {
 }
 
 /* ── LEFT: formulario ────────────────────────────────────────────────────── */
+.payment-mobile-context {
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.65rem 1rem 0;
+    border-bottom: 1px solid var(--surface-border);
+    background: #fff;
+}
+
+.payment-mobile-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.payment-mobile-chip--table {
+    color: #1e40af;
+    border-color: #93c5fd;
+    background: #dbeafe;
+}
+
+.payment-mobile-chip--takeaway {
+    color: #b45309;
+    border-color: #fcd34d;
+    background: #fef3c7;
+}
+
+@media (max-width: 1023px) {
+    .payment-mobile-context {
+        display: flex;
+    }
+}
+
 .payment-form {
     flex: 1;
     min-width: 0;
@@ -670,6 +861,16 @@ async function confirmPayment() {
     border-radius: 12px;
     padding: 1.25rem;
     margin-bottom: 1rem;
+}
+
+.method-grid--tip {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.tip-preview {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-color-secondary);
 }
 
 .form-section__title {
@@ -976,6 +1177,32 @@ async function confirmPayment() {
 .cfield__input:focus { border-color: #6366f1; }
 
 /* ── RIGHT: panel de resumen ─────────────────────────────────────────────── */
+.pos-cash-context {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0.75rem 1rem 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #065f46;
+    flex-shrink: 0;
+}
+
+.pos-cash-context--warn {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+
+.pos-cash-context__icon {
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+}
+
 .payment-panel {
     width: 360px;
     flex-shrink: 0;

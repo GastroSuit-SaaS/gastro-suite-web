@@ -1,10 +1,12 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { ReportsApi } from '../infrastructure/api/reports.api.js';
 import { ReportAssembler } from '../infrastructure/assemblers/report.assembler.js';
 import { Report, REPORT_TYPE, REPORT_STATUS } from '../domain/models/report.entity.js';
-import { MOCK_REPORTS } from '../infrastructure/reports.mock.js';
-import { withMockFallback, withMockMutation } from '../../shared/infrustructure/mock-fallback.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { useIamStore } from '../../iam/application/iam.store.js';
+import { REPORTS_MESSAGES } from '../presentation/constants/reports.constants-ui.js';
 
 const api = new ReportsApi();
 
@@ -52,13 +54,11 @@ export const useReportsStore = defineStore('reports', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const response = await withMockFallback(
-                () => api.getAll(),
-                () => ({ status: 200, data: [...MOCK_REPORTS] }),
-            );
+            const branchId = requireActiveBranchId();
+            const response = await api.listByBranch(branchId);
             reports.value = ReportAssembler.toEntitiesFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar reportes';
+            error.value = getApiErrorMessage(e, 'Error al cargar reportes');
         } finally {
             isLoading.value = false;
         }
@@ -68,16 +68,10 @@ export const useReportsStore = defineStore('reports', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const response = await withMockFallback(
-                () => api.getById(id),
-                () => {
-                    const found = MOCK_REPORTS.find(r => r.id === id);
-                    return found ? { status: 200, data: found } : { status: 404, data: null };
-                },
-            );
+            const response = await api.getById(id);
             selectedReport.value = ReportAssembler.toEntityFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al obtener el reporte';
+            error.value = getApiErrorMessage(e, 'Error al obtener el reporte');
         } finally {
             isLoading.value = false;
         }
@@ -87,31 +81,45 @@ export const useReportsStore = defineStore('reports', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const newReport = new Report({
+            const branchId = requireActiveBranchId();
+            const iamStore = useIamStore();
+            const employeeId = iamStore.currentUser?.employeeId;
+            if (!employeeId) {
+                error.value = REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED;
+                return false;
+            }
+
+            const dateFrom = reportData.dateFrom ?? new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+            const dateTo = reportData.dateTo ?? new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+
+            const payload = {
                 ...reportData,
-                id: `rpt-${Date.now()}`,
+                dateFrom,
+                dateTo,
                 status: REPORT_STATUS.PENDING,
-                generatedAt: new Date().toISOString(),
-            });
+            };
 
-            reports.value.unshift(newReport);
-
-            const response = await withMockMutation(
-                () => api.generate(ReportAssembler.toResourceFromEntity(newReport)),
+            const response = await api.create(
+                ReportAssembler.toResourceFromEntity(new Report(payload), { branchId, employeeId }),
             );
 
             if (response) {
                 const serverReport = ReportAssembler.toEntityFromResponse(response);
                 if (serverReport) {
-                    const idx = reports.value.findIndex(r => r.id === newReport.id);
-                    if (idx !== -1) reports.value[idx] = serverReport;
+                    const idx = reports.value.findIndex(r => r.id === serverReport.id);
+                    if (idx >= 0) {
+                        reports.value[idx] = serverReport;
+                    } else {
+                        reports.value.unshift(serverReport);
+                    }
                     selectedReport.value = serverReport;
-                    return;
+                    return true;
                 }
             }
-            selectedReport.value = newReport;
+            return false;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al generar el reporte';
+            error.value = getApiErrorMessage(e, 'Error al generar el reporte');
+            return false;
         } finally {
             isLoading.value = false;
         }
@@ -123,10 +131,10 @@ export const useReportsStore = defineStore('reports', () => {
         const backup = [...reports.value];
         reports.value = reports.value.filter(r => r.id !== id);
         try {
-            await withMockMutation(() => api.delete(id));
+            await api.delete(id);
         } catch (e) {
             reports.value = backup;
-            error.value = e?.response?.data?.message ?? 'Error al eliminar el reporte';
+            error.value = getApiErrorMessage(e, 'Error al eliminar el reporte');
         } finally {
             isLoading.value = false;
         }

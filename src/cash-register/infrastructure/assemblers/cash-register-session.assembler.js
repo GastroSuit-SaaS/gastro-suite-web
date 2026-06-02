@@ -1,69 +1,99 @@
-import { CashRegisterSession } from '../../domain/models/cash-register-session.entity.js';
+import { CashRegisterSession, SESSION_STATUS } from '../../domain/models/cash-register-session.entity.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+
+const SHIFT_LABEL_TO_API = {
+    'Mañana':   'MORNING',
+    'Tarde':    'AFTERNOON',
+    'Noche':    'NIGHT',
+    'Completo': 'COMPLETE',
+};
+
+const SHIFT_API_TO_LABEL = {
+    MORNING:  'Mañana',
+    AFTERNOON: 'Tarde',
+    NIGHT:    'Noche',
+    COMPLETE: 'Completo',
+};
+
+function _normalizeStatus(status) {
+    if (!status) return SESSION_STATUS.OPEN;
+    const s = String(status).toLowerCase();
+    return s === 'closed' || s === 'cerrado' ? SESSION_STATUS.CLOSED : SESSION_STATUS.OPEN;
+}
+
+function _shiftFromApi(shift) {
+    if (!shift) return '';
+    return SHIFT_API_TO_LABEL[shift] ?? shift;
+}
+
+function _shiftToApi(shift) {
+    if (!shift) return 'MORNING';
+    return SHIFT_LABEL_TO_API[shift] ?? shift;
+}
 
 /**
  * CashRegister Infrastructure - CashRegisterSession Assembler
- *
- * Transforma recursos crudos del API en entidades de dominio.
- * Nunca retorna datos crudos fuera de esta clase.
  */
 export class CashRegisterSessionAssembler {
 
     static toEntityFromResource(resource) {
+        const r = resource ?? {};
         return new CashRegisterSession({
-            id:              resource.id,
-            shiftName:       resource.shiftName       ?? resource.shift_name       ?? '',
-            openedAt:        resource.openedAt        ?? resource.opened_at        ?? null,
-            closedAt:        resource.closedAt        ?? resource.closed_at        ?? null,
-            openedBy:        resource.openedBy        ?? resource.opened_by        ?? null,
-            closedBy:        resource.closedBy        ?? resource.closed_by        ?? null,
-            initialAmount:   resource.initialAmount   ?? resource.initial_amount   ?? 0,
-            finalAmount:     resource.finalAmount     ?? resource.final_amount     ?? null,
-            status:          resource.status          ?? 'open',
-            sucursalId:      resource.sucursalId      ?? resource.sucursal_id      ?? null,
-            notes:           resource.notes           ?? '',
-            totalSales:      resource.totalSales      ?? resource.total_sales      ?? 0,
-            totalRevenue:    resource.totalRevenue    ?? resource.total_revenue    ?? 0,
-            cashRevenue:     resource.cashRevenue     ?? resource.cash_revenue     ?? 0,
-            digitalRevenue:  resource.digitalRevenue  ?? resource.digital_revenue  ?? 0,
-            expectedCash:    resource.expectedCash    ?? resource.expected_cash    ?? 0,
-            countedAmount:   resource.countedAmount   ?? resource.counted_amount   ?? null,
-            difference:      resource.difference      ?? 0,
+            id:              r.sessionId ?? r.id ?? null,
+            shiftName:       _shiftFromApi(r.sessionShiftName ?? r.shiftName ?? r.shift_name ?? ''),
+            openedAt:        r.sessionsOpenedAt ?? r.openedAt ?? r.opened_at ?? null,
+            closedAt:        r.sessionsClosedAt ?? r.closedAt ?? r.closed_at ?? null,
+            openedBy:        r.sessionOpenedBy ?? r.openedBy ?? r.opened_by ?? null,
+            closedBy:        r.sessionClosedBy ?? r.closedBy ?? r.closed_by ?? null,
+            openedByUserId:  r.sessionOpenedByUserId ?? r.openedByUserId ?? r.opened_by_user_id ?? null,
+            closedByUserId:  r.sessionClosedByUserId ?? r.closedByUserId ?? r.closed_by_user_id ?? null,
+            initialAmount:   r.sessionInitialAmount ?? r.initialAmount ?? r.initial_amount ?? 0,
+            finalAmount:     r.sessionFinalAmount ?? r.finalAmount ?? r.final_amount ?? null,
+            status:          _normalizeStatus(r.sessionStatus ?? r.status),
+            sucursalId:      r.branchId ?? r.sucursalId ?? r.sucursal_id ?? null,
+            notes:           r.sessionNote ?? r.notes ?? '',
+            totalSales:      r.sessionTotalSales ?? r.totalSales ?? r.total_sales ?? 0,
+            totalRevenue:    r.sessionTotalRevenue ?? r.totalRevenue ?? r.total_revenue ?? 0,
+            cashRevenue:     r.sessionCashRevenue ?? r.cashRevenue ?? r.cash_revenue ?? 0,
+            digitalRevenue:  r.sessionDigitalRevenue ?? r.digitalRevenue ?? r.digital_revenue ?? 0,
+            expectedCash:    r.sessionExpectedCash ?? r.expectedCash ?? r.expected_cash ?? 0,
+            countedAmount:   r.sessionCountedAmount ?? r.countedAmount ?? r.counted_amount ?? null,
+            difference:      r.sessionDifference ?? r.difference ?? 0,
         });
     }
 
     static toEntitiesFromResponse(response) {
-        if (response.status !== 200) return [];
-        const data = response.data?.items ?? response.data?.data ?? response.data;
-        if (!Array.isArray(data)) return [];
-        return data.map(r => CashRegisterSessionAssembler.toEntityFromResource(r));
+        return entitiesFromResponse(response, CashRegisterSessionAssembler.toEntityFromResource);
     }
 
     static toEntityFromResponse(response) {
-        if (response.status !== 200 && response.status !== 201) return null;
-        const data = response.data?.data ?? response.data;
-        if (!data) return null;
-        return CashRegisterSessionAssembler.toEntityFromResource(data);
+        return entityFromResponse(response, CashRegisterSessionAssembler.toEntityFromResource);
     }
 
-    static toResourceFromEntity(entity) {
+    /**
+     * @param {{ shiftName: string, initialAmount: number, notes?: string, openedBy: string, branchId: string }} params
+     */
+    static toOpenResource({ shiftName, initialAmount, notes = '', openedBy, branchId }) {
         return {
-            shift_name:      entity.shiftName,
-            initial_amount:  entity.initialAmount,
-            notes:           entity.notes,
+            branchId,
+            sessionOpenedBy:     openedBy,
+            sessionInitialAmount: initialAmount,
+            sessionShiftName:    _shiftToApi(shiftName),
+            sessionNote:         notes || null,
         };
     }
 
-    static toCloseResourceFromEntity(entity) {
+    /**
+     * @param {CashRegisterSession} session
+     * @param {{ branchId: string, closedBy?: string, countedAmount: number, notes?: string }} summary
+     */
+    static toCloseResource(session, summary) {
         return {
-            final_amount:    entity.finalAmount,
-            notes:           entity.notes,
-            total_sales:     entity.totalSales,
-            total_revenue:   entity.totalRevenue,
-            cash_revenue:    entity.cashRevenue,
-            digital_revenue: entity.digitalRevenue,
-            expected_cash:   entity.expectedCash,
-            counted_amount:  entity.countedAmount,
-            difference:      entity.difference,
+            sessionId:            session.id,
+            branchId:             summary.branchId,
+            sessionClosedBy:      summary.closedBy ?? null,
+            sessionCountedAmount: summary.countedAmount,
+            sessionNote:          summary.notes ?? null,
         };
     }
 }

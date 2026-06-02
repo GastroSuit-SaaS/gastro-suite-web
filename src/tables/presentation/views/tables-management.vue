@@ -11,7 +11,10 @@ import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constant
 import CreateAndEditZone       from './create-and-edit-zone.vue'
 import CreateAndEditTable      from './create-and-edit-tables.vue'
 import AssignTableDialog       from './assign-table-dialog.vue'
+import ReservationsManagement  from './reservations-management.vue'
 import ModuleStateFeedback     from '../../../shared/presentation/components/module-state-feedback.vue'
+import ModuleTabBar            from '../../../shared/presentation/components/module-tab-bar.vue'
+import ModuleTab               from '../../../shared/presentation/components/module-tab.vue'
 
 const store    = useTablesStore()
 const posStore = usePosStore()
@@ -29,7 +32,7 @@ onUnmounted(() => { clearInterval(_clockInterval) })
 const now = ref(Date.now())
 let _clockInterval = null
 
-const activeTab        = ref('floor')   // 'floor' | 'manage'
+const activeTab        = ref('floor')   // 'floor' | 'manage' | 'reservations'
 const showZoneDialog   = ref(false)
 const showTableDialog  = ref(false)
 const showAssignDialog = ref(false)
@@ -45,7 +48,7 @@ const zoneColorMap = computed(() => {
 })
 
 const tableSearch       = ref('')
-const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning'
+const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning' | 'reserved'
 const activeConsumption = computed(() => posStore.totalInProcess)
 const occupancyRate = computed(() => store.occupancyRate)
 
@@ -114,14 +117,14 @@ function openAssignTable(table) {
 
 async function onAssignConfirm({ guests }) {
     const table = assigningTable.value
-    await posStore.openSaleForTable(table.id, table.zoneId, guests)
-    router.push(posOrderRoute(table.id))
+    const sale = await posStore.openSaleForTable(table.id, table.zoneId, guests)
+    if (sale?.id) router.push(posOrderRoute(sale.id))
     assigningTable.value = null
 }
 
 async function openOrderForTable(table) {
-    await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests)
-    router.push(posOrderRoute(table.id))
+    const sale = await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests)
+    if (sale?.id) router.push(posOrderRoute(sale.id))
 }
 
 function onDeleteTable(table) {
@@ -159,20 +162,17 @@ function onTableSaved(table) {
     <div class="tables-layout">
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
-        <div class="tables-tabs">
-            <button
-                :class="['tab-btn', activeTab === 'floor' && 'tab-btn--active']"
-                @click="activeTab = 'floor'"
-            >
-                <i class="pi pi-th-large"></i> Plano del Salón
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'manage' && 'tab-btn--active']"
-                @click="activeTab = 'manage'"
-            >
-                <i class="pi pi-map-marker"></i> Zonas
-            </button>
-        </div>
+        <module-tab-bar v-model="activeTab">
+            <module-tab value="floor" icon="pi-th-large">
+                Plano del Salón
+            </module-tab>
+            <module-tab value="manage" icon="pi-map-marker">
+                Zonas
+            </module-tab>
+            <module-tab value="reservations" icon="pi-calendar">
+                Reservas
+            </module-tab>
+        </module-tab-bar>
 
         <!-- ══════════════════ TAB: PLANO DEL SALÓN ══════════════════════ -->
         <div v-if="activeTab === 'floor'" class="p-4 flex flex-column gap-4 floor-tab">
@@ -195,6 +195,11 @@ function onTableSaved(table) {
                     <span class="stat-chip__dot" style="background:#22c55e"></span>
                     <span class="stat-chip__label">Disponibles</span>
                     <span class="stat-chip__value text-green-500">{{ store.availableTables.length }}</span>
+                </button>
+                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'reserved' && 'stat-chip--active-purple']" @click="toggleStatus('reserved')">
+                    <span class="stat-chip__dot" style="background:#7c3aed"></span>
+                    <span class="stat-chip__label">Reservadas</span>
+                    <span class="stat-chip__value" style="color:#7c3aed">{{ store.reservedTables.length }}</span>
                 </button>
                 <button :class="['stat-chip', 'stat-chip--btn', 'stat-chip--bar', selectedStatus === 'occupied' && 'stat-chip--active-red']" @click="toggleStatus('occupied')">
                     <span class="stat-chip__dot" style="background:#ef4444"></span>
@@ -338,6 +343,10 @@ function onTableSaved(table) {
             </module-state-feedback>
         </div>
 
+        <div v-else-if="activeTab === 'reservations'" class="module-tab-body module-page-body--scroll">
+            <reservations-management />
+        </div>
+
         <!-- ══════════════════ TAB: ZONAS ════════════════════════════════ -->
         <div v-else class="p-4 flex flex-column gap-4">
 
@@ -432,38 +441,6 @@ function onTableSaved(table) {
     height: 100%;
     min-height: 0;
 }
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.tables-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 2px solid var(--surface-border);
-    background: #fff;
-    padding: 0 1.25rem;
-    flex-shrink: 0;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: var(--text-color-secondary, #6b7280);
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: color 0.15s;
-}
-.tab-btn--active {
-    color: var(--p-primary-color, #6366f1);
-    border-bottom-color: var(--p-primary-color, #6366f1);
-    font-weight: 600;
-}
-.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
 
 /* ── Floor tab scrollable ─────────────────────────────────────────────── */
 .floor-tab {

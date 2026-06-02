@@ -7,6 +7,7 @@
 
 export const PAYMENT_STATUS = Object.freeze({
     COMPLETED: 'completed',
+    PARTIALLY_REFUNDED: 'partially_refunded',
     CANCELLED: 'cancelled',
     REFUNDED:  'refunded',
 });
@@ -28,6 +29,7 @@ export class Payment {
     constructor({
         id             = null,
         saleId         = null,
+        saleDisplayNumber = null,
         sessionId      = null,
         tableNumber    = null,
         zoneName       = null,
@@ -43,6 +45,7 @@ export class Payment {
         receiptData    = {},        // { dni, nombre } | { ruc, razonSocial, direccion }
         status         = PAYMENT_STATUS.COMPLETED,
         cashierId      = null,
+        collectedByDisplayName = null,
         processedAt    = null,
         pendingSync    = false,
         sucursalId     = null,
@@ -51,9 +54,15 @@ export class Payment {
         isSplit        = false,
         splitIndex     = null,      // 0-based index dentro del grupo
         splitCount     = null,      // total de splits en el grupo
+        tipType        = 'none',
+        tipValue       = 0,
+        tipAmount      = 0,
+        refundedAmount = 0,
+        refundableBalance = null,
     } = {}) {
         this.id             = id;
         this.saleId         = saleId;
+        this.saleDisplayNumber = saleDisplayNumber;
         this.sessionId      = sessionId;
         this.tableNumber    = tableNumber;
         this.zoneName       = zoneName;
@@ -69,6 +78,7 @@ export class Payment {
         this.receiptData    = receiptData;
         this.status         = status;
         this.cashierId      = cashierId;
+        this.collectedByDisplayName = collectedByDisplayName;
         this.processedAt    = processedAt ?? new Date();
         this.pendingSync    = pendingSync;
         this.sucursalId     = sucursalId;
@@ -77,6 +87,22 @@ export class Payment {
         this.isSplit        = isSplit;
         this.splitIndex     = splitIndex;
         this.splitCount     = splitCount;
+        this.tipType        = tipType;
+        this.tipValue       = tipValue;
+        this.tipAmount      = tipAmount;
+        this.refundedAmount = refundedAmount;
+        this.refundableBalance = refundableBalance ?? Math.max(0, total - refundedAmount);
+    }
+
+    /** Monto neto cobrado (total − reembolsado). */
+    get netCollected() {
+        return Math.max(0, (this.total ?? 0) - (this.refundedAmount ?? 0));
+    }
+
+    get isRefundable() {
+        return (this.status === PAYMENT_STATUS.COMPLETED
+            || this.status === PAYMENT_STATUS.PARTIALLY_REFUNDED)
+            && this.refundableBalance > 0;
     }
 
     /** Devuelve true si el pago fue procesado hoy (fecha local). */

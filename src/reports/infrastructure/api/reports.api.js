@@ -1,52 +1,22 @@
-/**
- * Reports Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo Reports.
- * Maneja endpoints de reportes, analytics, exportación, etc.
- * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class ReportsApi extends BaseApi {
-    #endpoint;
+    #crud;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports');
+        this.#crud = new BaseEndpoint(this, import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listByBranch(branchId, params) {
+        return this.#crud.listAt(`/branches/${branchId}/reports`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
-    }
-
-    create(resource) {
-        return this.#endpoint.create(resource);
-    }
-
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
-
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
-
-    generate(data) {
-        return this.http.post(`${import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports'}/generate`, data);
-    }
-
-    getByDateRange(from, to) {
-        return this.http.get(import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports', { params: { from, to } });
-    }
+    getById(reportId)      { return this.#crud.getById(reportId); }
+    create(resource)       { return this.#crud.create(resource); }
+    update(reportId, body) { return this.#crud.update(reportId, body); }
+    delete(reportId)       { return this.#crud.delete(reportId); }
 }
 
 export const reportsApi = new ReportsApi();

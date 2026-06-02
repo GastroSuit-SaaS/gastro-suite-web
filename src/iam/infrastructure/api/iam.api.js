@@ -1,86 +1,45 @@
-/**
- * IAM Infrastructure - API Service
- *
- * Responsabilidad: Comunicación HTTP con el backend del módulo IAM.
- * Maneja autenticación, autorización y gestión de identidad.
- * NO contiene lógica de negocio.
- *
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
+/** IAM: sin CRUD de recurso; solo auth y registro (support). */
 export class IamApi extends BaseApi {
-    #endpoint;
+    #auth;
 
     constructor() {
         super();
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_IAM_ENDPOINT ?? '/auth');
+        const authPath = import.meta.env.VITE_IAM_ENDPOINT ?? '/auth';
+        this.#auth = new BaseEndpoint(this, authPath);
     }
 
-    // ── Auth-specific methods ─────────────────────────────────────────────
-
-    /**
-     * Inicia sesión con credenciales de usuario.
-     * @param {{ username: string, password: string }} credentials
-     * @returns {Promise<AxiosResponse>} { token, user }
-     */
-    login(credentials) {
-        return this.http.post(`${this.#endpoint.endpointPath}/login`, credentials);
+    signIn(credentials) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/sign-in`, credentials);
     }
 
-    /**
-     * Cierra la sesión del usuario autenticado.
-     * @returns {Promise<AxiosResponse>}
-     */
-    logout() {
-        return this.http.post(`${this.#endpoint.endpointPath}/logout`);
+    signUp(resource) {
+        const supportPath = import.meta.env.VITE_AUTH_SUPPORT_ENDPOINT;
+        if (!supportPath) {
+            return Promise.reject(new Error('Registro no disponible: falta VITE_AUTH_SUPPORT_ENDPOINT'));
+        }
+        return this.#auth.postAt(`${supportPath}/sign-up`, resource);
     }
 
-    /**
-     * Registra una nueva empresa con su usuario propietario (OWNER).
-     * @param {{ empresa: Object, usuario: Object }} payload
-     * @returns {Promise<AxiosResponse>}
-     */
-    register(payload) {
-        return this.http.post(`${this.#endpoint.endpointPath}/register`, payload);
+    /** POST /companies — público, onboarding paso 1. */
+    createCompany(resource) {
+        return this.http.post('/companies', resource);
     }
 
     /**
-     * Refresca el token de acceso usando el refresh token.
-     * @param {string} refreshToken
-     * @returns {Promise<AxiosResponse>} { token }
+     * POST /support/employees — requiere JWT (tras sign-in).
+     * Vincula usuario OWNER existente con la empresa (perfil dev).
      */
-    refreshToken(refreshToken) {
-        return this.http.post(`${this.#endpoint.endpointPath}/refresh`, { refreshToken });
+    createOwnerEmployee(resource) {
+        return this.http.post('/support/employees', resource);
     }
 
-    /**
-     * Solicita correo de recuperación de contraseña.
-     * @param {string} email
-     * @returns {Promise<AxiosResponse>}
-     */
-    forgotPassword(email) {
-        return this.http.post(`${this.#endpoint.endpointPath}/forgot-password`, { email });
+    /** Crea o devuelve el empleado vinculado al usuario autenticado. */
+    ensureEmployeeLink(resource) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/ensure-employee`, resource);
     }
-
-    /**
-     * Restablece la contraseña con token de recuperación.
-     * @param {{ token: string, password: string }} payload
-     * @returns {Promise<AxiosResponse>}
-     */
-    resetPassword(payload) {
-        return this.http.post(`${this.#endpoint.endpointPath}/reset-password`, payload);
-    }
-
-    // ── CRUD genérico (usuarios del sistema) ─────────────────────────────
-
-    getAll()             { return this.#endpoint.getAll(); }
-    getById(id)          { return this.#endpoint.getById(id); }
-    create(resource)     { return this.#endpoint.create(resource); }
-    update(id, resource) { return this.#endpoint.update(id, resource); }
-    delete(id)           { return this.#endpoint.delete(id); }
 }
 
 export const iamApi = new IamApi();

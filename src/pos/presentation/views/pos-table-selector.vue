@@ -13,17 +13,17 @@ onMounted(() => {
     if (posStore.sales.length === 0) posStore.fetchAll()
 })
 
-const zoneId = computed(() => Number(route.params.zoneId))
+const zoneId = computed(() => route.params.zoneId)
 
 const zone = computed(() =>
-    posStore.zones.find(z => z.id === zoneId.value) ?? null
+    posStore.zones.find(z => String(z.id) === String(zoneId.value)) ?? null
 )
 
 const tables = computed(() => posStore.tablesForZone(zoneId.value))
 
 async function selectTable(table) {
-    await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests ?? 0)
-    router.push(posOrderRoute(posStore.currentSale.id))
+    const sale = await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests ?? 0)
+    if (sale?.id) router.push(posOrderRoute(sale.id))
 }
 </script>
 

@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useReportsStore } from '../../application/reports.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { REPORT_TYPE_LABELS, EXPORT_FORMAT_LABELS } from '../constants/reports.constants-ui.js'
 import { REPORT_TYPE, REPORT_STATUS, EXPORT_FORMAT } from '../../domain/models/report.entity.js'
+import { exportCollectorSalesReportExcel } from '../utils/reports-excel.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store = useReportsStore()
@@ -12,46 +13,81 @@ const { confirmDelete } = useConfirmDialog()
 onMounted(() => store.fetchAll())
 
 const showGenerate = ref(false)
-const selectedType   = ref(null)
+const showDetail = ref(false)
+const detailReport = ref(null)
 
-function toggleType(type) {
-    selectedType.value = selectedType.value === type ? null : type
-    store.filterType = selectedType.value
+/** Opciones para filtro por tipo (desplegable). */
+const reportTypeFilterOptions = [
+    { label: 'Todos los tipos', value: null },
+    ...Object.entries(REPORT_TYPE).map(([key, value]) => ({
+        label: REPORT_TYPE_LABELS[key] ?? key,
+        value,
+    })),
+]
+
+function todayInputValue() {
+    return new Date().toISOString().slice(0, 10)
+}
+
+function clearReportFilters() {
+    store.filterType = null
+    store.filterStatus = null
 }
 
 function toggleStatus(status) {
     store.filterStatus = store.filterStatus === status ? null : status
 }
 
-// ── Generate dialog ───────────────────────────────────────
-const newReport = ref({ type: REPORT_TYPE.DAILY_SALES, exportFormat: EXPORT_FORMAT.PDF, title: '' })
+const newReport = ref({
+    type: REPORT_TYPE.COLLECTOR_SALES,
+    exportFormat: EXPORT_FORMAT.EXCEL,
+    title: '',
+    dateFrom: todayInputValue(),
+    dateTo: todayInputValue(),
+})
 
 function openGenerate() {
-    newReport.value = { type: REPORT_TYPE.DAILY_SALES, exportFormat: EXPORT_FORMAT.PDF, title: '' }
+    newReport.value = {
+        type: REPORT_TYPE.COLLECTOR_SALES,
+        exportFormat: EXPORT_FORMAT.EXCEL,
+        title: '',
+        dateFrom: todayInputValue(),
+        dateTo: todayInputValue(),
+    }
     showGenerate.value = true
 }
 
-function onGenerate() {
+async function onGenerate() {
     const r = newReport.value
     if (!r.title.trim()) {
         r.title = REPORT_TYPE_LABELS[r.type?.toUpperCase()] ?? 'Reporte'
     }
-    store.generate({
+    const dateFrom = r.dateFrom ? new Date(`${r.dateFrom}T00:00:00`).toISOString() : null
+    const dateTo = r.dateTo ? new Date(`${r.dateTo}T23:59:59.999`).toISOString() : null
+    const ok = await store.generate({
         type: r.type,
         title: r.title,
-        exportFormat: r.exportFormat,
-        generatedBy: 'admin',
+        exportFormat: EXPORT_FORMAT.EXCEL,
+        dateFrom,
+        dateTo,
     })
-    showGenerate.value = false
+    if (ok) {
+        showGenerate.value = false
+    }
+}
+
+function openDetail(report) {
+    detailReport.value = report
+    showDetail.value = true
 }
 
 function onDelete(report) {
     confirmDelete('el reporte', report.title, () => store.remove(report.id))
 }
 
-// ── Helpers ───────────────────────────────────────────────
 function typeLabel(type) {
-    return REPORT_TYPE_LABELS[type?.toUpperCase()] ?? type
+    const key = String(type ?? '').toUpperCase().replace(/-/g, '_')
+    return REPORT_TYPE_LABELS[key] ?? type
 }
 
 function formatLabel(format) {
@@ -72,6 +108,36 @@ function formatDate(iso) {
     return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatMoney(value) {
+    const n = Number(value ?? 0)
+    return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatPeriod(report) {
+    if (!report?.dateFrom && !report?.dateTo) return '—'
+    const from = report.dateFrom ? formatDate(report.dateFrom) : '—'
+    const to = report.dateTo ? formatDate(report.dateTo) : '—'
+    return `${from} → ${to}`
+}
+
+const isCollectorReport = computed(() =>
+    detailReport.value?.type === REPORT_TYPE.COLLECTOR_SALES,
+)
+
+const collectorRows = computed(() =>
+    detailReport.value?.data?.collectors ?? [],
+)
+
+const collectorTotals = computed(() => ({
+    payments: detailReport.value?.data?.totalPayments ?? 0,
+    amount: detailReport.value?.data?.totalAmount ?? 0,
+}))
+
+function exportDetailExcel() {
+    if (!detailReport.value || !isCollectorReport.value) return
+    exportCollectorSalesReportExcel(detailReport.value)
+}
+
 function clearSearch() {
     store.searchQuery = ''
 }
@@ -89,8 +155,8 @@ function clearSearch() {
         <!-- ── Stat Cards ────────────────────────────────────────── -->
         <div class="stat-row">
             <button
-                :class="['stat-card', store.filterStatus === null && selectedType === null && 'stat-card--active']"
-                @click="selectedType = null; store.filterType = null; store.filterStatus = null"
+                :class="['stat-card', store.filterStatus === null && !store.filterType && 'stat-card--active']"
+                @click="clearReportFilters()"
             >
                 <i class="pi pi-file stat-card__icon" style="color:#6366f1"></i>
                 <div class="stat-card__body">
@@ -150,17 +216,16 @@ function clearSearch() {
                 </span>
             </div>
 
-            <!-- Type filter pills -->
-            <div class="rpt-pills">
-                <button
-                    v-for="(label, key) in REPORT_TYPE_LABELS"
-                    :key="key"
-                    :class="['rpt-pill', selectedType === key.toLowerCase() && 'rpt-pill--active']"
-                    @click="toggleType(key.toLowerCase())"
-                >
-                    {{ label }}
-                </button>
-            </div>
+            <pv-select
+                v-model="store.filterType"
+                :options="reportTypeFilterOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Tipo de reporte"
+                size="small"
+                showClear
+                class="rpt-type-select"
+            />
 
             <button class="rpt-btn rpt-btn--primary" @click="openGenerate">
                 <i class="pi pi-plus"></i> Generar reporte
@@ -174,7 +239,7 @@ function clearSearch() {
         </div>
 
         <div v-else class="rpt-list">
-            <div v-for="report in store.filteredReports" :key="report.id" class="rpt-card">
+            <div v-for="report in store.filteredReports" :key="report.id" class="rpt-card" @click="openDetail(report)">
                 <div class="rpt-card__left">
                     <div class="rpt-card__icon-wrap" :style="{ background: statusConfig(report.status).bg }">
                         <i :class="['pi', statusConfig(report.status).icon]" :style="{ color: statusConfig(report.status).color }"></i>
@@ -197,7 +262,7 @@ function clearSearch() {
                     >
                         {{ statusConfig(report.status).label }}
                     </span>
-                    <button class="rpt-card__action" title="Eliminar" @click="onDelete(report)">
+                    <button class="rpt-card__action" title="Eliminar" @click.stop="onDelete(report)">
                         <i class="pi pi-trash"></i>
                     </button>
                 </div>
@@ -222,18 +287,24 @@ function clearSearch() {
                         <label class="rpt-field">
                             <span class="rpt-field__label">Tipo de reporte</span>
                             <select v-model="newReport.type" class="rpt-field__input">
-                                <option v-for="(label, key) in REPORT_TYPE_LABELS" :key="key" :value="key.toLowerCase()">
+                                <option v-for="(label, key) in REPORT_TYPE_LABELS" :key="key" :value="REPORT_TYPE[key] ?? key.toLowerCase()">
                                     {{ label }}
                                 </option>
                             </select>
                         </label>
+                        <div class="rpt-field-row">
+                            <label class="rpt-field">
+                                <span class="rpt-field__label">Desde</span>
+                                <input v-model="newReport.dateFrom" type="date" class="rpt-field__input" />
+                            </label>
+                            <label class="rpt-field">
+                                <span class="rpt-field__label">Hasta</span>
+                                <input v-model="newReport.dateTo" type="date" class="rpt-field__input" />
+                            </label>
+                        </div>
                         <label class="rpt-field">
                             <span class="rpt-field__label">Formato de exportación</span>
-                            <select v-model="newReport.exportFormat" class="rpt-field__input">
-                                <option v-for="(label, key) in EXPORT_FORMAT_LABELS" :key="key" :value="key.toLowerCase()">
-                                    {{ label }}
-                                </option>
-                            </select>
+                            <input type="text" class="rpt-field__input" value="Excel (.xlsx)" disabled />
                         </label>
                     </div>
                     <div class="rpt-dialog__footer">
@@ -241,6 +312,71 @@ function clearSearch() {
                         <button class="rpt-btn rpt-btn--primary" @click="onGenerate">
                             <i class="pi pi-chart-bar"></i> Generar
                         </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- ── Detail Dialog ─────────────────────────────────────── -->
+        <Teleport to="body">
+            <div v-if="showDetail && detailReport" class="rpt-overlay" @click.self="showDetail = false">
+                <div class="rpt-dialog rpt-dialog--wide">
+                    <div class="rpt-dialog__header">
+                        <div>
+                            <h3>{{ detailReport.title }}</h3>
+                            <p class="rpt-dialog__subtitle">
+                                {{ typeLabel(detailReport.type) }} · {{ formatPeriod(detailReport) }}
+                            </p>
+                        </div>
+                        <button class="rpt-dialog__close" @click="showDetail = false">
+                            <i class="pi pi-times"></i>
+                        </button>
+                    </div>
+                    <div class="rpt-dialog__body">
+                        <template v-if="isCollectorReport">
+                            <div class="rpt-summary-row">
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Pagos</span>
+                                    <span class="rpt-summary-card__value">{{ collectorTotals.payments }}</span>
+                                </div>
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Total cobrado</span>
+                                    <span class="rpt-summary-card__value">S/ {{ formatMoney(collectorTotals.amount) }}</span>
+                                </div>
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Cobradores</span>
+                                    <span class="rpt-summary-card__value">{{ collectorRows.length }}</span>
+                                </div>
+                            </div>
+                            <div v-if="collectorRows.length === 0" class="rpt-empty rpt-empty--compact">
+                                <p>Sin cobros en el periodo seleccionado.</p>
+                            </div>
+                            <table v-else class="rpt-table">
+                                <thead>
+                                    <tr>
+                                        <th>Empleado / cobrador</th>
+                                        <th>Pagos</th>
+                                        <th>Total (S/)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, idx) in collectorRows" :key="idx">
+                                        <td>{{ row.displayName ?? '—' }}</td>
+                                        <td>{{ row.paymentCount ?? 0 }}</td>
+                                        <td>{{ formatMoney(row.totalAmount) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </template>
+                        <div v-else class="rpt-empty rpt-empty--compact">
+                            <p>Vista detallada no disponible para este tipo de reporte.</p>
+                        </div>
+                    </div>
+                    <div class="rpt-dialog__footer">
+                        <button v-if="isCollectorReport && collectorRows.length" class="rpt-btn" @click="exportDetailExcel">
+                            <i class="pi pi-download"></i> Exportar Excel
+                        </button>
+                        <button class="rpt-btn rpt-btn--primary" @click="showDetail = false">Cerrar</button>
                     </div>
                 </div>
             </div>
@@ -286,15 +422,10 @@ function clearSearch() {
     background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 0.75rem;
 }
 
-/* ── Pills ──────────────────────────────────────────────── */
-.rpt-pills { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.rpt-pill {
-    padding: 0.35rem 0.75rem; border-radius: 999px; font-size: 0.75rem;
-    font-weight: 600; border: 1px solid #e5e7eb; background: #fff;
-    cursor: pointer; color: #374151; transition: all 0.15s;
+.rpt-type-select {
+    min-width: 220px;
+    flex-shrink: 0;
 }
-.rpt-pill:hover { border-color: #c7d2fe; }
-.rpt-pill--active { background: #6366f1; color: #fff; border-color: #6366f1; }
 
 /* ── Buttons ────────────────────────────────────────────── */
 .rpt-btn {
@@ -319,6 +450,7 @@ function clearSearch() {
     display: flex; align-items: center; justify-content: space-between;
     padding: 1rem 1.25rem; background: #fff; border: 1px solid #e5e7eb;
     border-radius: 12px; gap: 1rem; transition: border-color 0.15s;
+    cursor: pointer;
 }
 .rpt-card:hover { border-color: #c7d2fe; }
 .rpt-card__left { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; }
@@ -355,6 +487,8 @@ function clearSearch() {
     background: #fff; border-radius: 16px; width: 100%; max-width: 460px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
 }
+.rpt-dialog--wide { max-width: 720px; }
+.rpt-dialog__subtitle { margin: 0.25rem 0 0; font-size: 0.78rem; color: #6b7280; }
 .rpt-dialog__header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 1.25rem 1.5rem; border-bottom: 1px solid #f3f4f6;
@@ -379,4 +513,20 @@ function clearSearch() {
     font-size: 0.85rem; outline: none; transition: border-color 0.15s;
 }
 .rpt-field__input:focus { border-color: #6366f1; }
+.rpt-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+.rpt-summary-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem; margin-bottom: 1rem;
+}
+.rpt-summary-card {
+    padding: 0.85rem 1rem; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb;
+}
+.rpt-summary-card__label { display: block; font-size: 0.72rem; color: #6b7280; font-weight: 600; }
+.rpt-summary-card__value { display: block; margin-top: 0.2rem; font-size: 1.1rem; font-weight: 800; color: #111827; }
+
+.rpt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.rpt-table th, .rpt-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #f3f4f6; text-align: left; }
+.rpt-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+.rpt-empty--compact { padding: 1.5rem 0; }
 </style>

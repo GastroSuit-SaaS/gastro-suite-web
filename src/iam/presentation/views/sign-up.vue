@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../application/iam.store.js'
@@ -20,20 +20,54 @@ const currentStep = ref(1)
 const stepEmpresa  = ref()
 const stepUsuario  = ref()
 
+/** Snapshot del wizard: el paso 1 se desmonta con v-if al ir al paso 2. */
+const draftEmpresa = ref(null)
+const draftUsuario = ref(null)
+
+function snapshotEmpresa(data) {
+    return {
+        ruc: data.ruc?.trim() ?? '',
+        razonSocial: data.razonSocial?.trim() ?? '',
+        nombreComercial: data.nombreComercial?.trim() ?? '',
+        direccion: data.direccion?.trim() ?? '',
+    }
+}
+
+function snapshotUsuario(data) {
+    return {
+        nombres: data.nombres?.trim() ?? '',
+        apellidos: data.apellidos?.trim() ?? '',
+        username: data.username?.trim() ?? '',
+        tipoDocumento: data.tipoDocumento ?? '',
+        numeroDocumento: data.numeroDocumento?.trim() ?? '',
+        email: data.email?.trim() ?? '',
+        telefono: data.telefono?.trim() ?? '',
+        password: data.password ?? '',
+        confirmPassword: data.confirmPassword ?? '',
+    }
+}
+
 // ── Navegación ────────────────────────────────────────────
 async function nextStep() {
     const stepRefs = [stepEmpresa, stepUsuario]
     const currentRef = stepRefs[currentStep.value - 1]
     if (currentRef?.value && !currentRef.value.validate()) return
 
-    // Step 2 → 3: registrar en el backend (empresa + usuario, sin sucursal)
+    if (currentStep.value === 1 && stepEmpresa.value?.data) {
+        draftEmpresa.value = snapshotEmpresa(stepEmpresa.value.data)
+    }
+
+    // Paso 2 → 3: registrar (empresa ya guardada en draftEmpresa)
     if (currentStep.value === SIGN_UP_STEPS.length - 1) {
-        const payload = {
-            empresa: stepEmpresa.value?.data,
-            usuario: stepUsuario.value?.data,
+        iamStore.clearAuthError()
+        if (stepUsuario.value?.data) {
+            draftUsuario.value = snapshotUsuario(stepUsuario.value.data)
         }
-        const ok = await iamStore.register(payload)
-        if (!ok) return  // Si falla, quedarse en step 2 con el error visible
+        const ok = await iamStore.register({
+            empresa: draftEmpresa.value,
+            usuario: draftUsuario.value,
+        })
+        if (!ok) return
     }
 
     currentStep.value++
@@ -45,8 +79,8 @@ function prevStep() {
 
 // ── Resumen para el step final ────────────────────────────
 const summary = computed(() => ({
-    empresa: stepEmpresa.value?.data ?? {},
-    usuario: stepUsuario.value?.data ?? {},
+    empresa: draftEmpresa.value ?? {},
+    usuario: draftUsuario.value ?? {},
 }))
 
 const summaryEmpresaNombre = computed(() => summary.value.empresa.nombreComercial ?? '')
@@ -75,6 +109,11 @@ const summaryUsuarioNombre = computed(() => {
 
                 <!-- Stepper indicador -->
                 <sign-up-stepper :steps="SIGN_UP_STEPS" :current-step="currentStep" />
+
+                <div v-if="iamStore.error && currentStep < SIGN_UP_STEPS.length" class="register-error mb-3">
+                    <i class="pi pi-exclamation-circle"></i>
+                    <span>{{ iamStore.error }}</span>
+                </div>
 
                 <!-- Contenido del paso actual -->
                 <div class="mb-4">
@@ -141,4 +180,20 @@ const summaryUsuarioNombre = computed(() => {
 <style scoped>
 .form-container { max-width: 32rem; margin: 0 auto; }
 .bg-surface { background-color: var(--color-white); }
+
+.register-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.85rem 1rem;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid #ef4444;
+    border-radius: 8px;
+    color: #991b1b;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+.register-error .pi { color: #dc2626; flex-shrink: 0; margin-top: 1px; }
 </style>

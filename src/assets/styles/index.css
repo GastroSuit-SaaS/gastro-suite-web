@@ -11,7 +11,7 @@
  * 3. Typography (sistema tipográfico)
  * 4. Layout (estructura dashboard)
  * 5. Utilities (clases utilitarias)
- * 6. PrimeVue Overrides (tema corporativo)
+ * 6. PrimeVue Overrides (tema corporativo; DatePicker campo vs popup)
  */
 
 /* ========================================
@@ -38,9 +38,15 @@
    5. UTILITIES
    ======================================== */
 @import './utilities.css';
+@import './module-chrome.css';
 
 /* ========================================
    6. PRIMEVUE OVERRIDES
-   ⚠️ DEBE SER EL ÚLTIMO
    ======================================== */
 @import './primevue-overrides.css';
+
+/* ========================================
+   7. NOTIFICACIONES (contraste global)
+   ⚠️ DEBE SER EL ÚLTIMO
+   ======================================== */
+@import './notifications.css';

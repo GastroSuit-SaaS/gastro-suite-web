@@ -1,12 +1,13 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { InventoryApi } from '../infrastructure/api/inventory.api.js';
 import { ProductAssembler } from '../infrastructure/assemblers/product.assembler.js';
 import { Product, STOCK_STATUS } from '../domain/models/product.entity.js';
 import { InventoryCategory } from '../domain/models/inventory-category.entity.js';
 import { StockMovement, MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../domain/models/stock-movement.entity.js';
-import { MOCK_PRODUCTS, MOCK_INVENTORY_CATEGORIES, MOCK_STOCK_MOVEMENTS } from '../infrastructure/inventory.mock.js';
-import { withMockFallback, withMockMutation } from '../../shared/infrustructure/mock-fallback.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { extractCollection } from '../../shared/infrustructure/api-response.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
 
 const api = new InventoryApi();
@@ -121,46 +122,17 @@ export const useInventoryStore = defineStore('inventory', () => {
         isLoading.value = true;
         error.value = null;
         try {
+            const branchId = requireActiveBranchId();
             const [prodResponse, catResponse, movResponse] = await Promise.all([
-                withMockFallback(
-                    () => api.getAll(),
-                    () => {
-                        const branchId = localStorage.getItem('gs_branch_id');
-                        return branchId
-                            ? MOCK_PRODUCTS.filter(p => p.sucursalId === branchId)
-                            : [...MOCK_PRODUCTS];
-                    },
-                ),
-                withMockFallback(
-                    () => api.getCategories(),
-                    () => {
-                        const branchId = localStorage.getItem('gs_branch_id');
-                        return branchId
-                            ? MOCK_INVENTORY_CATEGORIES.filter(c => c.sucursalId === branchId)
-                            : [...MOCK_INVENTORY_CATEGORIES];
-                    },
-                ),
-                withMockFallback(
-                    () => api.getMovements(),
-                    () => {
-                        const branchId = localStorage.getItem('gs_branch_id');
-                        return branchId
-                            ? MOCK_STOCK_MOVEMENTS.filter(m => m.sucursalId === branchId)
-                            : [...MOCK_STOCK_MOVEMENTS];
-                    },
-                ),
+                api.listProductsByBranch(branchId),
+                api.listCategoriesByBranch(branchId),
+                api.listMovementsByBranch(branchId),
             ]);
-            products.value = Array.isArray(prodResponse)
-                ? prodResponse
-                : ProductAssembler.toEntitiesFromResponse(prodResponse);
-            categoriesData.value = Array.isArray(catResponse)
-                ? catResponse
-                : catResponse?.data?.map?.(r => new InventoryCategory(r)) ?? [];
-            movements.value = Array.isArray(movResponse)
-                ? movResponse
-                : movResponse?.data?.map?.(r => new StockMovement(r)) ?? [];
+            products.value = ProductAssembler.toEntitiesFromResponse(prodResponse);
+            categoriesData.value = extractCollection(catResponse.data).map((r) => new InventoryCategory(r));
+            movements.value = extractCollection(movResponse.data).map((r) => new StockMovement(r));
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar productos';
+            error.value = getApiErrorMessage(e, 'Error al cargar productos');
         } finally {
             isLoading.value = false;
         }
@@ -170,7 +142,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const response = await api.getById(id);
+            const response = await api.getProductById(id);
             selectedProduct.value = ProductAssembler.toEntityFromResponse(response);
         } catch (e) {
             error.value = e?.response?.data?.message ?? 'Error al obtener el producto';
@@ -184,9 +156,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const optimistic = new Product({ id: optimisticId, ...productData });
         products.value.push(optimistic);
         try {
-            const response = await withMockMutation(
-                () => api.create(ProductAssembler.toResourceFromEntity(productData)),
-            );
+            const response = await api.createProduct(ProductAssembler.toResourceFromEntity(productData));
             if (response) {
                 const saved = ProductAssembler.toEntityFromResponse(response);
                 if (saved?.id) {
@@ -206,9 +176,7 @@ export const useInventoryStore = defineStore('inventory', () => {
             p.id === id ? new Product({ ...p, ...productData, id }) : p
         );
         try {
-            await withMockMutation(
-                () => api.update(id, ProductAssembler.toResourceFromEntity(productData)),
-            );
+            await api.updateProduct(id, ProductAssembler.toResourceFromEntity(productData));
         } catch (e) {
             products.value = snapshot;
             error.value = e?.response?.data?.message ?? 'Error al actualizar el producto';
@@ -219,7 +187,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const snapshot = [...products.value];
         products.value = products.value.filter(p => p.id !== id);
         try {
-            await withMockMutation(() => api.delete(id));
+            await api.deleteProduct(id);
         } catch (e) {
             products.value = snapshot;
             error.value = e?.response?.data?.message ?? 'Error al eliminar el producto';
@@ -232,7 +200,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const prevStock = product.stock;
         product.stock = quantity;
         try {
-            await withMockMutation(() => api.updateStock(id, quantity));
+            await api.updateProduct(id, { stock: quantity });
         } catch (e) {
             product.stock = prevStock;
             error.value = e?.response?.data?.message ?? 'Error al actualizar stock';
@@ -276,16 +244,14 @@ export const useInventoryStore = defineStore('inventory', () => {
         movements.value.push(movement);
 
         try {
-            await withMockMutation(
-                () => api.createMovement({
-                    product_id: data.productId,
-                    type: data.type,
-                    direction: data.direction,
-                    quantity: qty,
-                    reason: data.reason,
-                    notes: data.notes,
-                }),
-            );
+            await api.createMovement({
+                product_id: data.productId,
+                type: data.type,
+                direction: data.direction,
+                quantity: qty,
+                reason: data.reason,
+                notes: data.notes,
+            });
         } catch (e) {
             // Rollback
             product.stock = previousStock;
@@ -299,9 +265,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const optimisticId = Math.max(0, ...categoriesData.value.map(c => c.id)) + 1;
         categoriesData.value.push(new InventoryCategory({ id: optimisticId, ...data }));
         try {
-            const response = await withMockMutation(
-                () => api.createCategory({ name: data.name, description: data.description, color: data.color, is_active: data.isActive }),
-            );
+            const response = await api.createCategory({ name: data.name, description: data.description, color: data.color, is_active: data.isActive });
             if (response) {
                 const saved = response?.data?.data ?? response?.data;
                 if (saved?.id) {
@@ -325,9 +289,7 @@ export const useInventoryStore = defineStore('inventory', () => {
             });
         }
         try {
-            await withMockMutation(
-                () => api.updateCategory(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive }),
-            );
+            await api.updateCategory(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive });
         } catch {
             categoriesData.value = snapshot;
         }
@@ -337,7 +299,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const snapshot = [...categoriesData.value];
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
         try {
-            await withMockMutation(() => api.deleteCategory(id));
+            await api.deleteCategory(id);
         } catch {
             categoriesData.value = snapshot;
         }

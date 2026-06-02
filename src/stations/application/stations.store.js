@@ -1,16 +1,16 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { StationsApi } from '../infrastructure/api/stations.api.js';
 import { StationAssembler } from '../infrastructure/assemblers/station.assembler.js';
 import { StationTicketAssembler } from '../infrastructure/assemblers/station-ticket.assembler.js';
 import { Station } from '../domain/models/station.entity.js';
 import { StationTicket, StationTicketItem, TICKET_STATUS } from '../domain/models/station-ticket.entity.js';
-import { MOCK_STATIONS, MOCK_TICKETS } from '../infrastructure/stations.mock.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 
 export { TICKET_STATUS };
 
 const api = new StationsApi();
-const _isMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 /** Statuses that belong in the active kanban board (not history). */
 const ACTIVE_STATUSES = new Set([
@@ -62,44 +62,87 @@ export const useStationsStore = defineStore('stations', () => {
     );
 
     // ── Station Actions ───────────────────────────────────────────────────
+    /** Solo estaciones (menú, inventario, etc.) — sin tickets de cocina. */
+    async function fetchStations() {
+        try {
+            const branchId = requireActiveBranchId();
+            const stationsResp = await api.listStationsByBranch(branchId);
+            stations.value = StationAssembler.toEntitiesFromResponse(stationsResp);
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'Error al cargar las estaciones');
+            throw e;
+        }
+    }
+
+    function _applyTicketList(fetched) {
+        tickets.value       = fetched.filter(t => ACTIVE_STATUSES.has(t.status) && t.status !== TICKET_STATUS.DELIVERED);
+        ticketHistory.value = fetched.filter(t => t.status === TICKET_STATUS.DELIVERED || t.status === TICKET_STATUS.CANCELLED);
+        ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
+    }
+
+    function _upsertTicket(entity) {
+        if (!entity?.id) return;
+        const id = String(entity.id);
+        tickets.value = tickets.value.filter(t => String(t.id) !== id);
+        ticketHistory.value = ticketHistory.value.filter(t => String(t.id) !== id);
+
+        if (entity.status === TICKET_STATUS.DELIVERED || entity.status === TICKET_STATUS.CANCELLED) {
+            ticketHistory.value.unshift(entity);
+        } else if (ACTIVE_STATUSES.has(entity.status)) {
+            tickets.value.push(entity);
+            ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
+        }
+    }
+
+    async function fetchTicketsSilent() {
+        try {
+            const branchId = requireActiveBranchId();
+            const ticketsResp = await api.listTicketsByBranch(branchId);
+            const fetched = StationTicketAssembler.toEntitiesFromResponse(ticketsResp);
+            _applyTicketList(fetched);
+        } catch { /* mantener último estado */ }
+    }
+
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
-                if (stations.value.length === 0) {
-                    const branchId = localStorage.getItem('gs_branch_id');
-                    stations.value = branchId ? MOCK_STATIONS.filter(s => s.sucursalId === branchId) : [...MOCK_STATIONS];
-                    const mockTickets = branchId ? MOCK_TICKETS.filter(t => t.sucursalId === branchId) : [...MOCK_TICKETS];
-                    tickets.value  = mockTickets;
-                    ticketCountToday.value = Math.max(ticketCountToday.value, mockTickets.length);
-                }
-                return;
-            }
-            const [stationsResp, ticketsResp] = await Promise.all([
-                api.getAll(),
-                api.getTickets({ status: 'active' }),
+            const branchId = requireActiveBranchId();
+            const [, ticketsResp] = await Promise.all([
+                fetchStations(),
+                api.listTicketsByBranch(branchId),
             ]);
-            stations.value = StationAssembler.toEntitiesFromResponse(stationsResp);
             const fetched  = StationTicketAssembler.toEntitiesFromResponse(ticketsResp);
-            tickets.value       = fetched.filter(t => ACTIVE_STATUSES.has(t.status) && t.status !== TICKET_STATUS.DELIVERED);
-            ticketHistory.value = fetched.filter(t => t.status === TICKET_STATUS.DELIVERED || t.status === TICKET_STATUS.CANCELLED);
-            ticketCountToday.value = Math.max(ticketCountToday.value, tickets.value.length + ticketHistory.value.length);
+            _applyTicketList(fetched);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar las estaciones';
+            error.value = getApiErrorMessage(e, 'Error al cargar las estaciones');
         } finally {
             isLoading.value = false;
+        }
+    }
+
+    async function handleOperationalEvent(event) {
+        const ticketId = event?.entityId ?? event?.payload?.ticketId;
+        if (!ticketId) {
+            await fetchTicketsSilent();
+            return;
+        }
+        try {
+            const response = await api.getTicket(ticketId);
+            const entity = StationTicketAssembler.toEntityFromResponse(response);
+            if (entity) _upsertTicket(entity);
+        } catch {
+            await fetchTicketsSilent();
         }
     }
 
     async function createStation(data) {
         const optimisticId = Math.max(0, ...stations.value.map(s => s.id)) + 1;
         stations.value.push(new Station({ id: optimisticId, ...data }));
-        if (_isMock) return;
         try {
+            const branchId = requireActiveBranchId();
             const entity = new Station({ id: optimisticId, ...data });
-            const response = await api.create(StationAssembler.toResourceFromEntity(entity));
+            const response = await api.createStation(StationAssembler.toResourceFromEntity(entity, branchId));
             if (response.status === 201 || response.status === 200) {
                 const saved = StationAssembler.toEntityFromResponse(response);
                 if (saved?.id) {
@@ -116,9 +159,13 @@ export const useStationsStore = defineStore('stations', () => {
         tickets.value.forEach(t => {
             if (t.stationId === id) t.stationName = data.name ?? t.stationName;
         });
-        if (_isMock) return;
         try {
-            await api.update(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive });
+            await api.updateStation(id, {
+                stationName: data.name,
+                stationDescription: data.description,
+                stationColor: data.color,
+                isActive: data.isActive,
+            });
         } catch { /* local change kept */ }
     }
 
@@ -130,7 +177,6 @@ export const useStationsStore = defineStore('stations', () => {
         );
         if (hasActiveTickets) return;
         stations.value = stations.value.filter(s => s.id !== id);
-        if (_isMock) return;
         try {
             await api.delete(id);
         } catch { /* local change kept */ }
@@ -140,46 +186,113 @@ export const useStationsStore = defineStore('stations', () => {
         selectedStationId.value = selectedStationId.value === id ? null : id;
     }
 
+    function _mergeTicketFromApi(local, saved) {
+        if (!local || !saved) return;
+        local.status       = saved.status;
+        local.startedAt    = saved.startedAt ?? local.startedAt;
+        local.readyAt      = saved.readyAt ?? local.readyAt;
+        local.deliveredAt  = saved.deliveredAt ?? local.deliveredAt;
+        local.cancelledAt  = saved.cancelledAt ?? local.cancelledAt;
+        local.cancelReason = saved.cancelReason ?? local.cancelReason;
+        local.stationName  = saved.stationName || local.stationName;
+        local.tableNumber  = saved.tableNumber ?? local.tableNumber;
+        if (saved.items?.length) local.items = saved.items;
+    }
+
+    async function _persistTicketStatus(ticketId, status) {
+        const response = await api.updateTicket(
+            ticketId,
+            StationTicketAssembler.toUpdateBffResource({ status }),
+        );
+        return StationTicketAssembler.toEntityFromResponse(response);
+    }
+
     // ── Ticket Actions ────────────────────────────────────────────────────
     /**
      * Avanza received → preparing → ready → delivered.
      * Al llegar a 'delivered' el ticket pasa al historial en lugar de borrarse.
      */
-    function advanceTicket(ticketId) {
+    async function advanceTicket(ticketId) {
         const ticket = tickets.value.find(t => t.id === ticketId);
         if (!ticket) return;
+
+        const snapshot = {
+            status:       ticket.status,
+            startedAt:    ticket.startedAt,
+            readyAt:      ticket.readyAt,
+            deliveredAt:  ticket.deliveredAt,
+            readyToArchive: ticket.readyToArchive,
+        };
+
+        let targetStatus = ticket.status;
         if (ticket.status === TICKET_STATUS.RECEIVED) {
-            ticket.status    = TICKET_STATUS.PREPARING;
-            ticket.startedAt = new Date();
+            targetStatus       = TICKET_STATUS.PREPARING;
+            ticket.startedAt   = new Date();
         } else if (ticket.status === TICKET_STATUS.PREPARING) {
-            ticket.status  = TICKET_STATUS.READY;
-            ticket.readyAt = new Date();
+            targetStatus     = TICKET_STATUS.READY;
+            ticket.readyAt   = new Date();
         } else if (ticket.status === TICKET_STATUS.READY) {
-            ticket.status      = TICKET_STATUS.DELIVERED;
-            ticket.deliveredAt = new Date();
-            // Persist DELIVERED immediately so a page refresh still shows it in history.
-            // The brief UI delay is purely visual — the API call happens synchronously here.
-            if (!_isMock) api.updateTicketStatus(ticketId, TICKET_STATUS.DELIVERED).catch(() => {});
-            // Mark as ready to archive — the view layer handles the visual delay
+            targetStatus         = TICKET_STATUS.DELIVERED;
+            ticket.deliveredAt   = new Date();
             ticket.readyToArchive = true;
-            return; // API call already fired above — skip the generic call below
+        } else {
+            return;
         }
-        if (!_isMock) api.updateTicketStatus(ticketId, ticket.status).catch(() => { /* local change kept */ });
+
+        ticket.status = targetStatus;
+
+        try {
+            const saved = await _persistTicketStatus(ticketId, targetStatus);
+            _mergeTicketFromApi(ticket, saved);
+            if (targetStatus === TICKET_STATUS.DELIVERED && saved?.status === TICKET_STATUS.DELIVERED) {
+                ticket.readyToArchive = true;
+            }
+        } catch (e) {
+            ticket.status         = snapshot.status;
+            ticket.startedAt      = snapshot.startedAt;
+            ticket.readyAt        = snapshot.readyAt;
+            ticket.deliveredAt    = snapshot.deliveredAt;
+            ticket.readyToArchive = snapshot.readyToArchive;
+            error.value = getApiErrorMessage(e, 'No se pudo actualizar el estado del ticket');
+            throw e;
+        }
     }
 
     /**
      * Cancela un ticket activo (received | preparing) con motivo opcional.
      * Lo mueve al historial inmediatamente.
      */
-    function cancelTicket(ticketId, reason = '') {
+    async function cancelTicket(ticketId, reason = '') {
         const ticket = tickets.value.find(t => t.id === ticketId);
         if (!ticket || ticket.status === TICKET_STATUS.DELIVERED || ticket.status === TICKET_STATUS.CANCELLED) return;
+
+        const snapshot = { status: ticket.status };
         ticket.status       = TICKET_STATUS.CANCELLED;
         ticket.cancelledAt  = new Date();
         ticket.cancelReason = reason;
         ticketHistory.value.unshift(new StationTicket({ ...ticket }));
         tickets.value = tickets.value.filter(t => t.id !== ticketId);
-        if (!_isMock) api.cancelTicket(ticketId, reason).catch(() => { /* local change kept */ });
+
+        try {
+            const saved = await api.updateTicket(
+                ticketId,
+                StationTicketAssembler.toUpdateBffResource({
+                    status: TICKET_STATUS.CANCELLED,
+                    cancelReason: reason,
+                }),
+            );
+            const parsed = StationTicketAssembler.toEntityFromResponse(saved);
+            if (parsed) {
+                ticket.cancelledAt  = parsed.cancelledAt ?? ticket.cancelledAt;
+                ticket.cancelReason = parsed.cancelReason ?? ticket.cancelReason;
+            }
+        } catch (e) {
+            tickets.value.push(ticket);
+            ticketHistory.value = ticketHistory.value.filter(t => t.id !== ticketId);
+            ticket.status = snapshot.status;
+            error.value = getApiErrorMessage(e, 'No se pudo cancelar el ticket');
+            throw e;
+        }
     }
 
     /** Moves a delivered ticket to history (called internally after delay). */
@@ -191,12 +304,11 @@ export const useStationsStore = defineStore('stations', () => {
     }
 
     /**
-     * Recibe los ítems de una venta agrupados por estación y crea tickets.
-     * Ítems sin stationId van a la estación "Sin estación asignada" y generan
-     * una advertencia (visible en el panel de cocina) en lugar de perderse.
+     * Crea un ticket en cocina por cada estación con ítems pendientes.
+     * @returns {Promise<void>}
      */
-    function sendSaleToStations(sale, tableNumber) {
-        if (!sale || sale.items.length === 0) return;
+    async function sendSaleToStations(sale, tableNumber) {
+        if (!sale?.id || sale.items.length === 0) return;
 
         const groups = {};
         sale.items.forEach(item => {
@@ -206,12 +318,14 @@ export const useStationsStore = defineStore('stations', () => {
         });
 
         const newTickets = [];
-        Object.entries(groups).forEach(([key, items]) => {
-            const sid     = key === 'unassigned' ? null : Number(key);
-            const station = sid !== null ? stations.value.find(s => s.id === sid) : null;
-            const ticket  = new StationTicket({
+        for (const [key, items] of Object.entries(groups)) {
+            const stationId = key === 'unassigned' ? null : key;
+            const station   = stationId
+                ? stations.value.find(s => String(s.id) === String(stationId))
+                : null;
+            const ticket = new StationTicket({
                 id:          crypto.randomUUID(),
-                stationId:   sid,
+                stationId,
                 stationName: station?.name ?? '⚠ Sin estación asignada',
                 saleId:      sale.id,
                 tableNumber: tableNumber ?? null,
@@ -221,26 +335,37 @@ export const useStationsStore = defineStore('stations', () => {
                     quantity:     i.quantity,
                     note:         i.note,
                 })),
-                status:    TICKET_STATUS.RECEIVED,
-                createdAt: new Date(),
+                status:     TICKET_STATUS.RECEIVED,
+                createdAt:  new Date(),
                 sucursalId: sale.sucursalId ?? null,
             });
             tickets.value.push(ticket);
             newTickets.push(ticket);
             ticketCountToday.value++;
-        });
-        // Reconcile temporary UUIDs with backend IDs when the API responds
-        if (!_isMock) {
-            api.sendToStations(sale.id, newTickets)
-                .then(response => {
-                    const saved = response?.data?.data ?? response?.data ?? [];
-                    if (Array.isArray(saved)) {
-                        newTickets.forEach((ticket, idx) => {
-                            if (saved[idx]?.id) ticket.id = saved[idx].id;
-                        });
-                    }
-                })
-                .catch(() => { /* local tickets kept with temporary UUIDs */ });
+        }
+
+        const failures = [];
+        for (const ticket of newTickets) {
+            if (!ticket.stationId) {
+                failures.push('Hay productos sin estación asignada en el menú.');
+                continue;
+            }
+            try {
+                const response = await api.createTicket(
+                    StationTicketAssembler.toCreateBffResource({
+                        saleId:    sale.id,
+                        stationId: ticket.stationId,
+                    }),
+                );
+                const saved = StationTicketAssembler.toEntityFromResponse(response);
+                if (saved?.id) ticket.id = saved.id;
+            } catch (e) {
+                failures.push(getApiErrorMessage(e, 'Error al crear ticket de cocina'));
+            }
+        }
+
+        if (failures.length > 0) {
+            throw new Error([...new Set(failures)].join(' '));
         }
     }
 
@@ -261,8 +386,6 @@ export const useStationsStore = defineStore('stations', () => {
                 ticket.items.splice(itemIdx, 1);
                 if (ticket.items.length === 0) {
                     cancelTicket(ticket.id, 'Ítem cancelado desde POS');
-                } else if (!_isMock) {
-                    api.updateTicketStatus(ticket.id, ticket.status).catch(() => {});
                 }
                 break;
             }
@@ -277,7 +400,8 @@ export const useStationsStore = defineStore('stations', () => {
         receivedTickets, preparingTickets, readyTickets, deliveredTickets,
         totalToday, readyCount,
         // Station actions
-        fetchAll, createStation, updateStation, removeStation, selectStation,
+        fetchAll, fetchTicketsSilent, fetchStations, createStation, updateStation, removeStation, selectStation,
+        handleOperationalEvent,
         // Ticket actions
         advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket, notifyItemCancelled,
     };

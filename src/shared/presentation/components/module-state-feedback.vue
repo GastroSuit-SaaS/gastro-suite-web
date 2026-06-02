@@ -94,8 +94,9 @@ defineEmits(['retry'])
     align-items: center;
     gap: 0.9rem;
     padding: 1rem 1.25rem;
-    background: #fef2f2;
-    border: 1px solid #fca5a5;
+    background: var(--notify-error-bg, #fef2f2);
+    border: 1px solid var(--notify-error-border, #fca5a5);
+    border-left: 4px solid var(--notify-error-border, #ef4444);
     border-radius: 12px;
     max-width: 580px;
     width: 100%;
@@ -118,15 +119,16 @@ defineEmits(['retry'])
 .gs-error-banner__title {
     font-size: 0.88rem;
     font-weight: 700;
-    color: #dc2626;
+    color: var(--notify-error-title, #991b1b);
 }
 
 .gs-error-banner__msg {
     font-size: 0.82rem;
-    color: #b91c1c;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--notify-error-detail, #b91c1c);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.45;
 }
 
 .gs-error-banner__retry {

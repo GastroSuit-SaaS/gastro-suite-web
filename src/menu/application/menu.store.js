@@ -5,10 +5,25 @@ import { MenuItemAssembler } from '../infrastructure/assemblers/menu-item.assemb
 import { CategoryAssembler } from '../infrastructure/assemblers/category.assembler.js';
 import { MenuItem } from '../domain/models/menu-item.entity.js';
 import { Category } from '../domain/models/category.entity.js';
-import { MOCK_CATEGORIES, MOCK_ITEMS } from '../infrastructure/menu.mock.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { isNetworkOnline } from '../../shared/infrustructure/offline/network.js';
+import { loadMenuReadCache, saveMenuReadCache } from '../../shared/infrustructure/offline/read-cache.js';
+import { sortBySortOrder } from '../domain/menu-sort.js';
 
 const api = new MenuApi();
 
+/** @returns {{ ok: true } | { ok: false, message: string }} */
+function fail(err, fallback, restore) {
+    restore();
+    return { ok: false, message: getApiErrorMessage(err, fallback) };
+}
+
+function isValidCategoryId(id) {
+    if (id == null || id === '' || String(id) === 'null') return false;
+    if (String(id).startsWith('temp-')) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+}
 
 export const useMenuStore = defineStore('menu', () => {
 
@@ -21,23 +36,24 @@ export const useMenuStore = defineStore('menu', () => {
     const error        = ref(null);
     const selectedItem = ref(null);
 
-    // ── Computeds ─────────────────────────────────────────────────────────
-    // categories → solo activas (filtros catálogo, POS, dropdowns)
     const categories = computed(() =>
-        categoriesData.value
-            .filter(cat => cat.isActive)
-            .map(cat => new Category({
-                ...cat,
-                count: items.value.filter(i => i.categoryId === cat.id).length,
-            }))
+        sortBySortOrder(
+            categoriesData.value
+                .filter(cat => cat.isActive)
+                .map(cat => new Category({
+                    ...cat,
+                    count: items.value.filter(i => i.categoryId === cat.id).length,
+                })),
+        ),
     );
 
-    // allCategories → todas (tab gestión)
     const allCategories = computed(() =>
-        categoriesData.value.map(cat => new Category({
-            ...cat,
-            count: items.value.filter(i => i.categoryId === cat.id).length,
-        }))
+        sortBySortOrder(
+            categoriesData.value.map(cat => new Category({
+                ...cat,
+                count: items.value.filter(i => i.categoryId === cat.id).length,
+            })),
+        ),
     );
 
     const activeCategoryIds = computed(() =>
@@ -49,38 +65,70 @@ export const useMenuStore = defineStore('menu', () => {
     const unavailableItems = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId) && !i.isAvailable).length);
     const totalCategories  = computed(() => categories.value.length);
 
+    const categoryOrderIndex = computed(() => {
+        const map = new Map();
+        categories.value.forEach((c, idx) => map.set(c.id, idx));
+        return map;
+    });
+
     const filteredItems = computed(() => {
         const query = searchQuery.value.trim().toLowerCase();
-        return items.value.filter(i => {
+        const list = items.value.filter(i => {
             if (!activeCategoryIds.value.has(i.categoryId)) return false;
             const matchesCategory = selectedCategoryId.value === null || i.categoryId === selectedCategoryId.value;
             const matchesSearch   = !query || i.name.toLowerCase().includes(query) || i.description.toLowerCase().includes(query);
             return matchesCategory && matchesSearch;
         });
+        return [...list].sort((a, b) => {
+            const oa = categoryOrderIndex.value.get(a.categoryId) ?? 999;
+            const ob = categoryOrderIndex.value.get(b.categoryId) ?? 999;
+            if (oa !== ob) return oa - ob;
+            return a.name.localeCompare(b.name, 'es');
+        });
     });
 
-    // ── Actions ───────────────────────────────────────────────────────────
+    async function reloadCategories() {
+        const branchId = requireActiveBranchId();
+        const catsResp = await api.listCategoriesByBranch(branchId);
+        categoriesData.value = sortBySortOrder(CategoryAssembler.toEntitiesFromResponse(catsResp));
+    }
+
+    function hydrateFromCache() {
+        try {
+            const branchId = requireActiveBranchId();
+            const cached = loadMenuReadCache(branchId);
+            if (!cached?.items?.length && !cached?.categories?.length) return false;
+            categoriesData.value = sortBySortOrder(
+                cached.categories.map(c => new Category(c)),
+            );
+            items.value = cached.items.map(i => new MenuItem(i));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
-                if (items.value.length === 0) {
-                    const branchId = localStorage.getItem('gs_branch_id');
-                    categoriesData.value = branchId ? MOCK_CATEGORIES.filter(c => c.sucursalId === branchId) : [...MOCK_CATEGORIES];
-                    items.value          = branchId ? MOCK_ITEMS.filter(i => i.sucursalId === branchId)      : [...MOCK_ITEMS];
-                }
-                return;
-            }
+            const branchId = requireActiveBranchId();
             const [itemsResp, catsResp] = await Promise.all([
-                api.getAll(),
-                api.getCategories(),
+                api.listItemsByBranch(branchId),
+                api.listCategoriesByBranch(branchId),
             ]);
-            categoriesData.value = CategoryAssembler.toEntitiesFromResponse(catsResp);
+            categoriesData.value = sortBySortOrder(CategoryAssembler.toEntitiesFromResponse(catsResp));
             items.value          = MenuItemAssembler.toEntitiesFromResponse(itemsResp);
+            saveMenuReadCache(branchId, {
+                categories: categoriesData.value.map(c => ({ ...c })),
+                items: items.value.map(i => ({ ...i })),
+            });
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar el menú';
+            if (!isNetworkOnline() && hydrateFromCache()) {
+                error.value = null;
+            } else {
+                error.value = getApiErrorMessage(e, 'Error al cargar el menú');
+            }
         } finally {
             isLoading.value = false;
         }
@@ -90,10 +138,10 @@ export const useMenuStore = defineStore('menu', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const response = await api.getById(id);
-            selectedItem.value = MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
+            const response = await api.getItemById(id);
+            selectedItem.value = MenuItemAssembler.toEntityFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar el ítem';
+            error.value = getApiErrorMessage(e, 'Error al cargar el producto');
         } finally {
             isLoading.value = false;
         }
@@ -101,59 +149,72 @@ export const useMenuStore = defineStore('menu', () => {
 
     async function create(itemData) {
         const { imageFile, ...fields } = itemData;
-        const cat = categoriesData.value.find(c => c.id === fields.categoryId);
+        const item = fields instanceof MenuItem ? fields : new MenuItem(fields);
+        const cat = categoriesData.value.find(c => c.id === item.categoryId);
         const optimisticId = Date.now();
+        const snapshot = [...items.value];
         const optimistic = new MenuItem({
-            ...fields,
+            ...item,
             id:       optimisticId,
             category: cat?.name ?? '',
         });
         items.value.push(optimistic);
         try {
-            const response = await api.create(MenuItemAssembler.toResourceFromEntity ? MenuItemAssembler.toResourceFromEntity(fields) : fields);
-            if (response.status === 201 || response.status === 200) {
-                const saved = MenuItemAssembler.toEntityFromResource(response.data?.data ?? response.data);
-                if (saved?.id) {
-                    const idx = items.value.findIndex(i => i.id === optimisticId);
-                    if (idx !== -1) items.value.splice(idx, 1, saved);
-                }
+            const response = await api.createItem(MenuItemAssembler.toCreateResource(item));
+            const saved = MenuItemAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                const idx = items.value.findIndex(i => i.id === optimisticId);
+                if (idx !== -1) items.value.splice(idx, 1, saved);
             }
-        } catch { /* optimistic entry stays */ }
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo crear el producto', () => { items.value = snapshot; });
+        }
     }
 
     async function update(id, itemData) {
         const { imageFile, ...fields } = itemData;
+        const item = fields instanceof MenuItem ? fields : new MenuItem(fields);
+        const snapshot = [...items.value];
         const idx = items.value.findIndex(i => i.id === id);
         if (idx !== -1) {
-            const cat = categoriesData.value.find(c => c.id === fields.categoryId);
+            const cat = categoriesData.value.find(c => c.id === item.categoryId);
             items.value[idx] = new MenuItem({
                 ...items.value[idx],
-                ...fields,
+                ...item,
                 category: cat?.name ?? items.value[idx].category,
             });
         }
         try {
-            await api.update(id, MenuItemAssembler.toResourceFromEntity ? MenuItemAssembler.toResourceFromEntity(fields) : fields);
-        } catch { /* local change kept */ }
+            await api.updateItem(id, MenuItemAssembler.toUpdateResource(item));
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo actualizar el producto', () => { items.value = snapshot; });
+        }
     }
 
     async function remove(id) {
+        const snapshot = [...items.value];
         items.value = items.value.filter(i => i.id !== id);
         try {
-            await api.delete(id);
-        } catch { /* local change kept */ }
+            await api.deleteItem(id);
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo eliminar el producto', () => { items.value = snapshot; });
+        }
     }
 
     async function setItemAvailability(id, isAvailable) {
         const item = items.value.find(i => i.id === id);
-        if (!item) return;
+        if (!item) return { ok: false, message: 'Producto no encontrado' };
         const prev = item.isAvailable;
         item.isAvailable = isAvailable;
         try {
-            await api.update(id, { is_available: isAvailable });
-        } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
+            await api.updateItem(id, MenuItemAssembler.toUpdateResource({ isAvailable }));
+            return { ok: true };
+        } catch (e) {
             item.isAvailable = prev;
+            return { ok: false, message: getApiErrorMessage(e, 'No se pudo cambiar la disponibilidad') };
         }
     }
 
@@ -162,39 +223,74 @@ export const useMenuStore = defineStore('menu', () => {
     }
 
     async function createCategory(data) {
-        const optimisticId = Math.max(0, ...categoriesData.value.map(c => c.id)) + 1;
-        categoriesData.value.push(new Category({ id: optimisticId, ...data }));
+        const category = data instanceof Category ? data : new Category(data);
+        let branchId;
         try {
-            const response = await api.createCategory(CategoryAssembler.toResourceFromEntity(data));
-            if (response.status === 201 || response.status === 200) {
-                const saved = CategoryAssembler.toEntityFromResource(response.data?.data ?? response.data);
-                if (saved?.id) {
-                    const idx = categoriesData.value.findIndex(c => c.id === optimisticId);
-                    if (idx !== -1) categoriesData.value.splice(idx, 1, saved);
-                }
+            branchId = requireActiveBranchId();
+        } catch (e) {
+            return { ok: false, message: e?.message ?? 'Selecciona una sucursal activa para continuar.' };
+        }
+        const optimisticId = `temp-${Date.now()}`;
+        const snapshot = [...categoriesData.value];
+        categoriesData.value.push(new Category({ id: optimisticId, ...category }));
+        try {
+            const response = await api.createCategory(
+                CategoryAssembler.toResourceFromEntity(category, branchId, snapshot),
+            );
+            const saved = CategoryAssembler.toEntityFromResponse(response);
+            if (saved?.id && isValidCategoryId(saved.id)) {
+                const idx = categoriesData.value.findIndex(c => c.id === optimisticId);
+                if (idx !== -1) categoriesData.value.splice(idx, 1, saved);
+            } else {
+                categoriesData.value = snapshot;
+                await fetchAll();
             }
-        } catch { /* optimistic entry stays */ }
+            categoriesData.value = sortBySortOrder(categoriesData.value);
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo crear la categoría', () => { categoriesData.value = snapshot; });
+        }
     }
 
     async function updateCategory(id, data) {
-        const idx = categoriesData.value.findIndex(c => c.id === id);
-        if (idx !== -1) categoriesData.value[idx] = new Category({ ...categoriesData.value[idx], ...data });
+        const categoryId = id ?? (data instanceof Category ? data.id : data?.id);
+        if (!isValidCategoryId(categoryId)) {
+            return {
+                ok: false,
+                message: 'No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.',
+            };
+        }
+        const category = data instanceof Category
+            ? data
+            : new Category({ ...data, id: categoryId });
+        const snapshot = [...categoriesData.value];
         try {
-            await api.updateCategory(id, CategoryAssembler.toResourceFromEntity(data));
-        } catch { /* local change kept */ }
+            await api.updateCategory(categoryId, CategoryAssembler.toUpdateResource(category));
+            await reloadCategories();
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo actualizar la categoría', () => { categoriesData.value = snapshot; });
+        }
     }
 
     async function removeCategory(id) {
+        if (!isValidCategoryId(id)) {
+            return { ok: false, message: 'No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.' };
+        }
+        const snapshot = [...categoriesData.value];
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
         try {
             await api.deleteCategory(id);
-        } catch { /* local change kept */ }
+            return { ok: true };
+        } catch (e) {
+            return fail(e, 'No se pudo eliminar la categoría', () => { categoriesData.value = snapshot; });
+        }
     }
 
     return {
         items, categoriesData, selectedCategoryId, searchQuery, isLoading, error, selectedItem,
         totalItems, availableItems, unavailableItems, totalCategories, categories, allCategories, filteredItems,
-        fetchAll, fetchById, create, update, remove,
+        fetchAll, hydrateFromCache, fetchById, create, update, remove,
         setItemAvailability, selectCategory, createCategory, updateCategory, removeCategory,
     };
 });

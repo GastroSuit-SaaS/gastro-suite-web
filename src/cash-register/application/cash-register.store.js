@@ -5,9 +5,10 @@ import { CashMovementAssembler } from '../infrastructure/assemblers/cash-movemen
 import { CashRegisterSessionAssembler } from '../infrastructure/assemblers/cash-register-session.assembler.js';
 import { CashRegisterSession, SESSION_STATUS } from '../domain/models/cash-register-session.entity.js';
 import { CashMovement, MOVEMENT_TYPE, MOVEMENT_CATEGORY } from '../domain/models/cash-movement.entity.js';
-import { withMockFallback, withMockMutation } from '../../shared/infrustructure/mock-fallback.js';
-import { MOCK_SESSIONS, MOCK_MOVEMENTS } from '../infrastructure/cash-register.mock.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
+import { movementMethodKey } from '../presentation/utils/cash-movement-display.js';
 
 const api = new CashRegisterApi();
 
@@ -20,6 +21,10 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
     const selectedMovement = ref(null);
     const isLoading        = ref(false);
     const error            = ref(null);
+    /** { code, message } cuando falla cierre de turno (p. ej. CRG_002) */
+    const closeSessionError = ref(null);
+    /** Cobros por empleado en el turno actual */
+    const collectorSummary  = ref([]);
 
     // ── Getters ───────────────────────────────────────────────────────────
 
@@ -49,10 +54,14 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
     /** Balance del turno actual */
     const sessionBalance = computed(() => sessionIncome.value - sessionExpense.value);
 
-    /** Ingresos del turno actual solo en EFECTIVO FÍSICO (excluye venta_digital) */
+    /** Ingresos del turno actual solo en EFECTIVO FÍSICO (excluye venta_digital y fondo inicial duplicado) */
     const sessionCashIncome = computed(() =>
         currentSessionMovements.value
-            .filter(m => m.type === MOVEMENT_TYPE.INCOME && m.isCashPhysical)
+            .filter(m =>
+                m.type === MOVEMENT_TYPE.INCOME
+                && m.isCashPhysical
+                && m.category !== MOVEMENT_CATEGORY.APERTURA,
+            )
             .reduce((s, m) => s + m.amount, 0),
     );
 
@@ -76,12 +85,60 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
         return currentSession.value.initialAmount + sessionCashIncome.value - sessionCashExpense.value;
     });
 
-    /** Cantidad de ventas (movimientos con categoría venta o venta_digital) */
-    const sessionSalesCount = computed(() =>
+    /** Ventas cobradas en efectivo (categoría venta, sin fondo inicial) */
+    const sessionCashSalesRevenue = computed(() =>
         currentSessionMovements.value
-            .filter(m => m.category === MOVEMENT_CATEGORY.VENTA || m.category === MOVEMENT_CATEGORY.VENTA_DIGITAL)
-            .length,
+            .filter(m => m.category === MOVEMENT_CATEGORY.VENTA && m.type === MOVEMENT_TYPE.INCOME)
+            .reduce((s, m) => s + m.amount, 0),
     );
+
+    /** Propinas registradas en el turno */
+    const sessionTipsIncome = computed(() =>
+        currentSessionMovements.value
+            .filter(m => m.category === MOVEMENT_CATEGORY.PROPIA && m.type === MOVEMENT_TYPE.INCOME)
+            .reduce((s, m) => s + m.amount, 0),
+    );
+
+    /** Reembolsos en efectivo del turno */
+    const sessionRefundsExpense = computed(() =>
+        currentSessionMovements.value
+            .filter(m => m.category === MOVEMENT_CATEGORY.REEMBOLSO && m.type === MOVEMENT_TYPE.EXPENSE)
+            .reduce((s, m) => s + m.amount, 0),
+    );
+
+    /** Órdenes únicas cobradas (venta + digital; propina no duplica orden) */
+    const sessionSalesCount = computed(() => {
+        const keys = new Set();
+        for (const m of currentSessionMovements.value) {
+            if (m.category !== MOVEMENT_CATEGORY.VENTA && m.category !== MOVEMENT_CATEGORY.VENTA_DIGITAL) {
+                continue;
+            }
+            if (m.saleDisplayNumber != null && m.saleDisplayNumber !== '') {
+                keys.add(`order:${m.saleDisplayNumber}`);
+            } else if (m.paymentId) {
+                keys.add(`pay:${m.paymentId}`);
+            } else {
+                keys.add(`mov:${m.id}`);
+            }
+        }
+        return keys.size;
+    });
+
+    /** Total vendido en turno (efectivo + digital, sin propinas) */
+    const sessionTotalSalesRevenue = computed(() =>
+        sessionCashSalesRevenue.value + sessionDigitalIncome.value,
+    );
+
+    /** Ventas digitales desglosadas por método de pago */
+    const sessionSalesByMethod = computed(() => {
+        const totals = { card: 0, yape: 0, plin: 0 };
+        for (const m of currentSessionMovements.value) {
+            if (m.category !== MOVEMENT_CATEGORY.VENTA_DIGITAL) continue;
+            const key = movementMethodKey(m);
+            if (key in totals) totals[key] += m.amount;
+        }
+        return totals;
+    });
 
     /** Totales globales de todos los movimientos cargados */
     const totalIncome  = computed(() => movements.value.filter(m => m.type === MOVEMENT_TYPE.INCOME).reduce((s, m) => s + m.amount, 0));
@@ -94,62 +151,96 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
     // ── Helpers ────────────────────────────────────────────────────────────
     function _iamStore() { return useIamStore(); }
 
-    function _currentUserId()   { return _iamStore().currentUser?.id ?? null; }
-    function _currentUserName() { return _iamStore().currentUser?.fullName ?? 'Usuario'; }
-    function _branchId()        { return _iamStore().activeBranchId ?? localStorage.getItem('gs_branch_id') ?? null; }
-
-    function _mockSessions() {
-        const bid = _branchId();
-        return bid ? MOCK_SESSIONS.filter(s => s.sucursalId === bid) : [...MOCK_SESSIONS];
+    function _currentUserId()       { return _iamStore().currentUser?.id ?? null; }
+    function _currentEmployeeId()   { return _iamStore().currentUser?.employeeId ?? null; }
+    function _currentUserName()     { return _iamStore().currentUser?.fullName ?? 'Usuario'; }
+    function _branchId() {
+        return _iamStore().activeBranchId ?? requireActiveBranchId();
     }
 
-    function _mockMovements() {
-        const bid = _branchId();
-        return bid ? MOCK_MOVEMENTS.filter(m => m.sucursalId === bid) : [...MOCK_MOVEMENTS];
-    }
-
-    // ── Actions: Sessions (Turnos) ────────────────────────────────────────
-
-    /**
-     * Carga todas las sesiones y movimientos, y detecta el turno abierto.
-     */
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
-            // En mock mode, solo cargar la primera vez; las mutaciones locales son fuente de verdad
-            if (import.meta.env.VITE_USE_MOCK === 'true' && sessions.value.length > 0) {
-                return;
-            }
-
-            // Cargar sesiones
-            const sessionsResponse = await withMockFallback(
-                () => api.getAllSessions(),
-                () => ({ status: 200, data: _mockSessions() }),
-            );
-            sessions.value = (sessionsResponse.status === 200)
-                ? (Array.isArray(sessionsResponse.data)
-                    ? sessionsResponse.data.map(r => (r instanceof CashRegisterSession) ? r : CashRegisterSessionAssembler.toEntityFromResource(r))
-                    : CashRegisterSessionAssembler.toEntitiesFromResponse(sessionsResponse))
-                : [];
-
-            // Detectar turno abierto
-            currentSession.value = sessions.value.find(s => s.isOpen) ?? null;
-
-            // Cargar movimientos
-            const movResponse = await withMockFallback(
-                () => api.getAll(),
-                () => ({ status: 200, data: _mockMovements() }),
-            );
-            movements.value = (movResponse.status === 200)
-                ? (Array.isArray(movResponse.data)
-                    ? movResponse.data.map(r => (r instanceof CashMovement) ? r : CashMovementAssembler.toEntityFromResource(r))
-                    : CashMovementAssembler.toEntitiesFromResponse(movResponse))
-                : [];
+            const branchId = _branchId();
+            const [sessionsResponse, movResponse] = await Promise.all([
+                api.listSessionsByBranch(branchId),
+                api.listMovementsByBranch(branchId),
+            ]);
+            sessions.value = CashRegisterSessionAssembler.toEntitiesFromResponse(sessionsResponse);
+            movements.value = CashMovementAssembler.toEntitiesFromResponse(movResponse);
+            await refreshOpenSession({ skipMovements: true });
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar datos de caja';
+            error.value = getApiErrorMessage(e, 'Error al cargar datos de caja');
         } finally {
             isLoading.value = false;
+        }
+    }
+
+    /**
+     * Sincroniza el turno OPEN central (endpoint dedicado).
+     * @param {{ skipMovements?: boolean }} [options]
+     */
+    async function refreshOpenSession(options = {}) {
+        const branchId = _branchId();
+        try {
+            const response = await api.getOpenSessionByBranch(branchId);
+            const open = CashRegisterSessionAssembler.toEntityFromResponse(response);
+            if (open?.isOpen) {
+                currentSession.value = open;
+                const idx = sessions.value.findIndex((s) => s.id === open.id);
+                if (idx >= 0) sessions.value[idx] = open;
+                else sessions.value = [open, ...sessions.value];
+                await fetchCollectorSummary(open.id);
+            } else {
+                currentSession.value = null;
+                collectorSummary.value = [];
+            }
+        } catch (e) {
+            const code = getApiErrorCode(e);
+            if (code === 'CRG_001') {
+                currentSession.value = null;
+                collectorSummary.value = [];
+            }
+        }
+
+        if (!options.skipMovements && currentSession.value) {
+            try {
+                const movResponse = await api.listMovementsByBranch(branchId);
+                movements.value = CashMovementAssembler.toEntitiesFromResponse(movResponse);
+            } catch {
+                /* movimientos se refrescan en fetchAll */
+            }
+        }
+    }
+
+    async function handleOperationalEvent(event) {
+        if (!event?.type) return;
+        if (event.type.startsWith('cash.session')) {
+            await refreshOpenSession();
+            return;
+        }
+        if (event.type === 'cash.movement.created') {
+            if (currentSession.value) {
+                try {
+                    const movResponse = await api.listMovementsByBranch(_branchId());
+                    movements.value = CashMovementAssembler.toEntitiesFromResponse(movResponse);
+                } catch { /* ok */ }
+            }
+        }
+    }
+
+    async function fetchCollectorSummary(sessionId = currentSession.value?.id) {
+        if (!sessionId) {
+            collectorSummary.value = [];
+            return;
+        }
+        try {
+            const response = await api.getCollectorSummary(sessionId);
+            const rows = response?.data;
+            collectorSummary.value = Array.isArray(rows) ? rows : [];
+        } catch {
+            collectorSummary.value = [];
         }
     }
 
@@ -166,47 +257,22 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const now = new Date().toISOString();
-
-            const newSession = new CashRegisterSession({
-                id:            `session-${Date.now()}`,
+            const branchId = _branchId();
+            const response = await api.openSession(CashRegisterSessionAssembler.toOpenResource({
                 shiftName,
-                openedAt:      now,
-                openedBy:      _currentUserName(),
                 initialAmount,
-                status:        SESSION_STATUS.OPEN,
-                sucursalId:    _branchId(),
                 notes,
-            });
+                openedBy: _currentUserName(),
+                branchId,
+            }));
 
-            // Persist — mock absorbe error
-            await withMockMutation(
-                () => api.openSession(CashRegisterSessionAssembler.toResourceFromEntity(newSession)),
-            );
-
-            // Update local
-            sessions.value.unshift(newSession);
-            currentSession.value = newSession;
-
-            // Crear movimiento de apertura
-            const openingMovement = new CashMovement({
-                id:          `mov-${Date.now()}`,
-                type:        MOVEMENT_TYPE.INCOME,
-                amount:      initialAmount,
-                description: 'Fondo de caja inicial',
-                sessionId:   newSession.id,
-                registerId:  newSession.id,
-                userId:      _currentUserId(),
-                userName:    _currentUserName(),
-                category:    MOVEMENT_CATEGORY.APERTURA,
-                createdAt:   now,
-                sucursalId:  _branchId(),
-            });
-            movements.value.unshift(openingMovement);
-
+            const saved = CashRegisterSessionAssembler.toEntityFromResponse(response);
+            sessions.value = [saved, ...sessions.value.filter((s) => s.id !== saved.id)];
+            currentSession.value = saved;
+            await fetchCollectorSummary(saved.id);
             return true;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al abrir turno de caja';
+            error.value = getApiErrorMessage(e, 'Error al abrir turno de caja');
             return false;
         } finally {
             isLoading.value = false;
@@ -226,67 +292,46 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
 
         isLoading.value = true;
         error.value = null;
+        closeSessionError.value = null;
         try {
-            const session  = currentSession.value;
-            const now      = new Date().toISOString();
+            const session = currentSession.value;
+            const counted = parseFloat(countedAmount) || 0;
+            const branchId = _branchId();
 
-            // ── Calcular resumen de ventas del turno ──────────────────
-            const sessionMoves = movements.value.filter(m => m.sessionId === session.id);
+            const closePayload = CashRegisterSessionAssembler.toCloseResource(session, {
+                branchId,
+                closedBy: _currentUserName(),
+                countedAmount: counted,
+                notes,
+            });
+            const response = await api.closeSession(closePayload);
+            const closed = CashRegisterSessionAssembler.toEntityFromResponse(response) ?? session;
 
-            // Ventas en efectivo (categoría VENTA)
-            const cashSales = sessionMoves.filter(m => m.category === MOVEMENT_CATEGORY.VENTA && m.type === MOVEMENT_TYPE.INCOME);
-            const cashRev   = cashSales.reduce((s, m) => s + m.amount, 0);
+            Object.assign(session, {
+                closedAt:       closed.closedAt ?? new Date().toISOString(),
+                closedBy:       closed.closedBy ?? _currentUserName(),
+                closedByUserId: closed.closedByUserId ?? session.closedByUserId,
+                finalAmount:    closed.finalAmount ?? closed.countedAmount ?? counted,
+                status:         SESSION_STATUS.CLOSED,
+                notes:          closed.notes ?? notes ?? session.notes,
+                totalSales:     closed.totalSales ?? session.totalSales,
+                totalRevenue:   closed.totalRevenue ?? session.totalRevenue,
+                cashRevenue:    closed.cashRevenue ?? session.cashRevenue,
+                digitalRevenue: closed.digitalRevenue ?? session.digitalRevenue,
+                expectedCash:   closed.expectedCash ?? session.expectedCash,
+                countedAmount:  closed.countedAmount ?? counted,
+                difference:     closed.difference ?? session.difference,
+            });
 
-            // Ventas digitales (categoría VENTA_DIGITAL)
-            const digitalSales = sessionMoves.filter(m => m.category === MOVEMENT_CATEGORY.VENTA_DIGITAL);
-            const digitalRev   = digitalSales.reduce((s, m) => s + m.amount, 0);
-
-            const totalSales   = cashSales.length + digitalSales.length;
-            const totalRevenue = cashRev + digitalRev;
-
-            // ── Calcular efectivo esperado en gaveta ──────────────────
-            const cashIn  = sessionMoves.filter(m => m.type === MOVEMENT_TYPE.INCOME && m.isCashPhysical).reduce((s, m) => s + m.amount, 0);
-            const cashOut = sessionMoves.filter(m => m.type === MOVEMENT_TYPE.EXPENSE && m.isCashPhysical).reduce((s, m) => s + m.amount, 0);
-            const expectedCash = session.initialAmount + cashIn - cashOut;
-
-            // ── Rendición: diferencia ─────────────────────────────────
-            const counted    = parseFloat(countedAmount) || 0;
-            const difference = parseFloat((counted - expectedCash).toFixed(2));
-            const finalAmt   = counted;
-
-            // Persist
-            await withMockMutation(
-                () => api.closeSession(session.id, {
-                    final_amount:    finalAmt,
-                    notes,
-                    total_sales:     totalSales,
-                    total_revenue:   totalRevenue,
-                    cash_revenue:    cashRev,
-                    digital_revenue: digitalRev,
-                    expected_cash:   expectedCash,
-                    counted_amount:  counted,
-                    difference,
-                }),
-            );
-
-            // Update local
-            session.closedAt       = now;
-            session.closedBy       = _currentUserName();
-            session.finalAmount    = finalAmt;
-            session.status         = SESSION_STATUS.CLOSED;
-            session.notes          = notes || session.notes;
-            session.totalSales     = totalSales;
-            session.totalRevenue   = totalRevenue;
-            session.cashRevenue    = cashRev;
-            session.digitalRevenue = digitalRev;
-            session.expectedCash   = expectedCash;
-            session.countedAmount  = counted;
-            session.difference     = difference;
-
+            const idx = sessions.value.findIndex((s) => s.id === session.id);
+            if (idx >= 0) sessions.value[idx] = session;
             currentSession.value = null;
             return true;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cerrar turno de caja';
+            const code = getApiErrorCode(e);
+            const message = getApiErrorMessage(e, 'Error al cerrar turno de caja');
+            closeSessionError.value = { code, message };
+            error.value = message;
             return false;
         } finally {
             isLoading.value = false;
@@ -305,79 +350,55 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
             return false;
         }
 
+        let employeeId = _currentEmployeeId();
+        if (!employeeId) {
+            const link = await _iamStore().ensureEmployeeLink();
+            employeeId = _currentEmployeeId();
+            if (!employeeId) {
+                error.value = link.ok
+                    ? 'Tu usuario no está vinculado a un empleado. Contacta al administrador.'
+                    : (_iamStore().employeeLinkMessage
+                        ?? 'Tu usuario no está vinculado a un empleado. Contacta al administrador.');
+                return false;
+            }
+        }
+
         isLoading.value = true;
         error.value = null;
         try {
-            const now = new Date().toISOString();
-
+            const branchId = _branchId();
             const movement = new CashMovement({
-                id:          `mov-${Date.now()}`,
                 type,
                 amount:      parseFloat(amount),
                 description,
                 sessionId:   currentSession.value.id,
                 registerId:  currentSession.value.id,
-                userId:      _currentUserId(),
+                userId:      employeeId,
                 userName:    _currentUserName(),
                 category,
-                createdAt:   now,
-                sucursalId:  _branchId(),
+                sucursalId:  branchId,
                 paymentId,
             });
 
-            await withMockMutation(
-                () => api.create(CashMovementAssembler.toResourceFromEntity(movement)),
+            const response = await api.createMovement(
+                CashMovementAssembler.toResourceFromEntity(movement, { branchId, employeeId }),
             );
-
-            movements.value.unshift(movement);
+            const saved = CashMovementAssembler.toEntityFromResponse(response);
+            movements.value.unshift(saved);
             return true;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al registrar movimiento';
+            error.value = getApiErrorMessage(e, 'Error al registrar movimiento');
             return false;
         } finally {
             isLoading.value = false;
         }
     }
 
-    /**
-     * Registra un movimiento por venta (llamado desde POS al confirmar pago).
-     * Soporta tanto ventas en efectivo (VENTA) como digitales (VENTA_DIGITAL).
-     *
-     * @param {{ amount: number, description: string, category: string, paymentId?: string }} data
-     */
-    function registerSaleMovement({ amount, description, category = MOVEMENT_CATEGORY.VENTA, paymentId = null }) {
-        if (!hasOpenSession.value) return;
-        return addMovement({
-            type:     MOVEMENT_TYPE.INCOME,
-            amount,
-            description,
-            category,
-            paymentId,
-        });
-    }
-
-    /**
-     * Registra un egreso por reembolso (llamado desde payments.store al reembolsar un pago).
-     * Solo descuenta del efectivo físico si el pago original fue en cash.
-     *
-     * @param {{ amount: number, description: string, paymentId?: string }} data
-     */
-    function registerRefundMovement({ amount, description, paymentId = null }) {
-        if (!hasOpenSession.value) return;
-        return addMovement({
-            type:     MOVEMENT_TYPE.EXPENSE,
-            amount,
-            description,
-            category: MOVEMENT_CATEGORY.REEMBOLSO,
-            paymentId,
-        });
-    }
-
     async function remove(id) {
         isLoading.value = true;
         error.value = null;
         try {
-            await withMockMutation(() => api.delete(id));
+            await api.deleteMovement(id);
             movements.value = movements.value.filter(m => m.id !== id);
         } catch (e) {
             error.value = e?.response?.data?.message ?? 'Error al eliminar movimiento';
@@ -398,15 +419,18 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
     return {
         // State
         sessions, currentSession, movements, selectedMovement, isLoading, error,
+        collectorSummary,
         // Getters
         hasOpenSession, currentSessionMovements,
         sessionIncome, sessionExpense, sessionBalance,
-        sessionCashIncome, sessionDigitalIncome, sessionCashExpense, sessionExpectedCash, sessionSalesCount,
+        sessionCashIncome, sessionDigitalIncome, sessionCashExpense, sessionExpectedCash,
+        sessionCashSalesRevenue, sessionTipsIncome, sessionRefundsExpense, sessionTotalSalesRevenue,
+        sessionSalesCount, sessionSalesByMethod,
         totalIncome, totalExpense, balance,
         closedSessions,
         // Actions — Sessions
-        fetchAll, openSession, closeSession,
+        fetchAll, refreshOpenSession, fetchCollectorSummary, openSession, closeSession, closeSessionError, handleOperationalEvent,
         // Actions — Movements
-        addMovement, registerSaleMovement, registerRefundMovement, remove, getMovementsBySession,
+        addMovement, remove, getMovementsBySession,
     };
 });

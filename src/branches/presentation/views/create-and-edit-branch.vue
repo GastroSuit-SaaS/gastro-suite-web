@@ -36,6 +36,7 @@ const form = reactive({
     email:           '',
     encargadoId:     null,
     isActive:        true,
+    posBillableRequiresSent: null,
 })
 
 watch(() => props.visible, (val) => {
@@ -50,8 +51,15 @@ watch(() => props.visible, (val) => {
         form.email        = props.branch?.email        ?? ''
         form.encargadoId  = props.branch?.encargadoId  ?? null
         form.isActive     = props.branch?.isActive     ?? true
+        form.posBillableRequiresSent = props.branch?.posBillableRequiresSent ?? null
     }
 }, { immediate: true })
+
+const posBillableOptions = [
+    { label: 'Heredar configuración global', value: null },
+    { label: 'Sí — solo cobrar ítems enviados a cocina', value: true },
+    { label: 'No — permitir cobrar sin enviar comanda', value: false },
+]
 
 const canSave = computed(() =>
     form.nombre.trim() && form.codigo.trim()
@@ -192,6 +200,31 @@ async function onSave() {
                                 <label class="ceb-label">Email</label>
                                 <pv-input-text v-model="form.email" placeholder="Ej: central@gastrosuite.pe" />
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Operación POS ───────────────────────────── -->
+                <div class="ceb-section">
+                    <h4 class="ceb-section__title">
+                        <i class="pi pi-shopping-cart"></i>
+                        Operación POS
+                    </h4>
+                    <div class="ceb-section__body">
+                        <div class="flex flex-column gap-1">
+                            <label class="ceb-label">Cobro tras enviar comanda</label>
+                            <pv-select
+                                v-model="form.posBillableRequiresSent"
+                                :options="posBillableOptions"
+                                option-label="label"
+                                option-value="value"
+                                placeholder="Seleccionar regla"
+                                class="w-full"
+                            />
+                            <span class="ceb-hint ceb-hint--info">
+                                <i class="pi pi-info-circle"></i>
+                                Define si el mesero debe enviar la comanda antes de cobrar en esta sucursal.
+                            </span>
                         </div>
                     </div>
                 </div>

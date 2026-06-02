@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCashRegisterStore } from '../../application/cash-register.store.js'
 import { CASH_REGISTER_LABELS as L } from '../constants/cash-register.constants-ui.js'
 
@@ -9,7 +10,12 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'session-closed'])
 
-const store = useCashRegisterStore()
+const store  = useCashRegisterStore()
+const router = useRouter()
+
+const isActiveSalesBlock = computed(() =>
+    store.closeSessionError?.code === 'CRG_002',
+)
 
 // ── State ────────────────────────────────────────────────────────────────
 const step          = ref(1)
@@ -36,9 +42,9 @@ watch(() => props.visible, (val) => {
 })
 
 // ── Computed summaries ───────────────────────────────────────────────────
-const cashSales = computed(() => store.sessionCashIncome - (store.currentSession?.initialAmount ?? 0))
+const cashSales = computed(() => store.sessionCashSalesRevenue)
 const digitalSales = computed(() => store.sessionDigitalIncome)
-const totalSold = computed(() => cashSales.value + digitalSales.value)
+const totalSold = computed(() => store.sessionTotalSalesRevenue)
 const deposits = computed(() =>
     store.currentSessionMovements
         .filter(m => m.category === 'deposito')
@@ -55,7 +61,11 @@ function onConfirm() {
         countedAmount: parseFloat(countedAmount.value),
         notes:         notes.value,
     })
+}
+
+function goToPos() {
     emit('update:visible', false)
+    router.push('/pos')
 }
 
 function fmtCurrency(n) {
@@ -82,6 +92,19 @@ function fmtCurrency(n) {
             </button>
         </template>
 
+        <pv-message
+            v-if="isActiveSalesBlock"
+            severity="warn"
+            :closable="false"
+            class="close-session-block-msg"
+        >
+            <span>{{ store.closeSessionError?.message }}</span>
+            <div class="close-session-block-msg__actions">
+                <pv-button label="Ir al POS" icon="pi pi-shopping-cart" size="small" @click="goToPos" />
+                <pv-button label="Ver mesas" icon="pi pi-table" size="small" severity="secondary" outlined @click="router.push('/tables'); emit('update:visible', false)" />
+            </div>
+        </pv-message>
+
         <!-- ═══════ STEP 1: Resumen del turno ═══════ -->
         <div v-if="step === 1" class="flex flex-column gap-4 pt-2">
 
@@ -104,6 +127,14 @@ function fmtCurrency(n) {
                     <div class="flex justify-content-between text-sm">
                         <span style="color: #374151;">Cantidad de ventas</span>
                         <span class="font-medium" style="color: #111827;">{{ store.sessionSalesCount }}</span>
+                    </div>
+                    <div v-if="store.sessionTipsIncome > 0" class="flex justify-content-between text-sm">
+                        <span style="color: #374151;">Propinas</span>
+                        <span class="font-medium text-pink-400">{{ fmtCurrency(store.sessionTipsIncome) }}</span>
+                    </div>
+                    <div v-if="store.sessionRefundsExpense > 0" class="flex justify-content-between text-sm">
+                        <span style="color: #374151;">Reembolsos</span>
+                        <span class="font-medium text-red-400">− {{ fmtCurrency(store.sessionRefundsExpense) }}</span>
                     </div>
                 </div>
             </div>
@@ -236,3 +267,12 @@ function fmtCurrency(n) {
         </template>
     </pv-dialog>
 </template>
+
+<style scoped>
+.close-session-block-msg__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+</style>

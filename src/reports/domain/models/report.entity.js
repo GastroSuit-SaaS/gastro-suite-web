@@ -11,6 +11,7 @@ export const REPORT_TYPE = Object.freeze({
     INVENTORY_STATUS: 'inventory_status',
     FINANCIAL:        'financial',
     PRODUCT_MIX:      'product_mix',
+    COLLECTOR_SALES:  'collector_sales',
 });
 
 export const REPORT_STATUS = Object.freeze({
@@ -35,7 +36,7 @@ export class Report {
         dateFrom     = null,
         dateTo       = null,
         filters      = {},
-        exportFormat = EXPORT_FORMAT.PDF,
+        exportFormat = EXPORT_FORMAT.EXCEL,
         generatedBy  = null,
         generatedAt  = null,
         data         = null,

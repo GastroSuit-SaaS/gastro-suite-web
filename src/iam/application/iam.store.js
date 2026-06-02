@@ -1,76 +1,65 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { IamApi } from '../infrastructure/api/iam.api.js';
 import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
-import { mockLogin } from '../infrastructure/auth.mock.js';
-import { ROLES } from '../../shared/presentation/constants/roles.constants.js';
+import { RegistrationAssembler } from '../infrastructure/assemblers/registration.assembler.js';
+import { User } from '../domain/models/user.entity.js';
+import { SESSION_KEYS, clearSessionStorage } from '../../shared/infrustructure/session-storage.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 
-const TOKEN_KEY    = 'gs_token';
-const BRANCH_KEY   = 'gs_branch_id';
-const BRANCH_NAME  = 'gs_branch_name';
-const USER_KEY     = 'gs_user';
-const _isMock      = import.meta.env.VITE_USE_MOCK === 'true';
 const api = new IamApi();
 
 export const useIamStore = defineStore('iam', () => {
 
-    // ── State ─────────────────────────────────────────────────────────────
     const currentUser   = ref(null);
-    const token         = ref(localStorage.getItem(TOKEN_KEY) ?? null);
-    const activeBranchId   = ref(localStorage.getItem(BRANCH_KEY) ?? null);
-    const activeBranchName = ref(localStorage.getItem(BRANCH_NAME) ?? '');
+    const token         = ref(localStorage.getItem(SESSION_KEYS.TOKEN) ?? null);
+    const activeBranchId   = ref(localStorage.getItem(SESSION_KEYS.BRANCH_ID) ?? null);
+    const activeBranchName = ref(localStorage.getItem(SESSION_KEYS.BRANCH_NAME) ?? '');
     const isLoading     = ref(false);
     const error         = ref(null);
+    /** linked | missing_company | error | idle */
+    const employeeLinkStatus  = ref('idle');
+    const employeeLinkMessage = ref(null);
 
-    // ── Rehidratar usuario desde localStorage al iniciar ──────────────
     _rehydrateUser();
 
-    // ── Getters ───────────────────────────────────────────────────────────
-    const isAuthenticated = computed(() => !!token.value);
+    /** Sesión válida solo con JWT y usuario rehidratado (evita token huérfano en localStorage). */
+    const isAuthenticated = computed(() => !!token.value && !!currentUser.value);
     const userRole        = computed(() => currentUser.value?.primaryRole ?? '');
     const isOwner         = computed(() => currentUser.value?.isOwner ?? false);
     const hasBranchSelected = computed(() => !!activeBranchId.value);
+    const companyId       = computed(() => currentUser.value?.empresaId ?? null);
 
-    // ── Helpers ───────────────────────────────────────────────────────────
     function _setToken(jwt) {
         token.value = jwt;
-        if (jwt) localStorage.setItem(TOKEN_KEY, jwt);
-        else     localStorage.removeItem(TOKEN_KEY);
+        if (jwt) localStorage.setItem(SESSION_KEYS.TOKEN, jwt);
+        else     localStorage.removeItem(SESSION_KEYS.TOKEN);
     }
 
-    /**
-     * Persiste el usuario en localStorage como JSON serializado.
-     * Se usa para rehidratar currentUser tras un refresh de página.
-     */
     function _setUser(user) {
         currentUser.value = user;
         if (user) {
-            localStorage.setItem(USER_KEY, JSON.stringify({
+            localStorage.setItem(SESSION_KEYS.USER, JSON.stringify({
                 id: user.id, username: user.username, email: user.email,
                 nombres: user.nombres, apellidos: user.apellidos,
                 tipoDocumento: user.tipoDocumento, numeroDocumento: user.numeroDocumento,
                 telefono: user.telefono, roles: user.roles, isActive: user.isActive,
                 empresaId: user.empresaId, sucursalId: user.sucursalId, sucursalNombre: user.sucursalNombre,
+                employeeId: user.employeeId,
             }));
         } else {
-            localStorage.removeItem(USER_KEY);
+            localStorage.removeItem(SESSION_KEYS.USER);
         }
     }
 
-    /**
-     * Intenta recuperar el usuario desde localStorage.
-     * Se llama al inicializar el store (refresh de página).
-     * Si existe token pero no hay usuario guardado, el guard redirigirá a sign-in.
-     */
     function _rehydrateUser() {
-        if (currentUser.value) return; // ya cargado
-        const raw = localStorage.getItem(USER_KEY);
+        if (currentUser.value) return;
+        const raw = localStorage.getItem(SESSION_KEYS.USER);
         if (!raw) return;
         try {
-            const parsed = JSON.parse(raw);
-            currentUser.value = UserAssembler.toEntityFromResource(parsed);
+            currentUser.value = UserAssembler.toEntityFromResource(JSON.parse(raw));
         } catch {
-            localStorage.removeItem(USER_KEY);
+            localStorage.removeItem(SESSION_KEYS.USER);
         }
     }
 
@@ -78,11 +67,11 @@ export const useIamStore = defineStore('iam', () => {
         activeBranchId.value   = branchId;
         activeBranchName.value = branchName;
         if (branchId) {
-            localStorage.setItem(BRANCH_KEY, branchId);
-            localStorage.setItem(BRANCH_NAME, branchName);
+            localStorage.setItem(SESSION_KEYS.BRANCH_ID, branchId);
+            localStorage.setItem(SESSION_KEYS.BRANCH_NAME, branchName);
         } else {
-            localStorage.removeItem(BRANCH_KEY);
-            localStorage.removeItem(BRANCH_NAME);
+            localStorage.removeItem(SESSION_KEYS.BRANCH_ID);
+            localStorage.removeItem(SESSION_KEYS.BRANCH_NAME);
         }
     }
 
@@ -90,46 +79,39 @@ export const useIamStore = defineStore('iam', () => {
         _setUser(null);
         _setToken(null);
         _setBranch(null);
+        employeeLinkStatus.value  = 'idle';
+        employeeLinkMessage.value = null;
+        clearSessionStorage();
     }
 
-    // ── Actions ───────────────────────────────────────────────────────────
-
-    /**
-     * Inicia sesion. Guarda el token en localStorage.
-     * Si el usuario tiene sucursal asignada (rol operativo), la setea automáticamente.
-     * @param {{ username: string, password: string }} credentials
-     * @returns {Promise<boolean>} true si exitoso
-     */
-    async function login(credentials) {
+    async function signIn(credentials) {
         isLoading.value = true;
         error.value     = null;
         try {
-            // Si mock está habilitado, intentar mock primero para evitar esperar timeout de API
-            if (_isMock) {
-                try {
-                    const mockResponse = mockLogin(credentials);
-                    _setToken(mockResponse.token);
-                    _setUser(UserAssembler.toEntityFromResource(mockResponse.user));
-                    if (currentUser.value.sucursalId) {
-                        _setBranch(currentUser.value.sucursalId, currentUser.value.sucursalNombre);
-                    }
-                    return true;
-                } catch (mockErr) {
-                    error.value = mockErr.message;
-                    _clearSession();
-                    return false;
-                }
+            const response = await api.signIn(credentials);
+            const data = response.data;
+            const jwt = data?.token;
+            if (!jwt) {
+                throw new Error('El servidor no devolvió un token de sesión.');
             }
-            const response = await api.login(credentials);
-            const { token: jwt, user } = response.data;
+
             _setToken(jwt);
-            _setUser(UserAssembler.toEntityFromResource(user ?? response.data));
-            if (currentUser.value.sucursalId) {
-                _setBranch(currentUser.value.sucursalId, currentUser.value.sucursalNombre);
+            const user = UserAssembler.toEntityFromSignInResponse(data);
+            _setUser(user);
+
+            if (user.sucursalId) {
+                _setBranch(user.sucursalId, user.sucursalNombre);
             }
+            await ensureEmployeeLink();
             return true;
         } catch (err) {
-            error.value = err.response?.data?.message ?? 'No se pudo iniciar sesión. Verifica tus credenciales e intenta de nuevo.';
+            const status = err?.response?.status;
+            error.value = status === 401
+                ? 'Usuario o contraseña incorrectos.'
+                : getApiErrorMessage(
+                    err,
+                    'No se pudo iniciar sesión. Verifica tus credenciales e intenta de nuevo.'
+                );
             _clearSession();
             return false;
         } finally {
@@ -137,84 +119,173 @@ export const useIamStore = defineStore('iam', () => {
         }
     }
 
-    /**
-     * Cierra la sesion del usuario autenticado.
-     */
+    function clearAuthError() {
+        error.value = null;
+    }
+
     async function logout() {
+        error.value = null;
         _clearSession();
-        // Si mock está habilitado, no esperar al backend
-        if (_isMock) return;
-        isLoading.value = true;
-        try {
-            await api.logout();
-        } catch { /* ignorar error de logout en backend */ }
-        finally {
-            isLoading.value = false;
+    }
+
+    async function selectBranch(branchId, branchName = '') {
+        _setBranch(branchId, branchName);
+        if (token.value && currentUser.value) {
+            await ensureEmployeeLink();
         }
     }
 
-    /**
-     * Selecciona una sucursal activa (usado por OWNER al elegir sucursal).
-     * @param {string} branchId
-     * @param {string} branchName
-     */
-    function selectBranch(branchId, branchName = '') {
-        _setBranch(branchId, branchName);
-    }
-
-    /**
-     * Limpia la sucursal activa (OWNER vuelve a vista global).
-     */
     function clearBranch() {
         _setBranch(null);
     }
 
     /**
-     * Registra una nueva empresa con su usuario administrador (OWNER).
-     * @param {{ empresa: Object, usuario: Object }} payload
-     * @returns {Promise<boolean>} true si exitoso
+     * Garantiza vínculo empleado ↔ usuario (OWNER/admin sin registro previo).
+     * Actualiza currentUser con employeeId para caja y cobros.
      */
-    async function register(payload) {
-        isLoading.value = true;
-        error.value     = null;
+    async function ensureEmployeeLink() {
+        if (!token.value || !currentUser.value) {
+            employeeLinkStatus.value = 'idle';
+            return { ok: false, reason: 'no_session' };
+        }
+        if (currentUser.value.employeeId) {
+            employeeLinkStatus.value  = 'linked';
+            employeeLinkMessage.value = null;
+            return { ok: true };
+        }
+
+        const empresaId = currentUser.value.empresaId ?? companyId.value;
+        if (!empresaId) {
+            employeeLinkStatus.value  = 'missing_company';
+            employeeLinkMessage.value = 'Tu usuario no tiene empresa asociada. No se pueden registrar cobros ni movimientos de caja.';
+            return { ok: false, reason: 'missing_company' };
+        }
+
         try {
-            await api.register(payload);
-            return true;
-        } catch (err) {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                return true;
+            const response = await api.ensureEmployeeLink({
+                companyId: empresaId,
+                branchId:    activeBranchId.value ?? currentUser.value.sucursalId ?? null,
+                nombres:     currentUser.value.nombres || undefined,
+                apellidos:   currentUser.value.apellidos || undefined,
+                email:       currentUser.value.email || undefined,
+            });
+            const data = response.data;
+            if (data?.employeeId) {
+                _setUser(UserAssembler.toEntityFromSignInResponse({
+                    ...data,
+                    token: token.value,
+                }));
+                employeeLinkStatus.value  = 'linked';
+                employeeLinkMessage.value = null;
+                return { ok: true };
             }
-            error.value = err.response?.data?.message ?? 'Error al registrar. Intenta nuevamente.';
-            return false;
-        } finally {
-            isLoading.value = false;
+            employeeLinkStatus.value  = 'error';
+            employeeLinkMessage.value = 'No se pudo vincular tu usuario con un empleado.';
+            return { ok: false, reason: 'no_employee_id' };
+        } catch (err) {
+            employeeLinkStatus.value  = 'error';
+            employeeLinkMessage.value = getApiErrorMessage(
+                err,
+                'No se pudo vincular tu usuario con un empleado. Reintenta o contacta al administrador.',
+            );
+            return { ok: false, reason: 'api_error' };
         }
     }
 
     /**
-     * Solicita correo de recuperacion de contrasena.
-     * @param {string} email
-     * @returns {Promise<boolean>} true si exitoso
+     * Onboarding OWNER (perfil dev en API):
+     * 1. POST /companies
+     * 2. POST /support/auth/sign-up
+     * 3. POST /auth/sign-in (empleado + companyId en JWT)
+     * 4. POST /support/employees (vincular userId ↔ companyId)
+     * @param {{ empresa: import('../domain/models/empresa-registration.vo.js').EmpresaRegistration, usuario: import('../domain/models/usuario-registration.vo.js').UsuarioRegistration }} payload
      */
-    async function forgotPassword(email) {
+    async function register(payload) {
         isLoading.value = true;
         error.value     = null;
+        const empresa = payload?.empresa ?? {};
+        const usuario = payload?.usuario ?? {};
+
+        let companyId = null;
+        let userId = null;
+
         try {
-            await api.forgotPassword(email);
+            const companyRes = await api.createCompany(
+                RegistrationAssembler.toCreateCompanyRequest(empresa)
+            );
+            companyId = companyRes.data?.companyId ?? null;
+            if (!companyId) {
+                throw new Error('El servidor no devolvió el ID de la empresa.');
+            }
+
+            const signUpRes = await api.signUp(
+                RegistrationAssembler.toSignUpRequest(usuario)
+            );
+            userId = signUpRes.data?.userId ?? null;
+            if (!userId) {
+                throw new Error('El servidor no devolvió el ID del usuario.');
+            }
+
+            const signedIn = await signIn({
+                username: usuario.username,
+                password: usuario.password,
+            });
+            if (!signedIn) {
+                throw new Error(
+                    'Cuenta creada, pero no se pudo iniciar sesión automáticamente. Usa "Iniciar sesión" con tu usuario.'
+                );
+            }
+
+            await api.createOwnerEmployee(
+                RegistrationAssembler.toCreateEmployeeRequest(companyId, userId, usuario)
+            );
+
+            await ensureEmployeeLink();
+
+            if (currentUser.value) {
+                _setUser(new User({
+                    ...currentUser.value,
+                    empresaId: companyId,
+                    email: usuario.email,
+                    nombres: usuario.nombres,
+                    apellidos: usuario.apellidos,
+                    tipoDocumento: usuario.tipoDocumento,
+                    numeroDocumento: usuario.numeroDocumento,
+                    telefono: usuario.telefono,
+                }));
+            }
+
             return true;
         } catch (err) {
-            error.value = err.response?.data?.message ?? 'No encontramos una cuenta con ese correo.';
+            const status = err?.response?.status;
+            if (err?.message && !err?.response) {
+                error.value = err.message;
+            } else if (status === 409) {
+                error.value = 'El usuario o la empresa ya están registrados.';
+            } else if (status === 400) {
+                error.value = getApiErrorMessage(err, 'Revisa los datos del formulario.');
+            } else if (status === 401) {
+                error.value = 'Registro no autorizado. Verifica que el API esté en perfil dev y reiniciado.';
+            } else {
+                error.value = getApiErrorMessage(err, 'Error al registrar. Intenta nuevamente.');
+            }
             return false;
         } finally {
             isLoading.value = false;
         }
     }
 
+    async function forgotPassword() {
+        error.value = 'Recuperación de contraseña aún no está disponible en el API.';
+        return false;
+    }
+
     return {
         currentUser, token, isLoading, error,
-        isAuthenticated, userRole, isOwner, hasBranchSelected,
+        isAuthenticated, userRole, isOwner, hasBranchSelected, companyId,
         activeBranchId, activeBranchName,
-        login, logout, register, forgotPassword,
-        selectBranch, clearBranch,
+        signIn, logout, clearAuthError, register, forgotPassword,
+        selectBranch, clearBranch, ensureEmployeeLink,
+        employeeLinkStatus, employeeLinkMessage,
     };
 });

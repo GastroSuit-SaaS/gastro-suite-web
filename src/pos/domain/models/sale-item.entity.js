@@ -18,6 +18,7 @@ export class SaleItem {
         stationId       = null,
         stationName     = null,
         isSent          = false,   // true una vez enviado a estaciones
+        billable        = true,   // false si cocina canceló el ticket
     } = {}) {
         this.id            = id ?? crypto.randomUUID();
         this.menuItemId    = menuItemId;
@@ -30,6 +31,7 @@ export class SaleItem {
         this.stationId     = stationId;
         this.stationName   = stationName;
         this.isSent        = isSent;
+        this.billable      = billable !== false;
         this.subtotal      = 0;
         this._recalculate();
     }

@@ -1,4 +1,5 @@
 import { DashboardMetric } from '../../domain/models/dashboard-metric.entity.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
 
 /**
  * Dashboard Infrastructure - DashboardMetric Assembler
@@ -22,14 +23,10 @@ export class DashboardMetricAssembler {
     }
 
     static toEntitiesFromResponse(response) {
-        if (response.status !== 200) return [];
-        const data = response.data?.items ?? response.data?.data ?? response.data;
-        return Array.isArray(data) ? data.map(r => DashboardMetricAssembler.toEntityFromResource(r)) : [];
+        return entitiesFromResponse(response, DashboardMetricAssembler.toEntityFromResource);
     }
 
     static toEntityFromResponse(response) {
-        if (response.status !== 200 && response.status !== 201) return null;
-        const data = response.data?.data ?? response.data;
-        return DashboardMetricAssembler.toEntityFromResource(data);
+        return entityFromResponse(response, DashboardMetricAssembler.toEntityFromResource);
     }
 }

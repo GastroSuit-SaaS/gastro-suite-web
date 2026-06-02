@@ -1,6 +1,7 @@
 import { useIamStore } from '../application/iam.store.js';
 import { IAM_ROUTES } from '../presentation/iam.routes.js';
 import { hasRouteAccess, requiresBranch } from '../../shared/presentation/constants/roles.constants.js';
+import { SESSION_KEYS } from '../../shared/infrustructure/session-storage.js';
 
 /** Rutas que no requieren autenticación */
 const PUBLIC_PATHS = [
@@ -26,8 +27,15 @@ export function authenticationGuard(to, from, next) {
     const isPublic = PUBLIC_PATHS.includes(to.path);
 
     if (isPublic) {
-        if (to.path === IAM_ROUTES.SIGN_IN && iamStore.isAuthenticated) {
-            return next('/dashboard'); 
+        if (to.path === IAM_ROUTES.SIGN_IN) {
+            iamStore.clearAuthError();
+            const staleToken = !!localStorage.getItem(SESSION_KEYS.TOKEN);
+            if (staleToken && !iamStore.currentUser) {
+                iamStore.logout();
+            }
+            if (iamStore.isAuthenticated) {
+                return next('/dashboard');
+            }
         }
         return next();
     }

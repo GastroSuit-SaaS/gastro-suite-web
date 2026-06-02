@@ -1,55 +1,68 @@
 import { UserProfile } from '../../domain/models/user-profile.entity.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
 
-/**
- * Users Infrastructure - UserProfile Assembler
- *
- * Transforma recursos crudos del API en entidades de dominio.
- * Nunca retorna datos crudos fuera de esta clase.
- */
 export class UserProfileAssembler {
 
     static toEntityFromResource(resource) {
+        const roles = resource.roles;
+        const role = Array.isArray(roles) && roles.length
+            ? (typeof roles[0] === 'string' ? roles[0] : roles[0]?.name ?? String(roles[0]))
+            : (resource.role ?? '');
         return new UserProfile({
-            id:              resource.id              ?? null,
-            username:        resource.username        ?? '',
-            nombres:         resource.nombres         ?? resource.first_name  ?? resource.firstName  ?? '',
-            apellidos:       resource.apellidos       ?? resource.last_name   ?? resource.lastName   ?? '',
-            email:           resource.email           ?? '',
-            telefono:        resource.telefono        ?? resource.phone       ?? '',
-            tipoDocumento:   resource.tipoDocumento   ?? resource.tipo_documento   ?? resource.document_type  ?? '',
-            numeroDocumento: resource.numeroDocumento ?? resource.numero_documento ?? resource.document_number ?? '',
-            role:            resource.role            ?? resource.roles?.[0]  ?? '',
-            sucursalId:      resource.sucursalId      ?? resource.sucursal_id ?? null,
-            sucursalNombre:  resource.sucursalNombre  ?? resource.sucursal_nombre ?? '',
-            isActive:        resource.isActive        ?? resource.is_active   ?? true,
-            createdAt:       resource.createdAt       ?? resource.created_at  ?? null,
+            id:              resource.employeeId ?? resource.id ?? null,
+            username:        resource.username ?? resource.userName ?? '',
+            nombres:         resource.employeeName ?? resource.nombres ?? resource.firstName ?? '',
+            apellidos:       resource.employeeSurname ?? resource.apellidos ?? resource.lastName ?? '',
+            email:           resource.employeeEmail ?? resource.email ?? '',
+            telefono:        resource.employeePhoneNumber ?? resource.telefono ?? resource.phone ?? '',
+            tipoDocumento:   resource.employeeDocumentType ?? resource.tipoDocumento ?? resource.tipo_documento ?? '',
+            numeroDocumento: resource.employeeDocumentNumber ?? resource.numeroDocumento ?? resource.numero_documento ?? '',
+            role,
+            sucursalId:      resource.branchId ?? resource.sucursalId ?? resource.sucursal_id ?? null,
+            sucursalNombre:  resource.sucursalNombre ?? resource.sucursal_nombre ?? resource.branchName ?? '',
+            isActive:        resource.isActive ?? resource.is_active ?? true,
+            createdAt:       resource.createdAt ?? resource.created_at ?? null,
         });
     }
 
     static toEntitiesFromResponse(response) {
-        if (response.status !== 200) return [];
-        const data = response.data?.items ?? response.data?.data ?? response.data;
-        return Array.isArray(data) ? data.map(r => UserProfileAssembler.toEntityFromResource(r)) : [];
+        return entitiesFromResponse(response, UserProfileAssembler.toEntityFromResource);
     }
 
     static toEntityFromResponse(response) {
-        if (response.status !== 200 && response.status !== 201) return null;
-        const data = response.data?.data ?? response.data;
-        return UserProfileAssembler.toEntityFromResource(data);
+        return entityFromResponse(response, UserProfileAssembler.toEntityFromResource);
     }
 
-    static toResourceFromEntity(user) {
+    static toCreateRequest(user, companyId) {
         return {
-            username:         user.username,
-            nombres:          user.nombres,
-            apellidos:        user.apellidos,
-            email:            user.email,
-            telefono:         user.telefono,
-            tipo_documento:   user.tipoDocumento,
-            numero_documento: user.numeroDocumento,
-            role:             user.role,
-            sucursal_id:      user.sucursalId,
-            is_active:        user.isActive,
+            userName: user.username,
+            password: user.password,
+            roles: [user.role],
+            companyId,
+            branchId: user.sucursalId || null,
+            employeeName: user.nombres,
+            employeeSurname: user.apellidos,
+            employeeEmail: user.email,
+            employeeDocumentType: user.tipoDocumento,
+            employeeDocumentNumber: user.numeroDocumento,
+            employeePhoneNumber: user.telefono,
         };
+    }
+
+    static toUpdateRequest(user) {
+        const body = {
+            userName: user.username || null,
+            employeeName: user.nombres || null,
+            employeeSurname: user.apellidos || null,
+            employeeEmail: user.email || null,
+            employeeDocumentType: user.tipoDocumento || null,
+            employeeDocumentNumber: user.numeroDocumento || null,
+            employeePhoneNumber: user.telefono || null,
+            branchId: user.sucursalId ?? null,
+            isActive: user.isActive,
+        };
+        if (user.password) body.password = user.password;
+        if (user.role) body.roles = [user.role];
+        return body;
     }
 }

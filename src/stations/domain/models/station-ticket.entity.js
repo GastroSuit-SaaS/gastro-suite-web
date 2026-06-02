@@ -34,7 +34,11 @@ export class StationTicket {
         stationName  = '',
         saleId       = null,
         tableNumber  = null,
-        items        = [],
+        items                  = [],
+        saleDisplayNumber      = null,
+        ticketRoundNumber      = null,
+        displayCode            = null,
+        dispatchedSaleItemIds  = [],
         status       = TICKET_STATUS.RECEIVED,
         createdAt    = null,
         startedAt    = null,
@@ -49,7 +53,11 @@ export class StationTicket {
         this.stationName  = stationName;
         this.saleId       = saleId;
         this.tableNumber  = tableNumber;
-        this.items        = items.map(i => i instanceof StationTicketItem ? i : new StationTicketItem(i));
+        this.items                  = items.map(i => i instanceof StationTicketItem ? i : new StationTicketItem(i));
+        this.saleDisplayNumber      = saleDisplayNumber;
+        this.ticketRoundNumber      = ticketRoundNumber;
+        this.displayCode            = displayCode;
+        this.dispatchedSaleItemIds  = Array.isArray(dispatchedSaleItemIds) ? [...dispatchedSaleItemIds] : [];
         this.status       = status;
         this.createdAt    = createdAt   ? new Date(createdAt)   : new Date();
         this.startedAt    = startedAt   ? new Date(startedAt)   : null;

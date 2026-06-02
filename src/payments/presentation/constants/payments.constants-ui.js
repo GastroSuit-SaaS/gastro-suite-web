@@ -52,6 +52,7 @@ export const RECEIPT_COLORS = {
 export const PAYMENT_STATUS_CONFIG = {
     completed: { label: 'Completado', color: '#059669', bg: '#dcfce7', icon: 'pi-check-circle' },
     cancelled: { label: 'Cancelado',  color: '#dc2626', bg: '#fee2e2', icon: 'pi-times-circle' },
+    partially_refunded: { label: 'Reemb. parcial', color: '#b45309', bg: '#fef3c7', icon: 'pi-replay' },
     refunded:  { label: 'Reembolsado', color: '#7c3aed', bg: '#ede9fe', icon: 'pi-replay'     },
 };
 

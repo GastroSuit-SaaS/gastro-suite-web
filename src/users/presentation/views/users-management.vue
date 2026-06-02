@@ -9,6 +9,8 @@ import { ROLE_ALLOWED_ROUTES } from '../../../shared/presentation/constants/role
 import CreateAndEditUser from './create-and-edit-user.vue'
 import UserDetailDialog from './user-detail-dialog.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
+import ModuleTabBar from '../../../shared/presentation/components/module-tab-bar.vue'
+import ModuleTab from '../../../shared/presentation/components/module-tab.vue'
 
 const store       = useUsersStore()
 const branchStore = useBranchesStore()
@@ -164,20 +166,14 @@ function clearSearch() {
     <div class="user-layout">
 
         <!-- ── Tab navigation ──────────────────────────────────────── -->
-        <div class="user-tabs">
-            <button
-                :class="['tab-btn', activeTab === 'users' && 'tab-btn--active']"
-                @click="activeTab = 'users'"
-            >
-                <i class="pi pi-users"></i> Usuarios
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'roles' && 'tab-btn--active']"
-                @click="activeTab = 'roles'"
-            >
-                <i class="pi pi-shield"></i> Roles y Permisos
-            </button>
-        </div>
+        <module-tab-bar v-model="activeTab" sticky>
+            <module-tab value="users" icon="pi-users">
+                Usuarios
+            </module-tab>
+            <module-tab value="roles" icon="pi-shield">
+                Roles y Permisos
+            </module-tab>
+        </module-tab-bar>
 
         <!-- ══════════════════ TAB: USUARIOS ═════════════════════════ -->
         <div v-if="activeTab === 'users'" class="user-tab-content">
@@ -379,40 +375,6 @@ function clearSearch() {
 }
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
-.user-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 2px solid #e5e7eb;
-    background: #fff;
-    padding: 0 1.25rem;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: #6b7280;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: color 0.15s;
-}
-.tab-btn--active {
-    color: #6366f1;
-    border-bottom-color: #6366f1;
-    font-weight: 600;
-}
-.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
-
 /* ── Tab content ──────────────────────────────────────────────────────── */
 .user-tab-content {
     flex: 1;

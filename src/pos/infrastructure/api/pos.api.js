@@ -1,59 +1,58 @@
-/**
- * POS Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo POS.
- * Maneja endpoints de ventas, tickets, productos en venta, etc.
- * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class PosApi extends BaseApi {
-    #endpoint;
-    #path;
+    #sales;
+    #tickets;
 
     constructor() {
         super();
-        this.#path     = import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales';
-        this.#endpoint = new BaseEndpoint(this, this.#path);
+        this.#sales = new BaseEndpoint(this, import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales');
+        this.#tickets = new BaseEndpoint(this, import.meta.env.VITE_TICKETS_ENDPOINT ?? '/pos/tickets');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listByBranch(branchId, params) {
+        return this.#sales.listAt(`/branches/${branchId}/pos/sales`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
+    getById(saleId)           { return this.#sales.getById(saleId); }
+    create(resource)          { return this.#sales.create(resource); }
+    update(saleId, resource)  { return this.#sales.update(saleId, resource); }
+    delete(saleId)            { return this.#sales.delete(saleId); }
+
+    cancel(saleId) {
+        return this.#sales.update(saleId, { saleStatus: 'CANCELLED' });
     }
 
-    create(resource) {
-        return this.#endpoint.create(resource);
+    pay(saleId) {
+        return this.#sales.update(saleId, { saleStatus: 'PAID' });
     }
 
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
+    /** Checkout atómico: pago + venta PAID. */
+    checkout(saleId, paymentResource) {
+        return this.#sales.postSub(saleId, 'checkout', paymentResource);
     }
 
-    delete(id) {
-        return this.#endpoint.delete(id);
+    checkoutSplit(saleId, body) {
+        return this.#sales.postSub(saleId, 'checkout-split', body);
     }
 
-    /** PATCH /pos/sales/:id/cancel — cierra la venta por cancelación. */
-    cancel(id) {
-        return this.http.patch(`${this.#path}/${id}/cancel`);
+    transfer(saleId, { tableId, zoneId }) {
+        return this.#sales.update(saleId, { tableId, zoneId });
     }
 
-    /** PATCH /pos/sales/:id/pay — marca la venta como PAID en el backend. */
-    pay(id, paymentSummary) {
-        return this.http.patch(`${this.#path}/${id}/pay`, paymentSummary);
+    /** Despacho atómico a cocina (tickets + marcar isSent). */
+    dispatchToStations(saleId) {
+        return this.#sales.postSub(saleId, 'dispatch-to-stations');
     }
 
-    /** PATCH /pos/sales/:id/transfer — transfiere la venta a otra mesa. */
-    transfer(id, { tableId, zoneId }) {
-        return this.http.patch(`${this.#path}/${id}/transfer`, { tableId, zoneId });
+    /** Tickets de cocina de una venta (estado RECEIVED → PREPARING → READY…). */
+    listKitchenTicketsBySale(branchId, saleId) {
+        return this.#tickets.listAt(`/branches/${branchId}/pos/tickets`, { saleId });
+    }
+
+    getOperationsConfig() {
+        return this.http.get('/pos/operations-config');
     }
 }
 

@@ -21,7 +21,7 @@ const SHAPES = [
 
 const form = reactive({
     zoneId:   null,
-    number:   null,
+    number:   '',
     capacity: 4,
     shape:    'square',
     status:   TABLE_STATUS.AVAILABLE,
@@ -31,7 +31,7 @@ const form = reactive({
 watch(() => props.visible, (val) => {
     if (val) {
         form.zoneId   = props.table?.zoneId   ?? null
-        form.number   = props.table?.number   ?? null
+        form.number   = props.table?.number != null ? String(props.table.number) : ''
         form.capacity = props.table?.capacity ?? 4
         form.shape    = props.table?.shape    ?? 'square'
         form.status   = props.table?.status   ?? TABLE_STATUS.AVAILABLE
@@ -44,18 +44,23 @@ const zoneOptions = computed(() =>
 
 const onCancel = () => emit('update:visible', false)
 
-const isDuplicate = computed(() =>
-    props.existingTables.some(t =>
+const normalizedNumber = computed(() => String(form.number ?? '').trim())
+
+const isDuplicate = computed(() => {
+    const id = normalizedNumber.value
+    if (!id) return false
+    return props.existingTables.some(t =>
         t.zoneId === form.zoneId &&
-        t.number === form.number &&
+        String(t.number ?? '').trim() === id &&
         t.id     !== props.table?.id
     )
-)
+})
 
 const onSave = () => {
-    if (!form.zoneId || !form.number || !form.capacity) return
+    const id = normalizedNumber.value
+    if (!form.zoneId || !id || !form.capacity) return
     if (isDuplicate.value) return
-    const table = new Table({ ...form })
+    const table = new Table({ ...form, number: id })
     emit('table-saved', table)
     emit('update:visible', false)
 }
@@ -88,21 +93,20 @@ const onSave = () => {
                     />
                 </div>
 
-                <!-- Número de Mesa -->
+                <!-- Identificador de Mesa -->
                 <div class="flex flex-column gap-2">
                     <label class="text-sm font-medium" style="color: #374151;">
-                        Número de Mesa <span class="text-red-500">*</span>
+                        Identificador de Mesa <span class="text-red-500">*</span>
                     </label>
-                    <pv-input-number
+                    <pv-input-text
                         v-model="form.number"
-                        :min="1"
-                        :use-grouping="false"
                         :invalid="isDuplicate"
-                        placeholder="1"
+                        maxlength="50"
+                        placeholder="Ej. 1, A1, Terraza-3"
                         class="w-full"
                     />
                     <small v-if="isDuplicate" class="text-red-500">
-                        Ya existe una mesa con ese número en esta zona.
+                        Ya existe una mesa con ese identificador en esta zona.
                     </small>
                 </div>
 

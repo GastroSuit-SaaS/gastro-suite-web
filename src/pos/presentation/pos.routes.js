@@ -25,6 +25,7 @@ const posRoutes = [
             titleModule: 'Punto de venta',
             description: 'Elija la zona y luego la mesa para tomar la orden',
             showBackButton: true,
+            backRoute: { name: 'pos-terminal' },
         },
     },
     {
@@ -36,6 +37,7 @@ const posRoutes = [
             titleModule: 'Punto de venta',
             description: 'Elija la mesa para tomar la orden',
             showBackButton: true,
+            backRoute: { name: 'pos-terminal' },
         },
     },
     {
@@ -45,8 +47,9 @@ const posRoutes = [
         meta: {
             title: 'Orden',
             titleModule: 'Punto de venta',
-            description: '',
-            showBackButton: false,
+            description: 'Agregue productos, envíe a cocina y procese el cobro',
+            showBackButton: true,
+            backRoute: { name: 'pos-terminal' },
         },
     },
     {
@@ -57,7 +60,7 @@ const posRoutes = [
             title: 'Procesar Pago',
             titleModule: 'Punto de venta',
             description: 'Seleccione el método de pago y tipo de comprobante',
-            showBackButton: false,
+            showBackButton: true,
         },
     },
 ];

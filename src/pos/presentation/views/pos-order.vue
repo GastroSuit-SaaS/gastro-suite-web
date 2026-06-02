@@ -1,10 +1,12 @@
-﻿<script setup>
-import { ref, computed, onMounted } from 'vue'
+<script setup>
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast }            from 'primevue/usetoast'
 import { usePosStore }         from '../../application/pos.store.js'
 import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
+import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import TransferTableDialog from '../components/transfer-table-dialog.vue'
+import { TICKET_STATUS_CONFIG } from '../../../stations/presentation/constants/stations.constants-ui.js'
 
 const route         = useRoute()
 const router        = useRouter()
@@ -38,13 +40,24 @@ const discountType        = ref('pct')  // 'pct' | 'fixed'
 
 // ── Descuento a nivel de orden
 const editingOrderDiscount = ref(false)
+const totalsBreakdownOpen = ref(false)
 const orderDiscountInput   = ref(0)
 const orderDiscountType    = ref('fixed')
 
 function openOrderDiscount() {
-    orderDiscountInput.value   = sale.value?.discount ?? 0
-    orderDiscountType.value    = 'fixed'
+    const s = sale.value
+    orderDiscountType.value  = s?.orderDiscountType && s.orderDiscountType !== 'none'
+        ? s.orderDiscountType
+        : 'fixed'
+    orderDiscountInput.value = orderDiscountType.value === 'pct'
+        ? (s?.orderDiscountValue ?? 0)
+        : (s?.discount ?? s?.orderDiscountValue ?? 0)
     editingOrderDiscount.value = true
+    totalsBreakdownOpen.value = true
+}
+
+function toggleTotalsBreakdown() {
+    totalsBreakdownOpen.value = !totalsBreakdownOpen.value
 }
 function commitOrderDiscount() {
     posStore.updateOrderDiscount(orderDiscountType.value, orderDiscountInput.value)
@@ -58,8 +71,75 @@ function clearOrderDiscount() {
     editingOrderDiscount.value = false
 }
 
-onMounted(() => {
-    if (!posStore.currentSale) router.replace(POS_ROUTES.SELECT_ZONE)
+async function ensureOrderContext() {
+    const loaded = await posStore.loadSaleContext(route.params.saleId)
+    if (!loaded) {
+        toast.add({
+            severity: 'warn',
+            summary:  'Orden no disponible',
+            detail:   posStore.error ?? 'No se pudo cargar la orden. Vuelve al terminal e inténtalo de nuevo.',
+            life:     5000,
+        })
+        router.replace(POS_ROUTES.TERMINAL)
+    }
+    return loaded
+}
+
+let _kitchenPoll = null
+
+function stopKitchenSync() {
+    if (_kitchenPoll) {
+        clearInterval(_kitchenPoll)
+        _kitchenPoll = null
+    }
+}
+
+async function startKitchenSync() {
+    stopKitchenSync()
+    await posStore.refreshKitchenTickets()
+    _kitchenPoll = setInterval(() => posStore.refreshKitchenTickets(), 60_000)
+}
+
+onMounted(async () => {
+    if (await ensureOrderContext()) await startKitchenSync()
+})
+
+onUnmounted(() => {
+    stopKitchenSync()
+    clearToolbarContext()
+})
+
+watch(() => route.params.saleId, async (id) => {
+    if (id) {
+        if (await ensureOrderContext()) await startKitchenSync()
+    }
+})
+
+const KITCHEN_SENT_FALLBACK = { label: 'Enviado', color: '#3b82f6', bg: '#dbeafe', icon: 'pi-send' };
+
+function itemKitchenBadge(item) {
+    const key = posStore.getItemKitchenStatusKey(item);
+    if (key === 'pending') return null;
+    if (key === 'sent') return KITCHEN_SENT_FALLBACK;
+    const base = TICKET_STATUS_CONFIG[key] ?? KITCHEN_SENT_FALLBACK;
+    if (key !== 'cancelled') return base;
+    const reason = posStore.getItemKitchenCancelReason(item);
+    return {
+        ...base,
+        label: reason ? `Cancelado: ${reason}` : base.label,
+    };
+}
+
+const orderTotals = computed(() => posStore.currentOrderTotals);
+
+function isItemCancelledInKitchen(item) {
+    return posStore.getItemKitchenStatusKey(item) === 'cancelled';
+}
+
+const kitchenOrderBadge = computed(() => {
+    const key = posStore.kitchenOrderStatus;
+    if (!key || !sale.value?.items?.some(i => i.isSent)) return null;
+    return TICKET_STATUS_CONFIG[key] ?? null;
 })
 
 // ── Catálogo ───────────────────────────────────────────────────────────────
@@ -77,18 +157,34 @@ function addItem(menuItem) {
 }
 
 // Funciones para modificar ítems en la orden
+function lineLocked(item) {
+    return !posStore.canModifySaleLine(item)
+}
+
+function notifyLineBlocked(item) {
+    const detail = posStore.getSaleLineBlockMessage(item)
+    if (!detail) return
+    toast.add({ severity: 'warn', summary: 'No se puede modificar', detail, life: 4500 })
+}
+
 function increment(item) {
-    posStore.updateItemQuantity(item.id, item.quantity + 1)
+    if (lineLocked(item)) return notifyLineBlocked(item)
+    const r = posStore.updateItemQuantity(item.id, item.quantity + 1)
+    if (r?.ok === false) notifyLineBlocked(item)
 }
 function decrement(item) {
-    // updateQuantity con qty<=0 elimina la línea automáticamente (Sale.updateQuantity)
-    posStore.updateItemQuantity(item.id, item.quantity - 1)
+    if (lineLocked(item)) return notifyLineBlocked(item)
+    const r = posStore.updateItemQuantity(item.id, item.quantity - 1)
+    if (r?.ok === false) notifyLineBlocked(item)
 }
 function removeItem(item) {
-    posStore.removeItemFromCurrentSale(item.id)
+    if (lineLocked(item)) return notifyLineBlocked(item)
+    const r = posStore.removeItemFromCurrentSale(item.id)
+    if (r?.ok === false) notifyLineBlocked(item)
 }
 
 function toggleNoteEdit(item) {
+    if (lineLocked(item)) return notifyLineBlocked(item)
     editingDiscountId.value = null   // cierra descuento si estaba abierto
     if (editingNoteId.value === item.id) {
         commitNote(item)
@@ -98,11 +194,17 @@ function toggleNoteEdit(item) {
     }
 }
 function commitNote(item) {
+    if (lineLocked(item)) {
+        notifyLineBlocked(item)
+        editingNoteId.value = null
+        return
+    }
     posStore.updateItemNote(item.id, noteInput.value)
     editingNoteId.value = null
 }
 
 function toggleDiscountEdit(item) {
+    if (lineLocked(item)) return notifyLineBlocked(item)
     editingNoteId.value = null   // cierra nota si estaba abierta
     if (editingDiscountId.value === item.id) {
         commitDiscount(item)
@@ -113,6 +215,11 @@ function toggleDiscountEdit(item) {
     }
 }
 function commitDiscount(item) {
+    if (lineLocked(item)) {
+        notifyLineBlocked(item)
+        editingDiscountId.value = null
+        return
+    }
     posStore.updateItemDiscount(item.id, discountType.value, discountInput.value)
     editingDiscountId.value = null
 }
@@ -122,20 +229,37 @@ function cancelDiscount() {
 
 
 async function enviarEstaciones() {
-    const count = await posStore.sendCurrentSaleToStations()
-    if (count > 0) {
+    try {
+        const result = await posStore.sendCurrentSaleToStations()
+        await posStore.refreshKitchenTickets()
+        if (result?.queued) {
+            toast.add({
+                severity: 'warn',
+                summary:  'Comanda en cola',
+                detail:   `${result.items} producto(s) se enviarán a cocina cuando vuelva la conexión.`,
+                life:     4000,
+            })
+        } else if (result?.items > 0) {
+            toast.add({
+                severity: 'success',
+                summary:  'Comanda actualizada',
+                detail:   `${result.items} producto${result.items !== 1 ? 's' : ''} listo${result.items !== 1 ? 's' : ''} (cocina y/o entrega directa).`,
+                life:     3000,
+            })
+        } else {
+            toast.add({
+                severity: 'info',
+                summary:  'Sin cambios pendientes',
+                detail:   'Todos los ítems ya fueron enviados a cocina.',
+                life:     3000,
+            })
+        }
+    } catch (e) {
         toast.add({
-            severity: 'success',
-            summary:  'Enviado a Cocina',
-            detail:   `${count} producto${count !== 1 ? 's' : ''} despachado${count !== 1 ? 's' : ''} a las estaciones.`,
-            life:     3000,
-        })
-    } else {
-        toast.add({
-            severity: 'info',
-            summary:  'Sin cambios pendientes',
-            detail:   'Todos los ítems ya fueron enviados a cocina.',
-            life:     3000,
+            severity: 'error',
+            summary:  'No se pudo enviar a cocina',
+            detail:   e?.message ?? posStore.error ?? 'Revisa la orden e intenta de nuevo.',
+            life:     5000,
         })
     }
 }
@@ -154,6 +278,26 @@ function onTransferred(newTableId) {
 // ── Mobile tab switcher ───────────────────────────────────────────────────
 const mobileView = ref('catalog') // 'catalog' | 'cart'
 const itemCount  = computed(() => sale.value?.items?.length ?? 0)
+
+const orderDisplayNumber = computed(() =>
+    sale.value?.saleDisplayNumber ?? sale.value?.ticketNumber ?? null,
+)
+
+function goBackFromOrder() {
+    router.push({ name: 'pos-terminal' })
+}
+
+function syncOrderToolbar() {
+    setToolbarContext({
+        showBackButton: true,
+        backLabel: 'Volver al terminal',
+        onBack: goBackFromOrder,
+        backRoute: { name: 'pos-terminal' },
+        chips: [],
+    })
+}
+
+watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
 </script>
 
 <template>
@@ -170,9 +314,12 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                     <template v-if="isTakeaway">
                         <div class="context-badge" style="background:#fef3c722;border-color:#f59e0b">
                             <span class="context-badge__label" style="color:#f59e0b">Tipo</span>
-                            <strong class="context-badge__value" style="color:#f59e0b">
-                                <i class="pi pi-shopping-bag" style="font-size:0.7rem"></i> Para Llevar #{{ sale?.ticketNumber ?? '—' }}
-                            </strong>
+                            <div style="display:flex;align-items:center;gap:0.35rem">
+                                <strong class="context-badge__value" style="color:#f59e0b">
+                                    <i class="pi pi-shopping-bag" style="font-size:0.7rem"></i> Para Llevar #{{ orderDisplayNumber ?? '—' }}
+                                </strong>
+                                <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
+                            </div>
                         </div>
                         <div v-if="sale?.customerName" class="context-badge context-badge--blue">
                             <span class="context-badge__label">Cliente</span>
@@ -180,6 +327,13 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                         </div>
                     </template>
                     <template v-else>
+                        <div v-if="orderDisplayNumber || posStore.currentSaleIsRecovered" class="context-badge context-badge--indigo">
+                            <span class="context-badge__label">Orden</span>
+                            <div style="display:flex;align-items:center;gap:0.35rem">
+                                <strong class="context-badge__value">#{{ orderDisplayNumber ?? '—' }}</strong>
+                                <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
+                            </div>
+                        </div>
                         <div class="context-badge context-badge--blue">
                             <span class="context-badge__label">Mesa</span>
                             <strong class="context-badge__value">Mesa {{ table?.number ?? '—' }}</strong>
@@ -193,13 +347,6 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                             <strong class="context-badge__value" :style="{ color: zone.color }">{{ zone.name }}</strong>
                         </div>
                     </template>
-                    <div class="context-badge context-badge--blue">
-                        <span class="context-badge__label">Orden</span>
-                        <div style="display:flex;align-items:center;gap:0.35rem">
-                            <strong class="context-badge__value">#{{ sale?.id ?? '—' }}</strong>
-                            <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Búsqueda -->
@@ -298,45 +445,71 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
         <!-- ── RIGHT: Orden ─────────────────────────────────────────────────────────────── -->    
         <div class="pos-panel" :class="{ 'pos-panel--mobile-hidden': mobileView !== 'cart' }">
 
-            <!-- Encabezado del panel -->
-            <div class="pos-panel__header">
-                <div class="flex align-items-center gap-2">
-                    <i class="pi pi-shopping-cart text-primary" style="font-size:1.1rem"></i>
-                    <span class="font-bold text-color" style="font-size:1rem">Orden Actual</span>
+            <!-- Encabezado del panel (fijo) -->
+            <header class="pos-panel__header">
+                <div class="pos-panel__title-row">
+                    <i class="pi pi-shopping-cart pos-panel__title-icon" aria-hidden="true"></i>
+                    <div class="pos-panel__title-block">
+                        <h2 class="pos-panel__title">Orden actual</h2>
+                        <p class="pos-panel__meta">
+                            <template v-if="orderDisplayNumber">Orden #{{ orderDisplayNumber }}</template>
+                            <span v-if="orderDisplayNumber && (sale?.totalItems ?? 0) > 0"> · </span>
+                            <span>{{ sale?.totalItems ?? 0 }} producto{{ (sale?.totalItems ?? 0) !== 1 ? 's' : '' }}</span>
+                        </p>
+                    </div>
                 </div>
-                <span class="text-sm text-color-secondary">
-                    {{ sale?.totalItems ?? 0 }} producto{{ (sale?.totalItems ?? 0) !== 1 ? 's' : '' }}
+                <span
+                    v-if="kitchenOrderBadge"
+                    class="kitchen-order-badge"
+                    :style="{ color: kitchenOrderBadge.color, background: kitchenOrderBadge.bg, borderColor: kitchenOrderBadge.color }"
+                >
+                    <i :class="['pi', kitchenOrderBadge.icon]"></i>
+                    Cocina: {{ kitchenOrderBadge.label }}
                 </span>
-            </div>
+            </header>
 
-            <!-- Lista de Ã­tems (scrollable) -->
-            <div class="pos-panel__items">
+            <!-- Lista de ítems (scroll independiente) -->
+            <div
+                class="pos-panel__items"
+                role="region"
+                aria-label="Productos en la orden"
+                tabindex="0"
+            >
                 <!-- Empty state -->
                 <div v-if="!sale || sale.items.length === 0" class="panel-empty">
                     <i class="pi pi-shopping-cart text-4xl text-color-secondary"></i>
                     <span class="text-sm text-color-secondary">Selecciona productos del menú</span>
                 </div>
 
-                <!-- Ãtems -->
-                <div v-else class="flex flex-column gap-2">
+                <!-- Ítems -->
+                <div v-else class="order-items-list">
                     <div
                         v-for="item in sale.items"
                         :key="item.id"
                         class="order-item"
+                        :class="{ 'order-item--kitchen-cancelled': isItemCancelledInKitchen(item) }"
                     >
                         <!-- Nombre + acciones -->
                         <div class="flex align-items-start justify-content-between gap-1">
                             <div class="flex align-items-center gap-2">
                                 <span class="order-item__name">{{ item.menuItemName }}</span>
-                                <span v-if="item.isSent" class="sent-badge">
-                                    <i class="pi pi-check"></i> Enviado
-                                </span>
+                                <template v-for="badge in [itemKitchenBadge(item)]" :key="badge?.label">
+                                    <span
+                                        v-if="badge"
+                                        class="sent-badge"
+                                        :style="{ color: badge.color, background: badge.bg, borderColor: badge.color }"
+                                    >
+                                        <i :class="['pi', badge.icon ?? 'pi-check']"></i>
+                                        {{ badge.label }}
+                                    </span>
+                                </template>
                             </div>
                             <div class="flex gap-1 flex-shrink-0">
                                 <!-- Descuento (etiqueta) -->
                                 <button
                                     :class="['icon-btn', editingDiscountId === item.id ? 'icon-btn--active-green' : (item.discountValue > 0 ? 'icon-btn--has-discount' : '')]"
-                                    title="Descuento"
+                                    :disabled="lineLocked(item)"
+                                    :title="lineLocked(item) ? posStore.getSaleLineBlockMessage(item) : 'Descuento'"
                                     @click="toggleDiscountEdit(item)"
                                 >
                                     <i class="pi pi-tag"></i>
@@ -344,13 +517,19 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
                                 <!-- Nota (copiar) -->
                                 <button
                                     :class="['icon-btn', editingNoteId === item.id ? 'icon-btn--active-yellow' : (item.note ? 'icon-btn--has-note' : '')]"
-                                    title="Nota"
+                                    :disabled="lineLocked(item)"
+                                    :title="lineLocked(item) ? posStore.getSaleLineBlockMessage(item) : 'Nota'"
                                     @click="toggleNoteEdit(item)"
                                 >
                                     <i class="pi pi-copy"></i>
                                 </button>
                                 <!-- Eliminar -->
-                                <button class="icon-btn icon-btn--danger" title="Eliminar" @click="removeItem(item)">
+                                <button
+                                    class="icon-btn icon-btn--danger"
+                                    :disabled="lineLocked(item)"
+                                    :title="lineLocked(item) ? posStore.getSaleLineBlockMessage(item) : 'Eliminar'"
+                                    @click="removeItem(item)"
+                                >
                                     <i class="pi pi-trash"></i>
                                 </button>
                             </div>
@@ -419,16 +598,23 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 
                         <!-- Stepper + precio de lÃ­nea -->
                         <div class="flex align-items-center justify-content-between mt-2">
-                            <div class="qty-stepper">
-                                <button class="qty-btn" @click="decrement(item)">
+                            <div class="qty-stepper" :class="{ 'qty-stepper--locked': lineLocked(item) }">
+                                <button class="qty-btn" :disabled="lineLocked(item)" @click="decrement(item)">
                                     <i class="pi pi-minus"></i>
                                 </button>
                                 <span class="qty-value">{{ item.quantity }}</span>
-                                <button class="qty-btn" @click="increment(item)">
+                                <button class="qty-btn" :disabled="lineLocked(item)" @click="increment(item)">
                                     <i class="pi pi-plus"></i>
                                 </button>
                             </div>
-                            <span class="order-item__subtotal">S/ {{ item.subtotal.toFixed(2) }}</span>
+                            <span
+                                v-if="isItemCancelledInKitchen(item)"
+                                class="order-item__subtotal order-item__subtotal--excluded"
+                                title="Excluido del total — ticket cancelado en cocina"
+                            >
+                                No cobrado
+                            </span>
+                            <span v-else class="order-item__subtotal">S/ {{ item.subtotal.toFixed(2) }}</span>
                         </div>
                     </div>
                 </div>
@@ -438,58 +624,68 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
             <div class="pos-panel__footer">
                 <!-- Totales -->
                 <div class="totals">
-                    <div class="totals__row">
-                        <span>Subtotal</span>
-                        <span>S/ {{ (sale?.subtotal ?? 0).toFixed(2) }}</span>
-                    </div>
-                    <div class="totals__row">
-                        <span>IGV (18%)</span>
-                        <span>S/ {{ (sale?.tax ?? 0).toFixed(2) }}</span>
-                    </div>
-
-                    <!-- Descuento de orden -->
-                    <div v-if="(sale?.discount ?? 0) > 0" class="totals__row totals__row--discount">
-                        <span>Descuento</span>
-                        <span class="totals__discount-value">− S/ {{ (sale.discount).toFixed(2) }}</span>
-                    </div>
-
-                    <!-- Editor de descuento de orden -->
-                    <div v-if="editingOrderDiscount" class="order-discount-editor">
-                        <select v-model="orderDiscountType" class="order-discount-editor__type">
-                            <option value="pct">%</option>
-                            <option value="fixed">S/</option>
-                        </select>
-                        <input
-                            v-model.number="orderDiscountInput"
-                            type="number"
-                            min="0"
-                            :max="orderDiscountType === 'pct' ? 100 : undefined"
-                            class="order-discount-editor__input"
-                            @keydown.enter="commitOrderDiscount"
-                            @keydown.esc="cancelOrderDiscount"
-                        />
-                        <button class="order-discount-editor__btn order-discount-editor__btn--ok" @click="commitOrderDiscount">
-                            <i class="pi pi-check"></i>
-                        </button>
-                        <button v-if="(sale?.discount ?? 0) > 0" class="order-discount-editor__btn order-discount-editor__btn--clear" @click="clearOrderDiscount">
-                            <i class="pi pi-times"></i>
-                        </button>
-                        <button class="order-discount-editor__btn order-discount-editor__btn--cancel" @click="cancelOrderDiscount">
-                            <i class="pi pi-ban"></i>
-                        </button>
-                    </div>
                     <button
-                        v-else-if="sale"
-                        class="totals__discount-toggle"
-                        @click="openOrderDiscount"
+                        type="button"
+                        class="totals__ribbon"
+                        :aria-expanded="totalsBreakdownOpen"
+                        @click="toggleTotalsBreakdown"
                     >
-                        <i class="pi pi-tag"></i>
-                        {{ (sale?.discount ?? 0) > 0 ? 'Editar descuento' : 'Agregar descuento' }}
+                        <span>{{ totalsBreakdownOpen ? 'Ocultar desglose' : 'Ver desglose' }}</span>
+                        <i :class="['pi', totalsBreakdownOpen ? 'pi-chevron-up' : 'pi-chevron-down']" aria-hidden="true"></i>
                     </button>
+
+                    <div v-show="totalsBreakdownOpen" class="totals__breakdown">
+                        <div class="totals__row">
+                            <span>Subtotal</span>
+                            <span>S/ {{ orderTotals.subtotal.toFixed(2) }}</span>
+                        </div>
+                        <div class="totals__row">
+                            <span>IGV (18%)</span>
+                            <span>S/ {{ orderTotals.tax.toFixed(2) }}</span>
+                        </div>
+
+                        <div v-if="orderTotals.discount > 0" class="totals__row totals__row--discount">
+                            <span>Descuento</span>
+                            <span class="totals__discount-value">− S/ {{ orderTotals.discount.toFixed(2) }}</span>
+                        </div>
+
+                        <div v-if="editingOrderDiscount" class="order-discount-editor">
+                            <select v-model="orderDiscountType" class="order-discount-editor__type">
+                                <option value="pct">%</option>
+                                <option value="fixed">S/</option>
+                            </select>
+                            <input
+                                v-model.number="orderDiscountInput"
+                                type="number"
+                                min="0"
+                                :max="orderDiscountType === 'pct' ? 100 : undefined"
+                                class="order-discount-editor__input"
+                                @keydown.enter="commitOrderDiscount"
+                                @keydown.esc="cancelOrderDiscount"
+                            />
+                            <button class="order-discount-editor__btn order-discount-editor__btn--ok" @click="commitOrderDiscount">
+                                <i class="pi pi-check"></i>
+                            </button>
+                            <button v-if="(sale?.discount ?? 0) > 0" class="order-discount-editor__btn order-discount-editor__btn--clear" @click="clearOrderDiscount">
+                                <i class="pi pi-times"></i>
+                            </button>
+                            <button class="order-discount-editor__btn order-discount-editor__btn--cancel" @click="cancelOrderDiscount">
+                                <i class="pi pi-ban"></i>
+                            </button>
+                        </div>
+                        <button
+                            v-else-if="sale"
+                            class="totals__discount-toggle"
+                            @click="openOrderDiscount"
+                        >
+                            <i class="pi pi-tag"></i>
+                            {{ (sale?.discount ?? 0) > 0 ? 'Editar descuento' : 'Agregar descuento' }}
+                        </button>
+                    </div>
 
                     <div class="totals__row totals__row--total">
                         <span>Total</span>
-                        <span>S/ {{ (sale?.total ?? 0).toFixed(2) }}</span>
+                        <span>S/ {{ orderTotals.total.toFixed(2) }}</span>
                     </div>
                 </div>
 
@@ -551,6 +747,7 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 .pos-order-layout {
     display: flex;
+    flex: 1;
     height: 100%;
     min-height: 0;
     background: #f3f4f6;
@@ -766,34 +963,79 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 .product-card__price  { font-size: 1rem; font-weight: 700; color: #2563eb; }
 .product-card__sku    { font-size: 0.68rem; color: #9ca3af; }
 
-/* ── Panel derecho ─────────────────────────────────────────────────────────────── */
+/* ── Panel derecho (Orden actual) ───────────────────────────────────────────── */
 .pos-panel {
-    width: 370px;
+    width: min(400px, 34vw);
     flex-shrink: 0;
     background: #fff;
     border-left: 1px solid var(--surface-border);
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
+    height: 100%;
     overflow: hidden;
+    box-shadow: -2px 0 12px rgba(15, 23, 42, 0.04);
 }
 .pos-panel__header {
-    padding: 0.85rem 1.25rem 0.75rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--surface-border);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.pos-panel__items {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.75rem;
-    min-height: 0;
+    background: #fafafa;
     display: flex;
     flex-direction: column;
+    gap: 0.5rem;
+}
+.pos-panel__title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+.pos-panel__title-icon {
+    font-size: 1.15rem;
+    color: var(--color-primary, #6366f1);
+    margin-top: 0.1rem;
+}
+.pos-panel__title-block {
+    flex: 1;
+    min-width: 0;
+}
+.pos-panel__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.25;
+}
+.pos-panel__meta {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
+    color: #6b7280;
+    line-height: 1.35;
+}
+.pos-panel__items {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.65rem 0.75rem;
+    min-height: 0;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+}
+.pos-panel__items::-webkit-scrollbar {
+    width: 6px;
+}
+.pos-panel__items::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+.pos-panel__items::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+.order-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 .panel-empty {
-    flex: 1;
+    min-height: 12rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -807,10 +1049,27 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
     background: #f9fafb;
     border: 1px solid var(--surface-border);
     border-radius: 8px;
-    padding: 0.6rem 0.7rem;
+    padding: 0.5rem 0.65rem;
 }
 .order-item__name { font-size: 0.86rem; font-weight: 600; color: #111827; line-height: 1.3; flex: 1; }
 .order-item__subtotal { font-size: 0.9rem; font-weight: 700; color: var(--color-primary, #6366f1); }
+.order-item--kitchen-cancelled { opacity: 0.72; }
+.order-item--kitchen-cancelled .order-item__name { text-decoration: line-through; color: #9ca3af; }
+.qty-stepper--locked { opacity: 0.55; }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.order-item__subtotal--excluded { font-size: 0.78rem; font-weight: 600; color: #dc2626; }
+
+.kitchen-order-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid;
+}
 
 .sent-badge {
     display: inline-flex;
@@ -926,9 +1185,51 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 .qty-btn:hover { background: #e5e7eb; }
 .qty-value { min-width: 2rem; text-align: center; font-size: 0.85rem; font-weight: 600; color: #111827; }
 
-/* ── Panel footer ─────────────────────────────────────────────────────────────── */
-.pos-panel__footer { flex-shrink: 0; border-top: 1px solid var(--surface-border); padding: 0.85rem 1.25rem 1rem; }
+/* ── Panel footer (totales + acciones, siempre visible) ───────────────────── */
+.pos-panel__footer {
+    border-top: 1px solid var(--surface-border);
+    padding: 0.75rem 1rem 0.85rem;
+    background: #fff;
+    box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.06);
+    z-index: 1;
+}
 .totals { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.85rem; }
+
+.totals__ribbon {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin: 0 0 0.25rem;
+    padding: 0.45rem 0.5rem;
+    border: none;
+    border-top: 1px dashed #e5e7eb;
+    border-bottom: 1px dashed #e5e7eb;
+    background: #f9fafb;
+    color: #6b7280;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.totals__ribbon:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.totals__ribbon .pi {
+    font-size: 0.7rem;
+}
+
+.totals__breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-bottom: 0.15rem;
+}
+
 .totals__row { display: flex; justify-content: space-between; font-size: 0.84rem; color: #6b7280; }
 .totals__row--total {
     font-size: 1rem; font-weight: 700; color: #111827;
@@ -1030,6 +1331,13 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
         width: 100% !important;
         border-left: none;
         border-top: 1px solid var(--surface-border);
+        box-shadow: none;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .pos-panel__footer {
+        padding-bottom: 0.5rem;
     }
 
     /* Catalog header: wrap badges + search on narrow screens */

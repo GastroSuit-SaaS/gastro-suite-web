@@ -10,30 +10,30 @@ export function useNotification() {
     /**
      * Notificación de éxito - Fabricio
      */
+    const baseToast = (severity, message, title, life) => {
+        toast.add({
+            severity,
+            summary:  title,
+            detail:   message,
+            life,
+        });
+    };
+
     const showSuccess = (message, title = 'Éxito', life = 3000) => {
-        toast.add({ severity: 'success', summary: title, detail: message, life })
-    }
+        baseToast('success', message, title, life);
+    };
 
-    /**
-     * Notificación de error.
-     */
-    const showError = (message, title = 'Error', life = 5000) => {
-        toast.add({ severity: 'error', summary: title, detail: message, life })
-    }
+    const showError = (message, title = 'Error', life = 6000) => {
+        baseToast('error', message, title, life);
+    };
 
-    /**
-     * Notificación de advertencia.
-     */
-    const showWarning = (message, title = 'Advertencia', life = 4000) => {
-        toast.add({ severity: 'warn', summary: title, detail: message, life })
-    }
+    const showWarning = (message, title = 'Advertencia', life = 5000) => {
+        baseToast('warn', message, title, life);
+    };
 
-    /**
-     * Notificación informativa.
-     */
-    const showInfo = (message, title = 'Información', life = 3000) => {
-        toast.add({ severity: 'info', summary: title, detail: message, life })
-    }
+    const showInfo = (message, title = 'Información', life = 4000) => {
+        baseToast('info', message, title, life);
+    };
 
     /**
      * Notificación personalizada.

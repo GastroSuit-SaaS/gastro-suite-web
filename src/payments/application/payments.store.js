@@ -1,10 +1,13 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { PaymentsApi } from '../infrastructure/api/payments.api.js';
 import { PaymentAssembler } from '../infrastructure/assemblers/payment.assembler.js';
 import { Payment, PAYMENT_STATUS, PAYMENT_METHOD, RECEIPT_TYPE } from '../domain/models/payment.entity.js';
-import { MOCK_PAYMENTS } from '../infrastructure/payments.mock.js';
+import { SETTLED_PAYMENT_STATUSES, paymentNetCollected } from '../domain/payment-net.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
+import { useIamStore } from '../../iam/application/iam.store.js';
 
 const api = new PaymentsApi();
 
@@ -18,15 +21,15 @@ export const usePaymentsStore = defineStore('payments', () => {
 
     // ── Getters ───────────────────────────────────────────────────────────
     const todaysPayments = computed(() =>
-        payments.value.filter(p => p.isToday && p.status === PAYMENT_STATUS.COMPLETED)
+        payments.value.filter(p => p.isToday && SETTLED_PAYMENT_STATUSES.includes(p.status))
     );
 
     const todayTotal = computed(() =>
-        todaysPayments.value.reduce((sum, p) => sum + p.total, 0)
+        todaysPayments.value.reduce((sum, p) => sum + paymentNetCollected(p), 0)
     );
 
     const totalAmount = computed(() =>
-        payments.value.reduce((sum, p) => sum + p.total, 0)
+        payments.value.reduce((sum, p) => sum + paymentNetCollected(p), 0)
     );
 
     const todayByMethod = computed(() => {
@@ -34,7 +37,7 @@ export const usePaymentsStore = defineStore('payments', () => {
             Object.values(PAYMENT_METHOD).map(m => [m, 0])
         );
         todaysPayments.value.forEach(p => {
-            if (p.method in map) map[p.method] += p.total;
+            if (p.method in map) map[p.method] += paymentNetCollected(p);
         });
         return map;
     });
@@ -55,7 +58,8 @@ export const usePaymentsStore = defineStore('payments', () => {
             const q = searchQuery.value.trim().toLowerCase();
             list = list.filter(p =>
                 String(p.tableNumber).includes(q) ||
-                String(p.saleId).includes(q)      ||
+                String(p.saleDisplayNumber ?? '').includes(q) ||
+                (p.collectedByDisplayName?.toLowerCase().includes(q)) ||
                 (p.receiptData?.nombre?.toLowerCase().includes(q)) ||
                 (p.receiptData?.razonSocial?.toLowerCase().includes(q)) ||
                 (p.receiptData?.dni?.includes(q)) ||
@@ -71,25 +75,31 @@ export const usePaymentsStore = defineStore('payments', () => {
     function setShowAll(val)       { showAll.value       = val; }
 
     // ── Actions ───────────────────────────────────────────────────────────
+    async function fetchAllSilent() {
+        try {
+            const branchId = requireActiveBranchId();
+            const response = await api.listByBranch(branchId);
+            payments.value = PaymentAssembler.toEntitiesFromResponse(response);
+        } catch { /* mantener estado */ }
+    }
+
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
-                if (payments.value.length === 0) {
-                    const branchId = localStorage.getItem('gs_branch_id');
-                    payments.value = branchId ? MOCK_PAYMENTS.filter(p => p.sucursalId === branchId) : [...MOCK_PAYMENTS];
-                }
-                return;
-            }
-            const response = await api.getAll();
+            const branchId = requireActiveBranchId();
+            const response = await api.listByBranch(branchId);
             payments.value = PaymentAssembler.toEntitiesFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar los pagos';
+            error.value = getApiErrorMessage(e, 'Error al cargar los pagos');
         } finally {
             isLoading.value = false;
         }
+    }
+
+    async function handleOperationalEvent(event) {
+        if (!event?.type?.startsWith('payment.')) return;
+        await fetchAllSilent();
     }
 
     async function fetchById(id) {
@@ -107,8 +117,7 @@ export const usePaymentsStore = defineStore('payments', () => {
 
     async function remove(id) {
         const payment = payments.value.find(p => p.id === id);
-        // Pagos completados no se eliminan — usar refund() en su lugar
-        if (payment?.status === PAYMENT_STATUS.COMPLETED) return;
+        if (payment && SETTLED_PAYMENT_STATUSES.includes(payment.status)) return;
         isLoading.value = true;
         error.value = null;
         try {
@@ -133,12 +142,17 @@ export const usePaymentsStore = defineStore('payments', () => {
      * }} data
      * @returns {Payment}
      */
+    function addCompletedPayment(payment) {
+        if (!payment) return;
+        payments.value.unshift(payment);
+    }
+
     async function registerPayment(data) {
         const tempId  = Date.now();
         const payment = new Payment({ id: tempId, status: PAYMENT_STATUS.COMPLETED, ...data });
         payments.value.unshift(payment);            // optimistic insert — más reciente primero
         try {
-            const response = await api.processPayment(PaymentAssembler.toResourceFromEntity(payment));
+            const response = await api.create(PaymentAssembler.toCreateBffResource(payment));
             if (response.status === 201 || response.status === 200) {
                 const saved = PaymentAssembler.toEntityFromResponse(response);
                 if (saved) {
@@ -157,36 +171,60 @@ export const usePaymentsStore = defineStore('payments', () => {
         return payment;
     }
 
-    /**
-     * Marca un pago existente como reembolsado.
-     * @param {number} id     - ID del pago a reembolsar
-     * @param {string} reason - Motivo del reembolso
-     */
-    async function refund(id, reason = '') {
-        const idx = payments.value.findIndex(p => p.id === id);
-        if (idx === -1) return;
-        const payment  = payments.value[idx];
-        const snapshot = new Payment({ ...payment });
-        payments.value[idx] = new Payment({ ...payment, status: PAYMENT_STATUS.REFUNDED });
-        try {
-            await api.refund(id, reason);
-        } catch {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // En mock mode continuamos para registrar el egreso en caja
-            } else {
-                // Rollback: restore original payment status
-                payments.value[idx] = snapshot;
-                return;
-            }
+    async function _ensureEmployeeForRefund() {
+        const iamStore = useIamStore();
+        if (iamStore.currentUser?.employeeId) return true;
+        const link = await iamStore.ensureEmployeeLink();
+        if (!link.ok) {
+            error.value = iamStore.employeeLinkMessage
+                ?? 'Tu usuario debe estar vinculado a un empleado para reembolsar.';
+            return false;
         }
-        // Registrar egreso de caja por reembolso
-        const cashRegisterStore = useCashRegisterStore();
-        if (cashRegisterStore.hasOpenSession) {
-            cashRegisterStore.registerRefundMovement({
-                amount:      payment.total,
-                description: `Reembolso pago #${payment.id}${reason ? ` — ${reason}` : ''}`,
-                paymentId:   String(payment.id),
-            });
+        return true;
+    }
+
+    /**
+     * @param {string} id
+     * @param {{ mode: string, amount?: number, includeTip?: boolean, refundTip?: boolean, reason?: string, lines?: Array<{ saleItemId: string, quantity: number }> }} body
+     */
+    async function createRefund(id, body) {
+        const idx = payments.value.findIndex(p => p.id === id);
+        if (idx === -1) return null;
+        if (!await _ensureEmployeeForRefund()) return null;
+
+        try {
+            const response = await api.createRefund(id, body);
+            const updated = PaymentAssembler.paymentFromRefundResponse(response);
+            if (updated) payments.value[idx] = updated;
+            const cashRegisterStore = useCashRegisterStore();
+            if (cashRegisterStore.hasOpenSession) {
+                try { await cashRegisterStore.fetchAll(); } catch { /* ok */ }
+            }
+            return updated;
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'No se pudo registrar el reembolso');
+            return null;
+        }
+    }
+
+    async function previewRefund(id, body) {
+        if (!await _ensureEmployeeForRefund()) return null;
+        try {
+            const response = await api.previewRefund(id, body);
+            return response?.data ?? response;
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'No se pudo calcular la vista previa');
+            return null;
+        }
+    }
+
+    async function listRefunds(id) {
+        try {
+            const response = await api.listRefunds(id);
+            const rows = response?.data ?? response;
+            return Array.isArray(rows) ? rows : [];
+        } catch {
+            return [];
         }
     }
 
@@ -195,6 +233,8 @@ export const usePaymentsStore = defineStore('payments', () => {
         todaysPayments, todayTotal, totalAmount, todayByMethod, todayCount,
         filterMethod, filterReceipt, searchQuery, showAll, filteredPayments,
         setFilterMethod, setFilterReceipt, setSearchQuery, setShowAll,
-        fetchAll, fetchById, remove, registerPayment, refund,
+        fetchAll, fetchAllSilent, fetchById, remove, addCompletedPayment, registerPayment,
+        handleOperationalEvent,
+        createRefund, previewRefund, listRefunds,
     };
 });

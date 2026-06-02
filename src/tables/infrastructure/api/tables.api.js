@@ -1,77 +1,53 @@
-/**
- * Tables Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo Tables.
- * Maneja endpoints de mesas, reservas, asignaciones, etc.
- * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { TableAssembler } from '../assemblers/table.assembler.js';
 
 export class TablesApi extends BaseApi {
-    #endpoint;
-    #tablesPath;
-    #zonesPath;
+    #tables;
+    #zones;
 
     constructor() {
         super();
-        this.#tablesPath = import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables';
-        this.#zonesPath  = import.meta.env.VITE_ZONES_ENDPOINT  ?? '/zones';
-        this.#endpoint = new BaseEndpoint(this, this.#tablesPath);
+        this.#tables = new BaseEndpoint(this, import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables');
+        this.#zones  = new BaseEndpoint(this, import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listZonesByBranch(branchId) {
+        return this.#zones.listAt(`/branches/${branchId}/zones`);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
+    listTablesByZone(zoneId) {
+        return this.#tables.listAt(`/zones/${zoneId}/tables`);
     }
 
-    create(resource) {
-        return this.#endpoint.create(resource);
-    }
+    getTableById(tableId)           { return this.#tables.getById(tableId); }
+    createTable(resource)           { return this.#tables.create(resource); }
+    updateTable(id, resource)       { return this.#tables.update(id, resource); }
+    deleteTable(id)                 { return this.#tables.delete(id); }
 
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
-
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
-
-    // ── Status transitions ────────────────────────────────────────────────
     updateStatus(id, status) {
-        return this.http.patch(`${this.#tablesPath}/${id}/status`, { status });
+        return this.#tables.update(id, TableAssembler.toStatusPatch({ status }));
     }
 
     assign(id, { seatedGuests }) {
-        return this.http.patch(`${this.#tablesPath}/${id}/assign`, { seatedGuests });
+        return this.#tables.update(id, TableAssembler.toStatusPatch({
+            status: 'occupied',
+            seatedGuests,
+            occupiedSince: new Date().toISOString(),
+        }));
     }
 
     free(id) {
-        return this.http.patch(`${this.#tablesPath}/${id}/free`);
+        return this.#tables.update(id, TableAssembler.toStatusPatch({
+            status: 'cleaning',
+            seatedGuests: 0,
+            occupiedSince: null,
+        }));
     }
 
-    // ── Zones ─────────────────────────────────────────────────────────────
-    getZones() {
-        return this.http.get(this.#zonesPath);
-    }
-
-    createZone(data) {
-        return this.http.post(this.#zonesPath, data);
-    }
-
-    updateZone(id, data) {
-        return this.http.put(`${this.#zonesPath}/${id}`, data);
-    }
-
-    deleteZone(id) {
-        return this.http.delete(`${this.#zonesPath}/${id}`);
-    }
+    createZone(resource)            { return this.#zones.create(resource); }
+    updateZone(id, resource)        { return this.#zones.update(id, resource); }
+    deleteZone(id)                  { return this.#zones.delete(id); }
 }
 
 export const tablesApi = new TablesApi();

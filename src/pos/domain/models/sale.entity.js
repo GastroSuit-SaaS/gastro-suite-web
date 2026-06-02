@@ -29,10 +29,13 @@ export class Sale {
         saleType  = SALE_TYPE.DINE_IN,
         customerName = '',
         ticketNumber = null,
+        saleDisplayNumber = null,
         items     = [],
         subtotal  = 0,
         tax       = 0,
         discount  = 0,
+        orderDiscountType  = 'none',
+        orderDiscountValue = 0,
         total     = 0,
         status    = SALE_STATUS.ACTIVE,
         cashierId = null,
@@ -44,11 +47,14 @@ export class Sale {
         this.zoneId    = zoneId;
         this.saleType  = saleType;
         this.customerName = customerName;
-        this.ticketNumber = ticketNumber;
+        this.saleDisplayNumber = saleDisplayNumber ?? ticketNumber ?? null;
+        this.ticketNumber = ticketNumber ?? saleDisplayNumber ?? null;
         this.items     = items;
         this.subtotal  = subtotal;
         this.tax       = tax;
         this.discount  = discount;
+        this.orderDiscountType  = orderDiscountType;
+        this.orderDiscountValue = orderDiscountValue;
         this.total     = total;
         this.status    = status;
         this.cashierId = cashierId;
@@ -141,18 +147,23 @@ export class Sale {
      */
     updateOrderDiscount(type, value) {
         const numericValue = Math.max(0, Number(value) || 0);
-        const itemsTotal   = this.items.reduce((sum, i) => sum + i.subtotal, 0);
+        this.orderDiscountType  = type === 'fixed' ? 'fixed' : 'pct';
+        this.orderDiscountValue = this.orderDiscountType === 'pct'
+            ? Math.min(100, numericValue)
+            : numericValue;
+        const itemsTotal = this.items.reduce((sum, i) => sum + i.subtotal, 0);
         if (type === 'fixed') {
             this.discount = numericValue;
         } else {
-            const pct     = Math.min(100, numericValue);
-            this.discount = parseFloat((itemsTotal * pct / 100).toFixed(2));
+            this.discount = parseFloat((itemsTotal * this.orderDiscountValue / 100).toFixed(2));
         }
         this._recalculate();
     }
 
     /** Elimina el descuento a nivel de orden. */
     clearOrderDiscount() {
+        this.orderDiscountType  = 'none';
+        this.orderDiscountValue = 0;
         this.discount = 0;
         this._recalculate();
     }
@@ -166,6 +177,8 @@ export class Sale {
             menuItemName: item.menuItemName,
             quantity:     1,
             unitPrice:    item.unitPrice,
+            stationId:    item.stationId,
+            stationName:  item.stationName,
             note:         '',
         }));
         this._recalculate();

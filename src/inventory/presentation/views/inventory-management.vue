@@ -7,6 +7,8 @@ import CreateAndEditProduct           from './create-and-edit-product.vue'
 import CreateAndEditInventoryCategory from './create-and-edit-inventory-category.vue'
 import RegisterStockMovement          from './register-stock-movement.vue'
 import ModuleStateFeedback            from '../../../shared/presentation/components/module-state-feedback.vue'
+import ModuleTabBar                   from '../../../shared/presentation/components/module-tab-bar.vue'
+import ModuleTab                      from '../../../shared/presentation/components/module-tab.vue'
 
 const store = useInventoryStore()
 const { confirmDelete } = useConfirmDialog()
@@ -179,26 +181,17 @@ function formatDate(d) {
     >
 
         <!-- ══ Tab navigation ═════════════════════════════════════════════ -->
-        <div class="inv-tabs">
-            <button
-                :class="['tab-btn', activeTab === 'products' && 'tab-btn--active']"
-                @click="activeTab = 'products'"
-            >
-                <i class="pi pi-box"></i> Productos
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'categories' && 'tab-btn--active']"
-                @click="activeTab = 'categories'"
-            >
-                <i class="pi pi-tag"></i> Categorías
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'movements' && 'tab-btn--active']"
-                @click="activeTab = 'movements'"
-            >
-                <i class="pi pi-arrow-right-arrow-left"></i> Movimientos
-            </button>
-        </div>
+        <module-tab-bar v-model="activeTab" sticky>
+            <module-tab value="products" icon="pi-box">
+                Productos
+            </module-tab>
+            <module-tab value="categories" icon="pi-tag">
+                Categorías
+            </module-tab>
+            <module-tab value="movements" icon="pi-arrow-right-arrow-left">
+                Movimientos
+            </module-tab>
+        </module-tab-bar>
 
         <!-- ══════════════════ TAB: PRODUCTOS ════════════════════════════ -->
         <div v-if="activeTab === 'products'" class="inv-home">
@@ -246,18 +239,16 @@ function formatDate(d) {
                     />
                 </pv-icon-field>
 
-                <div class="flex align-items-center gap-2">
-                    <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Categoría</label>
-                    <pv-select
-                        v-model="store.filterCategory"
-                        :options="categoryOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        placeholder="Todas"
-                        size="small"
-                        @change="productPage = 1"
-                    />
-                </div>
+                <pv-select
+                    v-model="store.filterCategory"
+                    :options="categoryOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="CATEGORÍA"
+                    size="small"
+                    style="min-width: 160px"
+                    @change="productPage = 1"
+                />
 
                 <pv-button label="Nuevo producto" icon="pi pi-plus" size="small" @click="openCreate" />
             </div>
@@ -429,33 +420,27 @@ function formatDate(d) {
                     />
                 </pv-icon-field>
 
-                <div class="flex align-items-center gap-2">
-                    <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Motivo</label>
-                    <pv-select
-                        v-model="store.movementFilterType"
-                        :options="movementTypeFilterOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        placeholder="Todos"
-                        size="small"
-                        style="min-width: 140px"
-                        @change="movementPage = 1"
-                    />
-                </div>
+                <pv-select
+                    v-model="store.movementFilterType"
+                    :options="movementTypeFilterOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="MOTIVO"
+                    size="small"
+                    style="min-width: 150px"
+                    @change="movementPage = 1"
+                />
 
-                <div class="flex align-items-center gap-2">
-                    <label class="text-xs font-semibold text-color-secondary uppercase white-space-nowrap">Dir.</label>
-                    <pv-select
-                        v-model="store.movementFilterDirection"
-                        :options="movementDirFilterOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        placeholder="Todas"
-                        size="small"
-                        style="min-width: 120px"
-                        @change="movementPage = 1"
-                    />
-                </div>
+                <pv-select
+                    v-model="store.movementFilterDirection"
+                    :options="movementDirFilterOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="DIRECCIÓN"
+                    size="small"
+                    style="min-width: 150px"
+                    @change="movementPage = 1"
+                />
 
                 <pv-button label="Registrar movimiento" icon="pi pi-plus" size="small" @click="openRegisterMovement" />
             </div>
@@ -567,40 +552,6 @@ function formatDate(d) {
     display: flex;
     flex-direction: column;
 }
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.inv-tabs {
-    display: flex;
-    border-bottom: 2px solid var(--surface-border, #e5e7eb);
-    background: #fff;
-    padding: 0 1.25rem;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: var(--text-color-secondary, #6b7280);
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: color 0.15s;
-}
-.tab-btn--active {
-    color: var(--p-primary-color, #6366f1);
-    border-bottom-color: var(--p-primary-color, #6366f1);
-    font-weight: 600;
-}
-.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
 
 /* ── Contenedor principal (ambos tabs) ───────────────────────────────────── */
 .inv-home {

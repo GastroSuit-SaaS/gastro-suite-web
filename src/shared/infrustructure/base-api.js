@@ -1,11 +1,17 @@
 import axios from 'axios';
+import { getActivePinia } from 'pinia';
+import { clearSessionStorage, SESSION_KEYS } from './session-storage.js';
 
-const platformApi = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api';
+const platformApi =
+    import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api/v1';
+
+/** Rutas que no deben llevar JWT (login/registro). */
+function isPublicAuthRequest(url = '') {
+    return url.includes('/auth/') || url.includes('/support/auth');
+}
 
 /**
- * @class BaseApi
- * @summary Shared HTTP client for the platform.
- * Handles JSON and multipart/form-data automatically.
+ * Cliente HTTP compartido de la plataforma.
  */
 export class BaseApi {
   #http;
@@ -13,23 +19,27 @@ export class BaseApi {
   constructor() {
     this.#http = axios.create({
       baseURL: platformApi,
-      timeout: 10000, // 10s — evita que el browser se cuelgue si el backend no responde
+      timeout: 10000,
     });
 
     this.#http.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('gs_token');
-        if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
-        }
+        const url = config.url ?? '';
+        const isAuthRoute = isPublicAuthRequest(url);
 
-        const branchId = localStorage.getItem('gs_branch_id');
-        if (branchId) {
-          config.headers['X-Branch-Id'] = branchId;
+        if (!isAuthRoute) {
+          const token = localStorage.getItem(SESSION_KEYS.TOKEN);
+          if (token) {
+            config.headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const branchId = localStorage.getItem(SESSION_KEYS.BRANCH_ID);
+          if (branchId) {
+            config.headers['X-Branch-Id'] = branchId;
+          }
         }
 
         if (config.data instanceof FormData) {
-          // Let the browser set multipart/form-data + boundary
           delete config.headers['Content-Type'];
         } else if (config.data) {
           config.headers['Content-Type'] = 'application/json';
@@ -40,16 +50,27 @@ export class BaseApi {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor — handle 401 globally
     this.#http.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          localStorage.removeItem('gs_token');
-          // Use dynamic import to avoid circular dependency with router
-          import('../../router/index.js').then(({ default: router }) => {
-            router.replace('/sign-in');
-          });
+        if (error.response?.status === 401 && !isPublicAuthRequest(error.config?.url ?? '')) {
+          const pinia = getActivePinia();
+          if (pinia) {
+            import('../../iam/application/iam.store.js').then(({ useIamStore }) => {
+              const iam = useIamStore(pinia);
+              iam.logout();
+              iam.error = null;
+            });
+          } else {
+            clearSessionStorage();
+          }
+
+          const path = window.location?.pathname ?? '';
+          if (!path.includes('/sign-in')) {
+            import('../../router/index.js').then(({ default: router }) => {
+              router.replace('/sign-in');
+            });
+          }
         }
         return Promise.reject(error);
       }

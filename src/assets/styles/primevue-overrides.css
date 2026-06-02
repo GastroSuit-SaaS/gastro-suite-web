@@ -246,6 +246,8 @@ input.p-password-input[size="small"] {
 .p-password-input:enabled:hover,
 .p-password:not(.p-disabled) .p-password-input:hover,
 .p-autocomplete-input:enabled:hover,
+.p-datepicker-input-icon-container .p-inputtext:enabled:hover,
+.p-datepicker .p-datepicker-input:enabled:hover,
 input.p-inputtext:enabled:hover,
 input.p-password-input:enabled:hover,
 input.p-inputmask:enabled:hover {
@@ -261,6 +263,9 @@ input.p-inputmask:enabled:hover {
 .p-password-input:enabled:focus,
 .p-password:not(.p-disabled) .p-password-input:focus,
 .p-autocomplete-input:enabled:focus,
+.p-datepicker-input-icon-container .p-inputtext:enabled:focus,
+.p-datepicker-input-icon-container input.p-inputtext:enabled:focus,
+.p-datepicker .p-datepicker-input:enabled:focus,
 input.p-inputtext:enabled:focus,
 input.p-password-input:enabled:focus,
 input.p-inputmask:enabled:focus,
@@ -521,66 +526,143 @@ button.p-password-toggle-button:hover,
 }
 
 /* ========================================
-   CALENDAR / DATEPICKER
+   DATEPICKER — CAMPO EN FORMULARIO (PrimeVue 4)
+   El root .p-datepicker NO es el popup: no usar --bg-card aquí.
    ======================================== */
 
-.p-calendar .p-inputtext {
+.p-calendar,
+.p-datepicker:has(.p-datepicker-input-icon-container),
+.p-datepicker:has(> .p-inputtext),
+.p-datepicker.p-inputwrapper {
+  display: block;
+  width: 100%;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.p-datepicker-input-icon-container {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  gap: 0;
+}
+
+.p-datepicker-input-icon-container:focus-within {
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.p-calendar .p-inputtext,
+.p-datepicker-input-icon-container .p-inputtext,
+.p-datepicker-input-icon-container input.p-inputtext,
+.p-datepicker .p-datepicker-input.p-inputtext {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.p-datepicker-input-icon,
+.p-datepicker .p-datepicker-dropdown,
+.p-datepicker-input-icon-container .p-icon {
+  color: var(--text-muted) !important;
+}
+
+/* ========================================
+   DATEPICKER — PANEL / POPUP (calendario flotante)
+   ======================================== */
+
+.p-connected-overlay .p-datepicker,
+.p-datepicker-panel,
+.p-datepicker:has(table):not(:has(.p-datepicker-input-icon-container)) {
   background-color: var(--color-white) !important;
   border: 2px solid var(--color-gray-200) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: var(--spacing-sm) !important;
   color: var(--color-gray-900) !important;
 }
 
-.p-datepicker {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: var(--spacing-md);
-}
-
-.p-datepicker:not(.p-datepicker-inline) {
-  background-color: var(--bg-card);
-}
-
 .p-datepicker-header {
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: var(--spacing-sm);
+  background-color: var(--color-gray-50) !important;
+  border-bottom: 1px solid var(--color-gray-200) !important;
+  color: var(--color-gray-900) !important;
+  padding: var(--spacing-sm) !important;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
-.p-datepicker-title {
-  color: var(--text-primary);
+.p-datepicker-title,
+.p-datepicker-title .p-datepicker-year,
+.p-datepicker-title .p-datepicker-month,
+.p-datepicker-select-year,
+.p-datepicker-select-month {
+  color: var(--color-gray-900) !important;
+  font-weight: var(--font-weight-semibold);
 }
 
 .p-datepicker table td {
   padding: var(--spacing-xs);
 }
 
-.p-datepicker table td > span {
-  color: var(--text-primary);
+.p-datepicker table td > span,
+.p-datepicker-day,
+.p-datepicker-weekday {
+  color: var(--color-gray-900) !important;
   border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.p-datepicker table td > span:not(.p-highlight):not(.p-disabled):hover {
-  background-color: var(--bg-hover);
+.p-datepicker-weekday {
+  color: var(--text-muted) !important;
+  font-weight: var(--font-weight-semibold);
 }
 
-.p-datepicker table td > span.p-highlight {
-  background-color: var(--color-primary);
-  color: var(--color-white);
+.p-datepicker table td > span:not(.p-highlight):not(.p-disabled):hover,
+.p-datepicker-day:not(.p-disabled):not(.p-highlight):hover {
+  background-color: rgba(26, 107, 194, 0.1) !important;
+  color: var(--color-gray-900) !important;
+}
+
+.p-datepicker table td > span.p-highlight,
+.p-datepicker-day.p-highlight {
+  background-color: var(--color-primary) !important;
+  color: var(--color-white) !important;
 }
 
 .p-datepicker .p-datepicker-prev,
-.p-datepicker .p-datepicker-next {
-  color: var(--text-primary);
+.p-datepicker .p-datepicker-next,
+.p-datepicker-prev-button,
+.p-datepicker-next-button {
+  color: var(--color-gray-900) !important;
 }
 
 .p-datepicker .p-datepicker-prev:hover,
-.p-datepicker .p-datepicker-next:hover {
-  background-color: var(--bg-hover);
+.p-datepicker .p-datepicker-next:hover,
+.p-datepicker-prev-button:hover,
+.p-datepicker-next-button:hover {
+  background-color: rgba(26, 107, 194, 0.1) !important;
+}
+
+.p-datepicker .p-disabled,
+.p-datepicker-day.p-disabled {
+  color: var(--text-muted) !important;
+  opacity: 0.5;
+}
+
+/* Alias legacy .p-calendar (misma API DatePicker) */
+.p-calendar .p-inputtext {
+  background-color: var(--color-white) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  color: var(--color-gray-900) !important;
 }
 
 /* ========================================

@@ -1,6 +1,9 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { IAM_ROUTES } from '../iam.routes.js'
+import { useIamStore } from '../../application/iam.store.js'
+
+const iamStore = useIamStore()
 
 /**
  * SignUpStepFinalizado — Step 3: Resumen y confirmación.
@@ -65,11 +68,11 @@ const router = useRouter()
 
         <!-- Botón Ir al sistema -->
         <pv-button
-            label="Ir a iniciar sesión"
+            :label="iamStore.isAuthenticated ? 'Continuar al sistema' : 'Ir a iniciar sesión'"
             icon="pi pi-arrow-right"
             icon-pos="right"
             class="w-full"
-            @click="router.push(IAM_ROUTES.SIGN_IN)"
+            @click="router.push(iamStore.isAuthenticated ? '/select-branch' : IAM_ROUTES.SIGN_IN)"
         />
 
     </div>

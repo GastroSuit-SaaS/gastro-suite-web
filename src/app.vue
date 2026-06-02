@@ -6,7 +6,7 @@
 
 <template>
 
-  <pv-toast/>
+  <pv-toast position="top-right" />
   <pv-confirm-dialog></pv-confirm-dialog>
   <router-view />
 

@@ -3,7 +3,7 @@
 // IMPORTS
 // ===========================
 // Importación de dependencias de Vue para estado reactivo y ciclo de vida
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 
 // ===========================
 // PROPS
@@ -34,6 +34,19 @@ const props = defineProps({
   customButtonLabel: {
     type: String,
     default: null
+  },
+  viewOnly: {
+    type: Boolean,
+    default: false
+  },
+  headerTitleOverride: {
+    type: String,
+    default: ''
+  },
+  /** Clase extra en el diálogo (ej. ce-dialog--reservation). */
+  dialogClass: {
+    type: String,
+    default: ''
   }
 })
 
@@ -48,6 +61,8 @@ const emit = defineEmits(['canceled-shared', 'saved-shared'])
 // ===========================
 // Propiedades computadas para títulos, labels y estilos dinámicos del diálogo
 const headerTitle = computed(() => {
+  if (props.headerTitleOverride?.trim()) return props.headerTitleOverride.trim()
+  if (props.viewOnly) return props.entityName
   return `${props.edit ? 'Editar' : 'Nuevo'} ${props.entityName}`
 })
 
@@ -80,9 +95,6 @@ const onSaveRequested = () => {
 // LIFECYCLE HOOKS
 // ===========================
 // Inicialización y logging al montar el componente
-onMounted(() => {
-  console.log('Create and Edit component mounted', props.entity)
-})
 </script>
 
 <template>
@@ -91,7 +103,8 @@ onMounted(() => {
     :modal="true"
     :style="dialogStyle"
     :closable="true"
-    class="p-fluid ce-dialog"
+    :auto-focus="false"
+    :class="['p-fluid', 'ce-dialog', dialogClass].filter(Boolean)"
     @update:visible="$emit('canceled-shared')"
   >
     <template #header>
@@ -110,19 +123,29 @@ onMounted(() => {
 
     <template #footer>
       <div class="flex justify-content-end align-items-center gap-2 w-full">
-        <pv-button
-          type="button"
-          label="Cancelar"
-          text
-          size="small"
-          @click="onCancelRequested"
-        />
-        <pv-button
-          type="button"
-          :label="submitLabel"
-          size="small"
-          @click="onSaveRequested"
-        />
+        <template v-if="viewOnly">
+          <pv-button
+            type="button"
+            label="Cerrar"
+            size="small"
+            @click="onCancelRequested"
+          />
+        </template>
+        <template v-else>
+          <pv-button
+            type="button"
+            label="Cancelar"
+            text
+            size="small"
+            @click="onCancelRequested"
+          />
+          <pv-button
+            type="button"
+            :label="submitLabel"
+            size="small"
+            @click="onSaveRequested"
+          />
+        </template>
       </div>
     </template>
   </pv-dialog>

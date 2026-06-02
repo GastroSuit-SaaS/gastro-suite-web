@@ -1,9 +1,10 @@
 ﻿<script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIamStore } from '../../application/iam.store.js';
 import { IAM_ROUTES } from '../iam.routes.js';
 import IamBranding from '../components/iam-branding.vue';
+import { resolvePostLoginPath } from '../../../shared/application/post-login-route.js';
 
 const router   = useRouter();
 const iamStore = useIamStore();
@@ -11,9 +12,18 @@ const iamStore = useIamStore();
 const username = ref('');
 const password = ref('');
 
+onMounted(() => {
+    iamStore.clearAuthError();
+});
+
 async function handleLogin() {
-    const ok = await iamStore.login({ username: username.value, password: password.value });
-    if (ok) router.push('/dashboard');
+    const ok = await iamStore.signIn({ username: username.value, password: password.value });
+    if (ok) {
+        router.push(resolvePostLoginPath(
+            iamStore.userRole,
+            iamStore.hasBranchSelected,
+        ));
+    }
 }
 </script>
 

@@ -1,24 +1,22 @@
-/**
- * Branches Infrastructure - API Service
- *
- * Comunicación HTTP con el backend del módulo de Sucursales.
- */
-import { BaseApi }      from '../../../shared/infrustructure/base-api.js';
+import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class BranchesApi extends BaseApi {
-    #endpoint;
+    #crud;
 
     constructor() {
         super();
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_BRANCHES_ENDPOINT ?? '/branches');
+        this.#crud = new BaseEndpoint(this, import.meta.env.VITE_BRANCHES_ENDPOINT ?? '/branches');
     }
 
-    getAll()             { return this.#endpoint.getAll(); }
-    getById(id)          { return this.#endpoint.getById(id); }
-    create(resource)     { return this.#endpoint.create(resource); }
-    update(id, resource) { return this.#endpoint.update(id, resource); }
-    delete(id)           { return this.#endpoint.delete(id); }
+    listByCompany(companyId, params) {
+        return this.#crud.listAt(`/companies/${companyId}/branches`, params);
+    }
+
+    getById(branchId)       { return this.#crud.getById(branchId); }
+    create(resource)        { return this.#crud.create(resource); }
+    update(branchId, body)  { return this.#crud.update(branchId, body); }
+    delete(branchId)        { return this.#crud.delete(branchId); }
 }
 
 export const branchesApi = new BranchesApi();

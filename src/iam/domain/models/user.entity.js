@@ -19,6 +19,7 @@ export class User {
         empresaId       = null,
         sucursalId      = null,
         sucursalNombre  = '',
+        employeeId      = null,
     } = {}) {
         this.id              = id;
         this.username        = username;
@@ -33,6 +34,7 @@ export class User {
         this.empresaId       = empresaId;
         this.sucursalId      = sucursalId;
         this.sucursalNombre  = sucursalNombre;
+        this.employeeId      = employeeId;
     }
 
     /** @returns {string} Nombre completo del usuario */

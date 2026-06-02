@@ -1,14 +1,18 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { TablesApi } from '../infrastructure/api/tables.api.js';
+import { ReservationsApi } from '../infrastructure/api/reservations.api.js';
 import { TableAssembler } from '../infrastructure/assemblers/table.assembler.js';
 import { ZoneAssembler } from '../infrastructure/assemblers/zone.assembler.js';
 import { Table, TABLE_STATUS, TABLE_SHAPE } from '../domain/models/table.entity.js';
 import { Zone } from '../domain/models/zone.entity.js';
-import { MOCK_ZONES, MOCK_TABLES } from '../infrastructure/tables.mock.js';
+import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { isNetworkOnline } from '../../shared/infrustructure/offline/network.js';
+import { loadTablesReadCache, saveTablesReadCache } from '../../shared/infrustructure/offline/read-cache.js';
 
 const api = new TablesApi();
-const _isMock = import.meta.env.VITE_USE_MOCK === 'true';
+const reservationsApi = new ReservationsApi();
 
 export const useTablesStore = defineStore('tables', () => {
 
@@ -30,6 +34,7 @@ export const useTablesStore = defineStore('tables', () => {
     const availableTables = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.AVAILABLE));
     const occupiedTables  = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.OCCUPIED));
     const cleaningTables  = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.CLEANING));
+    const reservedTables  = computed(() => tables.value.filter(t => activeZoneIds.value.has(t.zoneId) && t.status === TABLE_STATUS.RESERVED));
 
     // zones → solo activas (floor tab, POS selectors, create-table dropdown)
     const zones = computed(() => {
@@ -61,39 +66,102 @@ export const useTablesStore = defineStore('tables', () => {
     });
 
     // ── Actions ───────────────────────────────────────────────────────────
+    function hydrateFromCache() {
+        try {
+            const branchId = requireActiveBranchId();
+            const cached = loadTablesReadCache(branchId);
+            if (!cached?.zones?.length && !cached?.tables?.length) return false;
+            zonesData.value = cached.zones.map(z => new Zone(z));
+            tables.value = cached.tables.map(t => new Table(t));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async function fetchAllSilent() {
+        try {
+            const branchId = requireActiveBranchId();
+            const zonesResp = await api.listZonesByBranch(branchId);
+            zonesData.value = ZoneAssembler.toEntitiesFromResponse(zonesResp);
+            const tableResponses = await Promise.all(
+                zonesData.value.map((z) => api.listTablesByZone(z.id)),
+            );
+            tables.value = tableResponses.flatMap((r) => TableAssembler.toEntitiesFromResponse(r));
+            saveTablesReadCache(branchId, {
+                zones: zonesData.value.map(z => ({ ...z })),
+                tables: tables.value.map(t => ({ ...t })),
+            });
+        } catch { /* mantener estado */ }
+    }
+
+    function _normalizeTableStatus(status) {
+        if (!status) return null;
+        const key = String(status).toUpperCase();
+        const map = {
+            AVAILABLE: TABLE_STATUS.AVAILABLE,
+            OCCUPIED: TABLE_STATUS.OCCUPIED,
+            CLEANING: TABLE_STATUS.CLEANING,
+            RESERVED: TABLE_STATUS.RESERVED,
+        };
+        return map[key] ?? String(status).toLowerCase();
+    }
+
+    async function handleOperationalEvent(event) {
+        if (!event?.type) return;
+
+        if (event.type === 'table.status.changed') {
+            const tableId = event.payload?.tableId ?? event.entityId;
+            const status = _normalizeTableStatus(event.payload?.tableStatus);
+            const table = tables.value.find(t => String(t.id) === String(tableId));
+            if (table && status) {
+                table.status = status;
+                if (event.payload?.reservationId !== undefined) {
+                    table.reservationId = event.payload.reservationId;
+                }
+            } else {
+                await fetchAllSilent();
+            }
+            return;
+        }
+
+        if (event.type.startsWith('reservation.')) {
+            await fetchAllSilent();
+        }
+    }
+
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                // Solo cargar mock data la primera vez; las mutaciones locales son fuente de verdad
-                if (zonesData.value.length === 0) {
-                    const branchId = localStorage.getItem('gs_branch_id');
-                    zonesData.value = branchId ? MOCK_ZONES.filter(z => z.sucursalId === branchId) : [...MOCK_ZONES];
-                    tables.value    = branchId ? MOCK_TABLES.filter(t => t.sucursalId === branchId) : [...MOCK_TABLES];
-                }
-                return;
-            }
-            const [tablesResp, zonesResp] = await Promise.all([
-                api.getAll(),
-                api.getZones(),
-            ]);
+            const branchId = requireActiveBranchId();
+            const zonesResp = await api.listZonesByBranch(branchId);
             zonesData.value = ZoneAssembler.toEntitiesFromResponse(zonesResp);
-            tables.value    = TableAssembler.toEntitiesFromResponse(tablesResp);
+            const tableResponses = await Promise.all(
+                zonesData.value.map((z) => api.listTablesByZone(z.id))
+            );
+            tables.value = tableResponses.flatMap((r) => TableAssembler.toEntitiesFromResponse(r));
+            saveTablesReadCache(branchId, {
+                zones: zonesData.value.map(z => ({ ...z })),
+                tables: tables.value.map(t => ({ ...t })),
+            });
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar las mesas';
+            if (!isNetworkOnline() && hydrateFromCache()) {
+                error.value = null;
+            } else {
+                error.value = getApiErrorMessage(e, 'Error al cargar las mesas');
+            }
         } finally {
             isLoading.value = false;
         }
     }
 
     async function fetchById(id) {
-        if (_isMock) return;
         isLoading.value = true;
         error.value = null;
         try {
-            const response = await api.getById(id);
-            selectedTable.value = TableAssembler.toEntityFromResource(response.data?.data ?? response.data);
+            const response = await api.getTableById(id);
+            selectedTable.value = TableAssembler.toEntityFromResponse(response);
         } catch (e) {
             error.value = e?.response?.data?.message ?? 'Error al cargar la mesa';
         } finally {
@@ -111,15 +179,12 @@ export const useTablesStore = defineStore('tables', () => {
             seatedGuests:  0,
             occupiedSince: null,
         }));
-        if (_isMock) return;
         try {
-            const response = await api.create(TableAssembler.toResourceFromEntity(tableData));
-            if (response.status === 201 || response.status === 200) {
-                const saved = TableAssembler.toEntityFromResource(response.data?.data ?? response.data);
-                if (saved?.id) {
-                    const idx = tables.value.findIndex(t => t.id === optimisticId);
-                    if (idx !== -1) tables.value.splice(idx, 1, new Table({ ...tables.value[idx], id: saved.id }));
-                }
+            const response = await api.createTable(TableAssembler.toCreateResource(tableData));
+            const saved = TableAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                const idx = tables.value.findIndex(t => t.id === optimisticId);
+                if (idx !== -1) tables.value.splice(idx, 1, new Table({ ...tables.value[idx], id: saved.id }));
             }
         } catch { /* optimistic entry stays — will sync on next fetchAll */ }
     }
@@ -132,9 +197,8 @@ export const useTablesStore = defineStore('tables', () => {
                 ? new Table({ ...t, ...tableData, id, zone: zone?.name ?? t.zone })
                 : t
         );
-        if (_isMock) return;
         try {
-            await api.update(id, TableAssembler.toResourceFromEntity(tableData));
+            await api.updateTable(id, TableAssembler.toUpdateResource(tableData));
         } catch {
             tables.value = snapshot;
         }
@@ -143,9 +207,8 @@ export const useTablesStore = defineStore('tables', () => {
     async function remove(id) {
         const snapshot = [...tables.value];
         tables.value = tables.value.filter(t => t.id !== id);
-        if (_isMock) return;
         try {
-            await api.delete(id);
+            await api.deleteTable(id);
         } catch {
             tables.value = snapshot;
         }
@@ -156,7 +219,6 @@ export const useTablesStore = defineStore('tables', () => {
         if (!table) return;
         const prevStatus = table.status;
         table.status = status;
-        if (_isMock) return;
         try {
             await api.updateStatus(id, status);
         } catch {
@@ -173,7 +235,6 @@ export const useTablesStore = defineStore('tables', () => {
         table.status        = TABLE_STATUS.OCCUPIED;
         table.seatedGuests  = seatedGuests;
         table.occupiedSince = new Date();
-        if (_isMock) return;
         try {
             await api.assign(tableId, { seatedGuests });
         } catch {
@@ -202,7 +263,6 @@ export const useTablesStore = defineStore('tables', () => {
         table.seatedGuests  = 0;
         table.occupiedSince = null;
         table.orderId       = null;
-        if (_isMock) return;
         try {
             await api.free(tableId);
         } catch {
@@ -213,20 +273,19 @@ export const useTablesStore = defineStore('tables', () => {
         }
     }
 
-    /** Cancels a reservation, clearing status and reservationId atomically. */
+    /** Cancela la reserva activa de la mesa vía API. */
     async function clearReservation(tableId) {
         const table = tables.value.find(t => t.id === tableId);
-        if (!table) return;
-        const prevStatus        = table.status;
-        const prevReservationId = table.reservationId;
-        table.status        = TABLE_STATUS.AVAILABLE;
-        table.reservationId = null;
-        if (_isMock) return;
+        if (!table?.reservationId) return;
         try {
-            await api.updateStatus(tableId, TABLE_STATUS.AVAILABLE);
-        } catch {
-            table.status        = prevStatus;
-            table.reservationId = prevReservationId;
+            await reservationsApi.cancel(table.reservationId);
+            await fetchAll();
+            try {
+                const { useReservationsStore } = await import('./reservations.store.js');
+                await useReservationsStore().fetchByDate();
+            } catch { /* pestaña reservas no montada */ }
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'No se pudo cancelar la reserva');
         }
     }
 
@@ -240,7 +299,6 @@ export const useTablesStore = defineStore('tables', () => {
         tables.value    = tables.value.filter(t => t.zoneId !== zoneId);
         zonesData.value = zonesData.value.filter(z => z.id !== zoneId);
         if (selectedZoneId.value === zoneId) selectedZoneId.value = null;
-        if (_isMock) return;
         try {
             await api.deleteZone(zoneId);
         } catch {
@@ -260,7 +318,6 @@ export const useTablesStore = defineStore('tables', () => {
                 ? new Table({ ...t, zone: updatedZone.name })
                 : t
         );
-        if (_isMock) return;
         try {
             await api.updateZone(updatedZone.id, ZoneAssembler.toResourceFromEntity(updatedZone));
         } catch {
@@ -272,11 +329,11 @@ export const useTablesStore = defineStore('tables', () => {
     async function createZone(newZone) {
         const optimisticId = Math.max(0, ...zonesData.value.map(z => z.id)) + 1;
         zonesData.value.push(new Zone({ id: optimisticId, name: newZone.name, color: newZone.color ?? '#3b82f6', description: newZone.description ?? '' }));
-        if (_isMock) return;
         try {
-            const response = await api.createZone(ZoneAssembler.toResourceFromEntity(newZone));
-            if (response.status === 201 || response.status === 200) {
-                const saved = ZoneAssembler.toEntityFromResource(response.data?.data ?? response.data);
+            const branchId = requireActiveBranchId();
+            const response = await api.createZone(ZoneAssembler.toResourceFromEntity(newZone, branchId));
+            const saved = ZoneAssembler.toEntityFromResponse(response);
+            if (saved) {
                 if (saved?.id) {
                     const idx = zonesData.value.findIndex(z => z.id === optimisticId);
                     if (idx !== -1) zonesData.value.splice(idx, 1, saved);
@@ -287,8 +344,8 @@ export const useTablesStore = defineStore('tables', () => {
 
     return {
         tables, zonesData, selectedZoneId, isLoading, error,
-        totalTables, availableTables, occupiedTables, cleaningTables,
+        totalTables, availableTables, occupiedTables, cleaningTables, reservedTables,
         zones, allZones, filteredTables, occupancyRate,
-        fetchAll, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone, setTableOrderId,
+        fetchAll, fetchAllSilent, hydrateFromCache, fetchById, create, update, remove, setTableStatus, assignTable, freeTable, clearReservation, selectZone, removeZone, updateZone, createZone, setTableOrderId, handleOperationalEvent,
     };
 });

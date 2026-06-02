@@ -2,51 +2,31 @@ import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class MenuApi extends BaseApi {
-    #endpoint;
-    #categoriesPath;
+    #items;
+    #categories;
 
     constructor() {
         super();
-        this.#endpoint       = new BaseEndpoint(this, import.meta.env.VITE_MENU_ENDPOINT ?? '/menu/items');
-        this.#categoriesPath = import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu/categories';
+        this.#items = new BaseEndpoint(this, import.meta.env.VITE_MENU_ENDPOINT ?? '/menu-items');
+        this.#categories = new BaseEndpoint(this, import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu-categories');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listItemsByBranch(branchId, params) {
+        return this.#items.listAt(`/branches/${branchId}/menu-items`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
+    listCategoriesByBranch(branchId, params) {
+        return this.#categories.listAt(`/branches/${branchId}/menu-categories`, params);
     }
 
-    create(resource) {
-        return this.#endpoint.create(resource);
-    }
+    getItemById(itemId)              { return this.#items.getById(itemId); }
+    createItem(resource)             { return this.#items.create(resource); }
+    updateItem(itemId, resource)     { return this.#items.update(itemId, resource); }
+    deleteItem(itemId)               { return this.#items.delete(itemId); }
 
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
-
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
-
-    // ── Categories ────────────────────────────────────────────────────────
-    getCategories() {
-        return this.http.get(this.#categoriesPath);
-    }
-
-    createCategory(data) {
-        return this.http.post(this.#categoriesPath, data);
-    }
-
-    updateCategory(id, data) {
-        return this.http.put(`${this.#categoriesPath}/${id}`, data);
-    }
-
-    deleteCategory(id) {
-        return this.http.delete(`${this.#categoriesPath}/${id}`);
-    }
+    createCategory(resource)         { return this.#categories.create(resource); }
+    updateCategory(id, resource)     { return this.#categories.update(id, resource); }
+    deleteCategory(id)               { return this.#categories.delete(id); }
 }
 
 export const menuApi = new MenuApi();

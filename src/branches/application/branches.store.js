@@ -2,35 +2,39 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { BranchesApi } from '../infrastructure/api/branches.api.js';
 import { BranchAssembler } from '../infrastructure/assemblers/branch.assembler.js';
-import { MOCK_BRANCHES } from '../infrastructure/branches.mock.js';
+import { useIamStore } from '../../iam/application/iam.store.js';
+import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 
 const api = new BranchesApi();
 
 export const useBranchesStore = defineStore('branches', () => {
 
-    // ── State ─────────────────────────────────────────────────────────────
     const items         = ref([]);
     const selectedItem  = ref(null);
     const isLoading     = ref(false);
     const error         = ref(null);
 
-    // ── Getters ───────────────────────────────────────────────────────────
     const totalItems     = computed(() => items.value.length);
-    const activeBranches = computed(() => items.value.filter(b => b.isActive));
+    const activeBranches = computed(() => items.value.filter((b) => b.isActive));
 
-    // ── Actions ───────────────────────────────────────────────────────────
-    async function fetchAll() {
+    function _requireCompanyId() {
+        const companyId = useIamStore().companyId;
+        if (!companyId) {
+            throw new Error('No hay empresa asociada a la sesión. Vuelve a iniciar sesión.');
+        }
+        return companyId;
+    }
+
+    async function fetchAll(params) {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                items.value = [...MOCK_BRANCHES];
-                return;
-            }
-            const response = await api.getAll();
+            const companyId = _requireCompanyId();
+            const response = await api.listByCompany(companyId, params);
             items.value = BranchAssembler.toEntitiesFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar las sucursales';
+            error.value = getApiErrorMessage(e, 'Error al cargar las sucursales');
+            items.value = [];
         } finally {
             isLoading.value = false;
         }
@@ -41,9 +45,9 @@ export const useBranchesStore = defineStore('branches', () => {
         error.value = null;
         try {
             const response = await api.getById(id);
-            selectedItem.value = BranchAssembler.toEntityFromResource(response.data?.data ?? response.data);
+            selectedItem.value = BranchAssembler.toEntityFromResponse(response);
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al cargar la sucursal';
+            error.value = getApiErrorMessage(e, 'Error al cargar la sucursal');
         } finally {
             isLoading.value = false;
         }
@@ -53,17 +57,12 @@ export const useBranchesStore = defineStore('branches', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const newId = `branch-${String(items.value.length + 1).padStart(3, '0')}`;
-                const newBranch = BranchAssembler.toEntityFromResource({ ...data, id: newId, empresaId: 'empresa-001' });
-                items.value.push(newBranch);
-                return;
-            }
-            const resource = BranchAssembler.toResourceFromEntity(data);
-            await api.create(resource);
+            const companyId = _requireCompanyId();
+            const entity = BranchAssembler.toEntityFromResource({ ...data, empresaId: companyId });
+            await api.create(BranchAssembler.toCreateRequest(entity, companyId));
             await fetchAll();
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al crear la sucursal';
+            error.value = getApiErrorMessage(e, 'Error al crear la sucursal');
         } finally {
             isLoading.value = false;
         }
@@ -73,16 +72,11 @@ export const useBranchesStore = defineStore('branches', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                const idx = items.value.findIndex(b => b.id === id);
-                if (idx !== -1) items.value[idx] = BranchAssembler.toEntityFromResource({ ...items.value[idx], ...data });
-                return;
-            }
-            const resource = BranchAssembler.toResourceFromEntity(data);
-            await api.update(id, resource);
+            const entity = BranchAssembler.toEntityFromResource({ ...data, id });
+            await api.update(id, BranchAssembler.toUpdateRequest(entity));
             await fetchAll();
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al actualizar la sucursal';
+            error.value = getApiErrorMessage(e, 'Error al actualizar la sucursal');
         } finally {
             isLoading.value = false;
         }
@@ -92,32 +86,22 @@ export const useBranchesStore = defineStore('branches', () => {
         isLoading.value = true;
         error.value = null;
         const snapshot = [...items.value];
-        items.value = items.value.filter(b => b.id !== id);
+        items.value = items.value.filter((b) => b.id !== id);
         try {
-            if (import.meta.env.VITE_USE_MOCK === 'true') return;
             await api.delete(id);
         } catch (e) {
             items.value = snapshot;
-            error.value = e?.response?.data?.message ?? 'Error al eliminar la sucursal';
+            error.value = getApiErrorMessage(e, 'Error al eliminar la sucursal');
         } finally {
             isLoading.value = false;
         }
     }
 
     async function toggleActive(id) {
-        const branch = items.value.find(b => b.id === id);
+        const branch = items.value.find((b) => b.id === id);
         if (!branch) return;
-        const newStatus = !branch.isActive;
-        try {
-            await api.update(id, { isActive: newStatus });
-            branch.isActive = newStatus;
-        } catch (e) {
-            if (import.meta.env.VITE_USE_MOCK === 'true') {
-                branch.isActive = newStatus;
-            } else {
-                error.value = e?.response?.data?.message ?? 'Error al cambiar el estado';
-            }
-        }
+        const next = { ...branch, isActive: !branch.isActive };
+        await update(id, next);
     }
 
     return {

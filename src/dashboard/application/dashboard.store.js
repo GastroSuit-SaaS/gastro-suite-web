@@ -96,6 +96,16 @@ export const useDashboardStore = defineStore('dashboard', () => {
         }
     }
 
+    async function handleOperationalEvent() {
+        try {
+            await Promise.all([
+                paymentsStore.fetchAllSilent?.() ?? paymentsStore.fetchAll(),
+                cashRegisterStore.refreshOpenSession({ skipMovements: true }),
+                stationsStore.fetchTicketsSilent?.() ?? stationsStore.fetchAll(),
+            ]);
+        } catch { /* dashboard tolera fallos parciales */ }
+    }
+
     return {
         isLoading, error,
         // Payments aggregation
@@ -111,6 +121,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
         // Cash register aggregation
         hasOpenSession, sessionExpectedCash, sessionSalesCount, sessionBalance, currentShiftName,
         // Actions
-        fetchAll,
+        fetchAll, handleOperationalEvent,
     };
 });

@@ -1,0 +1,185 @@
+/**
+ * Notificaciones globales — contraste accesible (toast + message inline).
+ * Aplica a PrimeVue sin configurar cada módulo.
+ */
+
+/* ── Tokens semánticos ─────────────────────────────────────────────────── */
+:root {
+  --notify-success-bg: #ecfdf5;
+  --notify-success-border: #10b981;
+  --notify-success-title: #065f46;
+  --notify-success-detail: #047857;
+  --notify-success-icon: #059669;
+
+  --notify-error-bg: #fef2f2;
+  --notify-error-border: #ef4444;
+  --notify-error-title: #991b1b;
+  --notify-error-detail: #b91c1c;
+  --notify-error-icon: #dc2626;
+
+  --notify-warn-bg: #fffbeb;
+  --notify-warn-border: #f59e0b;
+  --notify-warn-title: #92400e;
+  --notify-warn-detail: #b45309;
+  --notify-warn-icon: #d97706;
+
+  --notify-info-bg: #eff6ff;
+  --notify-info-border: #3b82f6;
+  --notify-info-title: #1e3a8a;
+  --notify-info-detail: #1d4ed8;
+  --notify-info-icon: #2563eb;
+}
+
+/* ── Toast (PrimeVue) ──────────────────────────────────────────────────── */
+.p-toast .p-toast-message {
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+}
+
+.p-toast .p-toast-summary {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.p-toast .p-toast-detail {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  margin-top: 0.2rem;
+  opacity: 1;
+}
+
+.p-toast .p-toast-message-success {
+  background: var(--notify-success-bg) !important;
+  border-color: var(--notify-success-border) !important;
+  border-left-width: 4px;
+}
+
+.p-toast .p-toast-message-success .p-toast-summary,
+.p-toast .p-toast-message-success .p-toast-detail {
+  color: var(--notify-success-title) !important;
+}
+
+.p-toast .p-toast-message-success .p-toast-detail {
+  color: var(--notify-success-detail) !important;
+}
+
+.p-toast .p-toast-message-success .p-toast-message-icon,
+.p-toast .p-toast-message-success .p-toast-icon-close {
+  color: var(--notify-success-icon) !important;
+}
+
+.p-toast .p-toast-message-error {
+  background: var(--notify-error-bg) !important;
+  border-color: var(--notify-error-border) !important;
+  border-left-width: 4px;
+}
+
+.p-toast .p-toast-message-error .p-toast-summary {
+  color: var(--notify-error-title) !important;
+}
+
+.p-toast .p-toast-message-error .p-toast-detail {
+  color: var(--notify-error-detail) !important;
+}
+
+.p-toast .p-toast-message-error .p-toast-message-icon,
+.p-toast .p-toast-message-error .p-toast-icon-close {
+  color: var(--notify-error-icon) !important;
+}
+
+.p-toast .p-toast-message-warn {
+  background: var(--notify-warn-bg) !important;
+  border-color: var(--notify-warn-border) !important;
+  border-left-width: 4px;
+}
+
+.p-toast .p-toast-message-warn .p-toast-summary {
+  color: var(--notify-warn-title) !important;
+}
+
+.p-toast .p-toast-message-warn .p-toast-detail {
+  color: var(--notify-warn-detail) !important;
+}
+
+.p-toast .p-toast-message-warn .p-toast-message-icon,
+.p-toast .p-toast-message-warn .p-toast-icon-close {
+  color: var(--notify-warn-icon) !important;
+}
+
+.p-toast .p-toast-message-info {
+  background: var(--notify-info-bg) !important;
+  border-color: var(--notify-info-border) !important;
+  border-left-width: 4px;
+}
+
+.p-toast .p-toast-message-info .p-toast-summary {
+  color: var(--notify-info-title) !important;
+}
+
+.p-toast .p-toast-message-info .p-toast-detail {
+  color: var(--notify-info-detail) !important;
+}
+
+.p-toast .p-toast-message-info .p-toast-message-icon,
+.p-toast .p-toast-message-info .p-toast-icon-close {
+  color: var(--notify-info-icon) !important;
+}
+
+/* ── Message inline (pv-message, banners) ────────────────────────────── */
+.p-message {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.p-message .p-message-text,
+.p-message .p-message-content,
+.p-message .p-message-summary,
+.p-message .p-message-detail {
+  line-height: 1.45;
+}
+
+.p-message.p-message-success {
+  background: var(--notify-success-bg) !important;
+  border-color: var(--notify-success-border) !important;
+  border-left: 4px solid var(--notify-success-border);
+}
+
+.p-message.p-message-success .p-message-text,
+.p-message.p-message-success .p-message-icon {
+  color: var(--notify-success-detail) !important;
+}
+
+.p-message.p-message-error {
+  background: var(--notify-error-bg) !important;
+  border-color: var(--notify-error-border) !important;
+  border-left: 4px solid var(--notify-error-border);
+}
+
+.p-message.p-message-error .p-message-text,
+.p-message.p-message-error .p-message-icon {
+  color: var(--notify-error-detail) !important;
+}
+
+.p-message.p-message-warn {
+  background: var(--notify-warn-bg) !important;
+  border-color: var(--notify-warn-border) !important;
+  border-left: 4px solid var(--notify-warn-border);
+}
+
+.p-message.p-message-warn .p-message-text,
+.p-message.p-message-warn .p-message-icon {
+  color: var(--notify-warn-detail) !important;
+}
+
+.p-message.p-message-info {
+  background: var(--notify-info-bg) !important;
+  border-color: var(--notify-info-border) !important;
+  border-left: 4px solid var(--notify-info-border);
+}
+
+.p-message.p-message-info .p-message-text,
+.p-message.p-message-info .p-message-icon {
+  color: var(--notify-info-detail) !important;
+}

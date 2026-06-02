@@ -1,23 +1,40 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useMenuStore } from '../../application/menu.store.js'
+import { useStationsStore } from '../../../stations/application/stations.store.js'
+import { nextSortOrder, formatCategoryOptionLabel } from '../../domain/menu-sort.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/composables/use-notification.js'
 import CreateAndEditCategory    from './create-and-edit-category.vue'
 import CreateAndEditMenuItem     from './create-and-edit-menu-item.vue'
 import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
+import ModuleTabBar              from '../../../shared/presentation/components/module-tab-bar.vue'
+import ModuleTab                 from '../../../shared/presentation/components/module-tab.vue'
 
 const store = useMenuStore()
+const stationsStore = useStationsStore()
 const { confirmDelete } = useConfirmDialog()
+const { showError, showSuccess } = useNotification()
 
-onMounted(() => store.fetchAll())
+onMounted(() => {
+    Promise.all([store.fetchAll(), stationsStore.fetchStations()]).catch(() => {})
+})
 
 const selectedAvailability = ref(null) // null | true | false
 
 // ── Category dropdown filter ────────────────────────────────────────────
 const categoryFilterOptions = computed(() => [
     { label: `Todas (${store.totalItems})`, value: '__all__', color: null },
-    ...store.categories.map(c => ({ label: `${c.name} (${c.count})`, value: c.id, color: c.color })),
+    ...store.categories.map(c => ({
+        label: `${formatCategoryOptionLabel(c)} (${c.count})`,
+        value: c.id,
+        color: c.color,
+    })),
 ])
+
+const categoryDefaultSortOrder = computed(() =>
+    editingCategory.value ? (Number(editingCategory.value.sortOrder) || 1) : nextSortOrder(store.allCategories),
+)
 const selectedCategoryFilter = computed({
     get: () => store.selectedCategoryId ?? '__all__',
     set: (val) => store.selectCategory(val === '__all__' ? null : val),
@@ -51,16 +68,25 @@ function openEditItem(item) {
 }
 
 function onDeleteItem(item) {
-    confirmDelete('el producto', item.name, () => store.remove(item.id))
+    confirmDelete('el producto', item.name, async () => {
+        const result = await store.remove(item.id)
+        if (result.ok) showSuccess('Producto eliminado correctamente')
+        else showError(result.message)
+    })
 }
 
-function onItemSaved(data) {
-    if (editingItem.value) {
-        store.update(editingItem.value.id, data)
+async function onItemSaved(data) {
+    const isEdit = !!editingItem.value
+    const result = isEdit
+        ? await store.update(editingItem.value.id, data)
+        : await store.create(data)
+    if (result.ok) {
+        showItemDialog.value = false
+        editingItem.value = null
+        showSuccess(isEdit ? 'Producto actualizado' : 'Producto creado')
     } else {
-        store.create(data)
+        showError(result.message)
     }
-    editingItem.value = null
 }
 
 function openCreateCategory() {
@@ -69,21 +95,66 @@ function openCreateCategory() {
 }
 
 function openEditCategory(cat) {
-    editingCategory.value = { id: cat.id, name: cat.name, color: cat.color, description: cat.description ?? '', isActive: cat.isActive ?? true }
+    editingCategory.value = {
+        id: cat.id,
+        name: cat.name,
+        color: cat.color,
+        description: cat.description ?? '',
+        isActive: cat.isActive ?? true,
+        sortOrder: cat.sortOrder ?? 1,
+    }
     showCategoryDialog.value = true
 }
 
 function onDeleteCategory(cat) {
-    confirmDelete('la categoría', cat.name, () => store.removeCategory(cat.id))
+    confirmDelete('la categoría', cat.name, async () => {
+        const result = await store.removeCategory(cat.id)
+        if (result.ok) showSuccess('Categoría eliminada correctamente')
+        else showError(result.message)
+    })
 }
 
-function onCategorySaved(data) {
-    if (editingCategory.value) {
-        store.updateCategory(editingCategory.value.id, data)
-    } else {
-        store.createCategory(data)
+async function onCategorySaved(data) {
+    const isEdit = !!editingCategory.value
+    const categoryId = editingCategory.value?.id
+    if (isEdit && !categoryId) {
+        showError('No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.')
+        return
     }
-    editingCategory.value = null
+    const result = isEdit
+        ? await store.updateCategory(categoryId, data)
+        : await store.createCategory(data)
+    if (result.ok) {
+        showCategoryDialog.value = false
+        editingCategory.value = null
+        showSuccess(isEdit ? 'Categoría actualizada' : 'Categoría creada')
+    } else {
+        showError(result.message)
+    }
+}
+
+async function onToggleItemAvailability(item) {
+    const result = await store.setItemAvailability(item.id, !item.isAvailable)
+    if (!result.ok) showError(result.message)
+}
+
+async function onToggleCategoryActive(cat) {
+    if (!cat?.id) {
+        showError('No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.')
+        return
+    }
+    const result = await store.updateCategory(cat.id, {
+        name: cat.name,
+        description: cat.description,
+        color: cat.color,
+        isActive: !cat.isActive,
+        sortOrder: cat.sortOrder,
+    })
+    if (result.ok) {
+        showSuccess(cat.isActive ? 'Categoría desactivada' : 'Categoría activada')
+    } else {
+        showError(result.message)
+    }
 }
 </script>
 
@@ -99,20 +170,14 @@ function onCategorySaved(data) {
         >
 
         <!-- ── Tab navigation ──────────────────────────────────────────── -->
-        <div class="menu-tabs">
-            <button
-                :class="['tab-btn', activeTab === 'catalog' && 'tab-btn--active']"
-                @click="activeTab = 'catalog'"
-            >
-                <i class="pi pi-book"></i> Catálogo
-            </button>
-            <button
-                :class="['tab-btn', activeTab === 'categories' && 'tab-btn--active']"
-                @click="activeTab = 'categories'"
-            >
-                <i class="pi pi-tag"></i> Categorías
-            </button>
-        </div>
+        <module-tab-bar v-model="activeTab" sticky>
+            <module-tab value="catalog" icon="pi-book">
+                Catálogo
+            </module-tab>
+            <module-tab value="categories" icon="pi-tag">
+                Categorías
+            </module-tab>
+        </module-tab-bar>
 
         <!-- ══════════════════ TAB: CATÁLOGO ═════════════════════════════ -->
         <div v-if="activeTab === 'catalog'" class="p-4 flex flex-column gap-4 catalog-tab">
@@ -207,7 +272,7 @@ function onCategorySaved(data) {
                             <button
                                 class="menu-card__action-btn menu-card__action-btn--toggle"
                                 :title="item.isAvailable ? 'Marcar no disponible' : 'Marcar disponible'"
-                                @click.stop="store.setItemAvailability(item.id, !item.isAvailable)"
+                                @click.stop="onToggleItemAvailability(item)"
                             >
                                 <i :class="['pi', item.isAvailable ? 'pi-eye-slash' : 'pi-eye']"></i>
                             </button>
@@ -255,7 +320,10 @@ function onCategorySaved(data) {
                             <i class="pi pi-tag" :style="{ color: cat.color }"></i>
                         </div>
                         <div class="cat-card__info">
-                            <div class="cat-card__name">{{ cat.name }}</div>
+                            <div class="cat-card__name">
+                                <span v-if="cat.sortOrder > 0" class="cat-card__order">#{{ cat.sortOrder }}</span>
+                                {{ cat.name }}
+                            </div>
                             <div class="cat-card__desc">{{ cat.description || 'Sin descripción' }}</div>
                         </div>
                         <div class="flex flex-column align-items-end gap-1">
@@ -269,7 +337,7 @@ function onCategorySaved(data) {
                         <button
                             :class="['mgmt-btn', 'mgmt-btn--power', cat.isActive ? 'mgmt-btn--power-on' : 'mgmt-btn--power-off']"
                             :title="cat.isActive ? 'Desactivar categoría' : 'Activar categoría'"
-                            @click="store.updateCategory(cat.id, { ...cat, isActive: !cat.isActive })"
+                            @click="onToggleCategoryActive(cat)"
                         >
                             <i class="pi pi-power-off"></i>
                         </button>
@@ -296,6 +364,7 @@ function onCategorySaved(data) {
         v-model:visible="showCategoryDialog"
         :edit="!!editingCategory"
         :category="editingCategory"
+        :default-sort-order="categoryDefaultSortOrder"
         @category-saved="onCategorySaved"
     />
     <CreateAndEditMenuItem
@@ -322,40 +391,6 @@ function onCategorySaved(data) {
     height: 100%;
     min-height: 0;
 }
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.menu-tabs {
-    display: flex;
-    border-bottom: 2px solid var(--surface-border);
-    background: #fff;
-    padding: 0 1.25rem;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.75rem 1.25rem;
-    border: none;
-    background: transparent;
-    color: var(--text-color-secondary, #6b7280);
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: color 0.15s;
-}
-.tab-btn--active {
-    color: var(--p-primary-color, #6366f1);
-    border-bottom-color: var(--p-primary-color, #6366f1);
-    font-weight: 600;
-}
-.tab-btn:hover:not(.tab-btn--active) { color: #374151; }
 
 /* ── Catalog tab scrollable ───────────────────────────────────────────── */
 .catalog-tab {
@@ -644,6 +679,17 @@ function onCategorySaved(data) {
     font-size: 0.95rem;
     font-weight: 700;
     color: #111827;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.cat-card__order {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #6b7280;
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
 }
 
 .cat-card__desc {

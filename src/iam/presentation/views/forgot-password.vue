@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIamStore } from '../../application/iam.store.js';
@@ -12,7 +12,7 @@ const email   = ref('');
 const success = ref(false);
 
 async function handleSubmit() {
-    const ok = await iamStore.forgotPassword(email.value);
+    const ok = await iamStore.forgotPassword();
     if (ok) success.value = true;
 }
 </script>

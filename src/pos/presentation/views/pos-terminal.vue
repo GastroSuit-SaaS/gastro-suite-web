@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useToast }             from 'primevue/usetoast'
 import { usePosStore }          from '../../application/pos.store.js'
+import { isPersistedSaleId }    from '../../infrastructure/assemblers/sale.assembler.js'
 import { posSelectTableRoute, posOrderRoute } from '../constants/pos.constants-ui.js'
 import ModuleStateFeedback      from '../../../shared/presentation/components/module-state-feedback.vue'
 import CreateAndEdit            from '../../../shared/presentation/components/create-and-edit.vue'
 
 const router   = useRouter()
+const toast    = useToast()
 const posStore = usePosStore()
 
 const showZoneSelector = ref(false)
@@ -20,13 +23,32 @@ function selectZone(zone) {
 }
 
 async function openOrder(order) {
-    if (order.isTakeaway) {
-        posStore.currentSale = order;
-        posStore.currentSaleIsRecovered = true;
-    } else {
-        await posStore.openSaleForTable(order.tableId, order.zoneId)
+    try {
+        if (order.isTakeaway) {
+            posStore.currentSale = order
+            posStore.currentSaleIsRecovered = true
+        } else {
+            await posStore.openSaleForTable(order.tableId, order.zoneId)
+        }
+        const saleId = posStore.currentSale?.id ?? order.id
+        if (!isPersistedSaleId(saleId)) {
+            toast.add({
+                severity: 'warn',
+                summary:  'Orden no sincronizada',
+                detail:   'Abre la mesa de nuevo desde el mapa o el terminal.',
+                life:     5000,
+            })
+            return
+        }
+        router.push(posOrderRoute(saleId))
+    } catch (e) {
+        toast.add({
+            severity: 'error',
+            summary:  'No se pudo abrir la orden',
+            detail:   e?.message ?? 'Intenta de nuevo.',
+            life:     5000,
+        })
     }
-    router.push(posOrderRoute(order.id))
 }
 
 // ── Para Llevar ──────────────────────────────────────────────────────────
@@ -193,7 +215,7 @@ onMounted(() => {
                                 <!-- Zona + Mesa / Para Llevar -->
                                 <div class="flex flex-column gap-0">
                                     <template v-if="order.isTakeaway">
-                                        <span class="order-row__zone" style="color:#f59e0b">Para Llevar #{{ order.ticketNumber }}</span>
+                                        <span class="order-row__zone" style="color:#f59e0b">Para Llevar #{{ order.saleDisplayNumber ?? order.ticketNumber }}</span>
                                         <span class="order-row__table">{{ order.customerName || 'Sin nombre' }}</span>
                                     </template>
                                     <template v-else>
@@ -201,6 +223,7 @@ onMounted(() => {
                                             {{ posStore.zoneById(posStore.tableById(order.tableId)?.zoneId)?.name ?? '—' }}
                                         </span>
                                         <span class="order-row__table">
+                                            <template v-if="order.saleDisplayNumber">Orden #{{ order.saleDisplayNumber }} · </template>
                                             Mesa {{ posStore.tableById(order.tableId)?.number ?? order.tableId }}
                                         </span>
                                     </template>

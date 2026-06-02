@@ -125,6 +125,19 @@
   --z-tooltip: 1070;
 
   /* ========================================
+     MÓDULOS (área de contenido clara bajo el toolbar)
+     Tabs de navegación: misma apariencia en Estaciones, Mesas, Menú, etc.
+     ======================================== */
+  --module-surface-bg: #ffffff;
+  --module-surface-border: #e5e7eb;
+  --module-tab-text: #6b7280;
+  --module-tab-text-hover: #374151;
+  --module-tab-active: var(--color-primary);
+  --module-tab-focus-accent: #7c3aed;
+  --module-tab-focus-bg: #f5f3ff;
+  --module-tab-focus-border: #ede9fe;
+
+  /* ========================================
      LAYOUT - DASHBOARD
      ======================================== */
   --sidebar-width: 280px;

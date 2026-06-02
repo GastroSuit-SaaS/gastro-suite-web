@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { toolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import BranchSwitcher from './branch-switcher.vue'
 
 const props = defineProps({
@@ -49,17 +50,42 @@ const menuItems = ref([
     },
 ])
 
+function contextString(value) {
+    return value !== null && value !== undefined && String(value).trim() !== ''
+}
+
+const resolvedTitle = computed(() =>
+    contextString(toolbarContext.title) ? toolbarContext.title : props.title,
+)
+const resolvedDescription = computed(() =>
+    contextString(toolbarContext.description) ? toolbarContext.description : props.description,
+)
+const resolvedBackLabel = computed(() =>
+    contextString(toolbarContext.backLabel) ? toolbarContext.backLabel : 'Volver',
+)
+const resolvedShowBack = computed(() =>
+    toolbarContext.showBackButton !== null && toolbarContext.showBackButton !== undefined
+        ? toolbarContext.showBackButton
+        : props.showBackButton,
+)
+const contextChips = computed(() => toolbarContext.chips ?? [])
+
 const handleBack = () => {
-    if (props.backRoute) {
-        if (typeof props.backRoute === 'string') {
-            router.push({ name: props.backRoute })
-        } else {
-            router.push(props.backRoute)
-        }
-    } else {
-        emit('back')
-        router.back()
+    if (typeof toolbarContext.onBack === 'function') {
+        toolbarContext.onBack()
+        return
     }
+    const routeTarget = toolbarContext.backRoute ?? props.backRoute
+    if (routeTarget) {
+        if (typeof routeTarget === 'string') {
+            router.push({ name: routeTarget })
+        } else {
+            router.push(routeTarget)
+        }
+        return
+    }
+    emit('back')
+    router.back()
 }
 
 const handleSignOut = async () => {
@@ -78,26 +104,49 @@ const handleSignOut = async () => {
 const toggleUserMenu = (event) => {
     userMenu.value.toggle(event)
 }
+
+function chipStyle(chip) {
+    if (!chip.color) return undefined
+    return {
+        color: chip.color,
+        borderColor: chip.borderColor ?? chip.color,
+        background: chip.background ?? `${chip.color}18`,
+    }
+}
 </script>
 
 <template>
     <div class="toolbar flex align-items-center gap-3 px-4 py-3">
 
-        <!-- Back button -->
-        <pv-button
-            v-if="showBackButton"
-            icon="pi pi-arrow-left"
-            text
-            rounded
-            class="toolbar__back-btn"
-            aria-label="Volver atrás"
-            @click="handleBack"
-        />
+        <div class="toolbar__leading flex align-items-center gap-2 flex-1 min-w-0">
+            <button
+                v-if="resolvedShowBack"
+                type="button"
+                class="toolbar__back"
+                :aria-label="resolvedBackLabel"
+                @click="handleBack"
+            >
+                <i class="pi pi-arrow-left" aria-hidden="true"></i>
+            </button>
 
-        <!-- Title + description -->
-        <div class="flex-1 flex flex-column gap-1 min-w-0">
-            <h2 class="m-0 toolbar__title">{{ title }}</h2>
-            <p v-if="description" class="m-0 toolbar__description">{{ description }}</p>
+            <div class="toolbar__heading flex flex-column gap-1 min-w-0">
+                <h2 class="m-0 toolbar__title">{{ resolvedTitle }}</h2>
+                <p v-if="resolvedDescription" class="m-0 toolbar__description">{{ resolvedDescription }}</p>
+            </div>
+        </div>
+
+        <!-- Context chips (orden, mesa, zona, etc.) -->
+        <div v-if="contextChips.length" class="toolbar__chips hidden lg:flex">
+            <span
+                v-for="(chip, idx) in contextChips"
+                :key="idx"
+                class="toolbar__chip"
+                :class="chip.variant ? `toolbar__chip--${chip.variant}` : ''"
+                :style="chipStyle(chip)"
+            >
+                <i v-if="chip.icon" :class="['pi', chip.icon]"></i>
+                {{ chip.label }}
+            </span>
         </div>
 
         <!-- Branch switcher (visible cuando hay sucursal activa) -->
@@ -164,15 +213,42 @@ const toggleUserMenu = (event) => {
     opacity: 0.5;
 }
 
-/* ── Back button ─────────────────────────────────────────────────────────── */
-.toolbar__back-btn {
-    color: var(--text-secondary) !important;
-    transition: color var(--transition-fast), transform var(--transition-fast);
+/* ── Leading: flecha atrás + título del módulo ───────────────────────────── */
+.toolbar__leading {
+    flex-shrink: 1;
 }
 
-.toolbar__back-btn:hover {
-    color: var(--text-primary) !important;
-    transform: translateX(-2px);
+.toolbar__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: color var(--transition-fast);
+}
+
+.toolbar__back:hover {
+    color: var(--text-primary);
+}
+
+.toolbar__back:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.toolbar__heading {
+    flex: 1;
+    min-width: 0;
 }
 
 /* ── Title / description ─────────────────────────────────────────────────── */
@@ -262,4 +338,58 @@ const toggleUserMenu = (event) => {
     color: var(--text-secondary);
     transform: translateY(2px);
 }
+
+/* ── Context chips ───────────────────────────────────────────────────────── */
+.toolbar__chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    max-width: min(42vw, 520px);
+}
+
+.toolbar__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.toolbar__chip .pi {
+    font-size: 0.68rem;
+}
+
+.toolbar__chip--order {
+    color: #4b5563;
+    border-color: #d1d5db;
+    background: #f3f4f6;
+}
+
+.toolbar__chip--table {
+    color: #1e40af;
+    border-color: #93c5fd;
+    background: #dbeafe;
+}
+
+.toolbar__chip--takeaway {
+    color: #b45309;
+    border-color: #fcd34d;
+    background: #fef3c7;
+}
+
+@media (max-width: 1023px) {
+    .toolbar__chips {
+        display: none;
+    }
+}
+
 </style>

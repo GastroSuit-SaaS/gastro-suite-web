@@ -1,0 +1,230 @@
+/**
+ * Module chrome — barra de tabs unificada (Estaciones, Mesas, Menú, Inventario, Usuarios).
+ * Usar <module-tab-bar> + <module-tab>; no duplicar estilos scoped en cada vista.
+ */
+
+/* ── Contenedor de tabs (ancho completo, pegado al toolbar) ───────────────── */
+.module-tab-bar {
+    display: flex;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 0;
+    width: 100%;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0 0 0 1rem;
+    background: var(--module-surface-bg);
+    border-bottom: 1px solid var(--module-surface-border);
+    /* Sombra muy sutil; el borde ya separa tabs y contenido */
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.module-tab-bar__tabs {
+    display: flex;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    flex: 1;
+    min-width: 0;
+    /* Solo scroll horizontal si hay muchas pestañas; sin scroll vertical */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+.module-tab-bar__tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.module-tab-bar__tabs::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.module-tab-bar__end {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 0.35rem;
+    padding: 0.35rem 1rem 0.35rem 0.5rem;
+    margin-left: auto;
+}
+
+.module-tab-bar--sticky {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+}
+
+/* ── Botón de tab ─────────────────────────────────────────────────────────── */
+.module-tab-bar .tab-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.75rem 1.25rem 0.85rem;
+    border: none;
+    background: transparent;
+    color: var(--module-tab-text);
+    font-family: var(--font-family-base);
+    font-size: 0.88rem;
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition:
+        color var(--transition-fast),
+        background var(--transition-fast);
+}
+
+.module-tab-bar .tab-btn .pi {
+    font-size: 0.85rem;
+}
+
+.module-tab-bar .tab-btn:hover:not(.tab-btn--active):not(.tab-btn--focus) {
+    color: var(--module-tab-text-hover);
+}
+
+.module-tab-bar .tab-btn--active {
+    color: var(--module-tab-active);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Indicador inferior visible (no queda oculto por overflow del contenedor) */
+.module-tab-bar .tab-btn--active:not(.tab-btn--focus)::after {
+    content: '';
+    position: absolute;
+    left: 0.65rem;
+    right: 0.65rem;
+    bottom: 0;
+    height: 3px;
+    background: var(--module-tab-active);
+    border-radius: 3px 3px 0 0;
+    z-index: 2;
+}
+
+.module-tab-bar .tab-btn:focus-visible {
+    outline: 2px solid var(--module-tab-active);
+    outline-offset: 2px;
+}
+
+.module-tab-bar .tab-btn--disabled,
+.module-tab-bar .tab-btn:disabled {
+    opacity: var(--opacity-disabled);
+    cursor: not-allowed;
+}
+
+.module-tab-bar .tab-btn__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* Acción secundaria en slot #end (p. ej. Modo Estación) */
+.module-tab-bar .tab-btn--focus {
+    align-self: center;
+    margin: 0.35rem 0;
+    padding: 0.35rem 1rem;
+    border: 1.5px solid var(--module-tab-focus-border);
+    border-radius: var(--radius-lg);
+    background: var(--module-tab-focus-bg);
+    color: var(--module-tab-focus-accent);
+    font-weight: var(--font-weight-semibold);
+}
+
+.module-tab-bar .tab-btn--focus::after {
+    display: none;
+}
+
+.module-tab-bar .tab-btn--focus:hover {
+    background: #ede9fe;
+    border-color: #c4b5fd;
+    color: var(--module-tab-focus-accent);
+}
+
+/* Contador opcional en pestaña (p. ej. historial) */
+.module-tab-bar .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.35rem;
+    margin-left: 0.35rem;
+    border-radius: var(--radius-full);
+    background: var(--module-tab-active);
+    color: var(--color-white);
+    font-size: 0.65rem;
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+}
+
+/* ── Layout de páginas con tabs ───────────────────────────────────────────── */
+.module-page,
+.tables-layout,
+.menu-layout,
+.stations-layout,
+.user-layout,
+.inv-layout,
+.dash-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.module-page-body,
+.module-tab-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.module-page-body--scroll {
+    overflow-y: auto;
+    padding: 0.75rem 1rem 1rem;
+}
+
+/* ── DataManager en área de contenido clara (Historial, etc.) ─────────────── */
+.content-area .gs-data-manager {
+    background: var(--module-surface-bg) !important;
+    border: 1px solid var(--module-surface-border) !important;
+    box-shadow: var(--shadow-sm) !important;
+    color: #111827;
+}
+
+.content-area .gs-data-manager .p-datatable {
+    background: var(--module-surface-bg);
+    border-radius: var(--radius-lg);
+}
+
+.content-area .gs-data-manager .p-datatable-thead > tr > th {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    border-bottom: 1px solid var(--module-surface-border) !important;
+    font-weight: var(--font-weight-semibold);
+}
+
+.content-area .gs-data-manager .p-datatable-tbody > tr {
+    background: var(--module-surface-bg) !important;
+    color: #1f2937 !important;
+}
+
+.content-area .gs-data-manager .p-datatable-tbody > tr:hover {
+    background: #f8fafc !important;
+}
+
+.content-area .gs-data-manager .p-datatable-tbody > tr > td {
+    border-bottom: 1px solid #f1f5f9 !important;
+    color: #374151 !important;
+}
+
+.content-area .gs-data-manager .p-paginator {
+    background: #f8fafc !important;
+    border-top: 1px solid var(--module-surface-border) !important;
+    color: #475569 !important;
+}

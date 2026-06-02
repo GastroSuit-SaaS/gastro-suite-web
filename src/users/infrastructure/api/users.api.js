@@ -1,52 +1,22 @@
-/**
- * Users Infrastructure - API Service
- * 
- * Responsabilidad: Comunicación HTTP con el backend del módulo Users.
- * Maneja endpoints de usuarios, perfiles, roles, etc.
- * NO contiene lógica de negocio.
- * 
- * Usa assemblers para transformar datos API ⇄ Dominio.
- */
-
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
 
 export class UsersApi extends BaseApi {
-    #endpoint;
+    #crud;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_USERS_ENDPOINT ?? '/users');
+        this.#crud = new BaseEndpoint(this, import.meta.env.VITE_USERS_ENDPOINT ?? '/employees');
     }
 
-    getAll() {
-        return this.#endpoint.getAll();
+    listByCompany(companyId, params) {
+        return this.#crud.listAt(`/companies/${companyId}/employees`, params);
     }
 
-    getById(id) {
-        return this.#endpoint.getById(id);
-    }
-
-    create(resource) {
-        return this.#endpoint.create(resource);
-    }
-
-    update(id, resource) {
-        return this.#endpoint.update(id, resource);
-    }
-
-    delete(id) {
-        return this.#endpoint.delete(id);
-    }
-
-    changePassword(id, data) {
-        return this.http.patch(`${import.meta.env.VITE_USERS_ENDPOINT ?? '/users'}/${id}/password`, data);
-    }
-
-    toggleActive(id) {
-        return this.http.patch(`${import.meta.env.VITE_USERS_ENDPOINT ?? '/users'}/${id}/toggle-active`);
-    }
+    getById(employeeId)      { return this.#crud.getById(employeeId); }
+    create(resource)           { return this.#crud.create(resource); }
+    update(employeeId, body)   { return this.#crud.update(employeeId, body); }
+    delete(employeeId)         { return this.#crud.delete(employeeId); }
 }
 
 export const usersApi = new UsersApi();

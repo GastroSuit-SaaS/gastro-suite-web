@@ -21,6 +21,8 @@ export class CashRegisterSession {
         closedAt        = null,
         openedBy        = null,
         closedBy        = null,
+        openedByUserId  = null,
+        closedByUserId  = null,
         initialAmount   = 0,
         finalAmount     = null,
         status          = SESSION_STATUS.OPEN,
@@ -42,6 +44,8 @@ export class CashRegisterSession {
         this.closedAt        = closedAt;
         this.openedBy        = openedBy;
         this.closedBy        = closedBy;
+        this.openedByUserId  = openedByUserId;
+        this.closedByUserId  = closedByUserId;
         this.initialAmount   = initialAmount;
         this.finalAmount     = finalAmount;
         this.status          = status;

@@ -1,40 +1,34 @@
 import { Station } from '../../domain/models/station.entity.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
 
-/**
- * Kitchen Infrastructure - Station Assembler
- *
- * Transforma recursos crudos del API en entidades Station y viceversa.
- */
 export class StationAssembler {
 
     static toEntityFromResource(resource) {
         return new Station({
-            id:          resource.id,
-            name:        resource.name        ?? '',
-            description: resource.description ?? '',
-            color:       resource.color       ?? '#3b82f6',
-            isActive:    resource.isActive    ?? true,
+            id:          resource.stationId ?? resource.id ?? null,
+            name:        resource.stationName ?? resource.name ?? '',
+            description: resource.stationDescription ?? resource.description ?? '',
+            color:       resource.stationColor ?? resource.color ?? '#3b82f6',
+            isActive:    resource.isActive ?? resource.is_active ?? true,
         });
     }
 
     static toEntitiesFromResponse(response) {
-        if (!response || (response.status !== undefined && response.status !== 200)) return [];
-        const data = response.data?.items ?? response.data?.data ?? response.data ?? response;
-        if (!Array.isArray(data)) return [];
-        return data.map(r => StationAssembler.toEntityFromResource(r));
+        if (!response) return [];
+        return entitiesFromResponse(response, StationAssembler.toEntityFromResource);
     }
 
     static toEntityFromResponse(response) {
-        if (response.status !== 200 && response.status !== 201) return null;
-        return StationAssembler.toEntityFromResource(response.data?.data ?? response.data);
+        return entityFromResponse(response, StationAssembler.toEntityFromResource);
     }
 
-    static toResourceFromEntity(entity) {
+    static toResourceFromEntity(entity, branchId) {
         return {
-            name:        entity.name,
-            description: entity.description,
-            color:       entity.color,
-            is_active:   entity.isActive,
+            branchId,
+            stationName: entity.name,
+            stationDescription: entity.description || null,
+            stationColor: entity.color || null,
+            isActive: entity.isActive ?? true,
         };
     }
 }

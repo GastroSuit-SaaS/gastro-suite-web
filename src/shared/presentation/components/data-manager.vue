@@ -6,7 +6,7 @@
  * - Paginación y ordenamiento dinámico
  * - Filtrado global y personalizado (interno/externo)
  * - Operaciones CRUD con confirmaciones
- * - Selección múltiple y exportación a CSV
+ * - Selección múltiple y exportación a Excel
  * - Acciones por fila (ver, editar, eliminar)
  * - Slots personalizables para columnas y filtros
  * 
@@ -28,6 +28,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { FilterMatchMode } from '@primevue/core'
 import { useConfirm } from 'primevue/useconfirm'
+import { exportTableToExcel } from '../../utils/excel-export.js'
 
 // ===========================
 // PROPS
@@ -60,6 +61,8 @@ const props = defineProps({
   showNew: { type: Boolean, default: true },
   showDelete: { type: Boolean, default: true },
   showActionButtons: { type: Boolean, default: true },
+  /** Coloca Nuevo/Exportar en la misma fila que búsqueda y filtros. */
+  inlineToolbar: { type: Boolean, default: false },
   
   // Configuración de paginación
   rows: { type: Number, default: 10 },
@@ -68,7 +71,7 @@ const props = defineProps({
   // Labels de botones principales
   newButtonLabel: { type: String, default: 'Agregar' },
   deleteButtonLabel: { type: String, default: 'Eliminar' },
-  exportButtonLabel: { type: String, default: 'Exportar' },
+  exportButtonLabel: { type: String, default: 'Exportar Excel' },
   
   // Configuración de acciones por fila
   showViewAction: { type: Boolean, default: true },
@@ -122,6 +125,24 @@ const dt = ref(null) // Referencia al componente DataTable
  * Prioriza filteredItems del padre, caso contrario usa items
  */
 const displayItems = computed(() => props.filteredItems || props.items)
+
+const showInlineNew = computed(() =>
+    props.inlineToolbar && props.showActionButtons && props.showNew,
+)
+
+const showInlineExport = computed(() =>
+    props.inlineToolbar && props.showActionButtons && props.showExport,
+)
+
+/** Barra de acciones separada (debajo de filtros) cuando no va inline o hay más acciones. */
+const showStandaloneActionBar = computed(() => {
+    if (!props.showActionButtons) return false
+    const hasDelete = props.showDelete && props.showSelection
+    if (props.inlineToolbar) {
+        return hasDelete || (!props.showNew && props.showExport)
+    }
+    return props.showNew || hasDelete || props.showExport
+})
 
 /**
  * Valor del filtro global con sincronización bidireccional
@@ -230,9 +251,29 @@ const confirmDeleteItem = (item) => {
 // METHODS - TABLE ACTIONS
 // ===========================
 /**
- * Exporta los datos de la tabla a formato CSV
+ * Exporta los datos visibles de la tabla a Excel (.xlsx)
  */
-const exportToCsv = () => dt.value.exportCSV()
+const exportToExcel = () => {
+  const rows = displayItems.value ?? []
+  const exportColumns = props.columns
+    .filter(col => col.field && col.exportable !== false)
+    .map(col => ({
+      header: col.header || col.field,
+      field: col.field,
+      exportValue: col.exportValue,
+    }))
+
+  if (!exportColumns.length || !rows.length) return
+
+  const plural = props.title?.plural || 'datos'
+  const date = new Date().toISOString().slice(0, 10)
+  exportTableToExcel({
+    filename: `${plural}_${date}`,
+    sheetName: plural.slice(0, 31),
+    columns: exportColumns,
+    rows,
+  })
+}
 
 /**
  * Emite evento cuando se selecciona una fila
@@ -256,18 +297,15 @@ onMounted(() => initFilters())
 <template>
   <!-- NOTA: pv-toast eliminado - se usa el global de App.vue para evitar duplicados -->
 
-  <div class="surface-0 border-round-lg p-4 shadow-2 h-full flex flex-column overflow-hidden" style="border: 1px solid var(--border-medium);">
+  <div class="gs-data-manager surface-0 border-round-lg p-4 shadow-2 h-full flex flex-column overflow-hidden">
 
     <!-- Search and Filter Section -->
     <div class="flex flex-column mb-2 border-bottom-1 surface-border">
 
-      <!-- Custom filters slot -->
-      <div class="flex gap-2 mb-4 flex-wrap">
-        <!-- Global Search Input -->
-        <pv-icon-field class="flex-1">
-      
+      <!-- Búsqueda, filtros y acciones principales en una fila -->
+      <div class="gs-data-manager__toolbar flex gap-2 mb-4 flex-wrap align-items-end">
+        <pv-icon-field class="gs-data-manager__search flex-1">
           <pv-input-icon class="pi pi-search" />
-
           <pv-input-text
               v-model="currentGlobalFilterValue"
               :placeholder="searchPlaceholder"
@@ -275,19 +313,43 @@ onMounted(() => initFilters())
           />
         </pv-icon-field>
 
-        <slot name="filters" :clear-filters="clearFilters" ></slot>
+        <slot name="filters" :clear-filters="clearFilters" />
 
+        <div
+            v-if="inlineToolbar && (showInlineNew || showInlineExport)"
+            class="gs-data-manager__toolbar-actions flex gap-2 align-items-center flex-shrink-0"
+        >
+          <pv-button
+              v-if="showInlineNew"
+              icon="pi pi-plus"
+              :label="newButtonLabel"
+              severity="success"
+              size="small"
+              class="gs-data-manager__new-btn"
+              @click="newItem"
+          />
+          <pv-button
+              v-if="showInlineExport"
+              icon="pi pi-file-excel"
+              :label="exportButtonLabel"
+              severity="success"
+              outlined
+              size="small"
+              :disabled="!displayItems?.length"
+              @click="exportToExcel"
+          />
+        </div>
       </div>
 
     </div>
 
-    <!-- Action Buttons Section -->
-    <div v-if="showActionButtons && (showNew || showDelete || showExport)"
+    <!-- Action Buttons Section (modo clásico o acciones extra) -->
+    <div v-if="showStandaloneActionBar"
          class="flex flex-column md:flex-row gap-2 mb-4">
 
       <div class="flex gap-2 flex-1 flex-column md:flex-row">
         <pv-button
-            v-if="showNew"
+            v-if="showNew && !inlineToolbar"
             icon="pi pi-plus"
             :label="newButtonLabel"
             severity="success"
@@ -307,13 +369,14 @@ onMounted(() => initFilters())
       </div>
 
       <pv-button
-        v-if="showExport"
-        icon="pi pi-download"
+        v-if="showExport && !inlineToolbar"
+        icon="pi pi-file-excel"
         :label="exportButtonLabel"
-        severity="secondary"
+        severity="success"
         outlined
         class="w-full md:w-auto"
-        @click="exportToCsv"
+        :disabled="!displayItems?.length"
+        @click="exportToExcel"
       />
     </div>
 
@@ -436,3 +499,28 @@ onMounted(() => initFilters())
     </div>
   </div>
 </template>
+
+<style scoped>
+.gs-data-manager__toolbar {
+    width: 100%;
+}
+
+.gs-data-manager__search {
+    min-width: 12rem;
+}
+
+.gs-data-manager__toolbar-actions {
+    margin-left: auto;
+}
+
+@media (max-width: 768px) {
+    .gs-data-manager__toolbar-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .gs-data-manager__toolbar-actions .gs-data-manager__new-btn {
+        width: 100%;
+    }
+}
+</style>
