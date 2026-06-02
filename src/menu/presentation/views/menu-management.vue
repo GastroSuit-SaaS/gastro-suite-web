@@ -191,12 +191,12 @@ async function onToggleCategoryActive(cat) {
                 <button :class="['stat-chip', 'stat-chip--btn', selectedAvailability === true && 'stat-chip--active-green']" @click="toggleAvailability(true)">
                     <span class="stat-chip__dot" style="background:#22c55e"></span>
                     <span class="stat-chip__label">Disponibles</span>
-                    <span class="stat-chip__value text-green-500">{{ store.availableItems }}</span>
+                    <span class="stat-chip__value stat-chip__value--success">{{ store.availableItems }}</span>
                 </button>
                 <button :class="['stat-chip', 'stat-chip--btn', selectedAvailability === false && 'stat-chip--active-red']" @click="toggleAvailability(false)">
                     <span class="stat-chip__dot" style="background:#ef4444"></span>
                     <span class="stat-chip__label">No Disponibles</span>
-                    <span class="stat-chip__value text-red-500">{{ store.unavailableItems }}</span>
+                    <span class="stat-chip__value stat-chip__value--danger">{{ store.unavailableItems }}</span>
                 </button>
                 <div class="stat-chip">
                     <span class="stat-chip__dot" style="background:#6366f1"></span>

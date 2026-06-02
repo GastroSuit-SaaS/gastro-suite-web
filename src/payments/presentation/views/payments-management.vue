@@ -212,40 +212,32 @@ const receiptOptions = [
     <div class="pay-history">
 
 
-        <!-- ══ Stat cards ═════════════════════════════════════════════════ -->
-        <div class="stat-strip">
-            <div class="stat-card stat-card--primary">
-                <span class="stat-card__label">Total del día</span>
-                <span class="stat-card__value">S/ {{ store.todayTotal.toFixed(2) }}</span>
-                <span class="stat-card__sub">{{ store.todayCount }} transacción{{ store.todayCount !== 1 ? 'es' : '' }}</span>
+        <!-- ══ Resumen del día (chips compactos) ═══════════════════════════ -->
+        <div class="stat-row">
+            <div class="stat-chip">
+                <span class="stat-chip__label">Total del día</span>
+                <span class="stat-chip__value stat-chip__value--money">S/ {{ store.todayTotal.toFixed(2) }}</span>
+                <span class="stat-chip__sub">{{ store.todayCount }} trans.</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-card__method-row">
-                    <span class="method-dot" style="background:#10b981"></span>
-                    <span class="stat-card__label">Efectivo</span>
-                </div>
-                <span class="stat-card__value stat-card__value--sm">S/ {{ store.todayByMethod.cash.toFixed(2) }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__dot" style="background:#10b981"></span>
+                <span class="stat-chip__label">Efectivo</span>
+                <span class="stat-chip__value stat-chip__value--success">S/ {{ store.todayByMethod.cash.toFixed(2) }}</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-card__method-row">
-                    <span class="method-dot" style="background:#6366f1"></span>
-                    <span class="stat-card__label">Tarjeta</span>
-                </div>
-                <span class="stat-card__value stat-card__value--sm">S/ {{ store.todayByMethod.card.toFixed(2) }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__dot" style="background:#6366f1"></span>
+                <span class="stat-chip__label">Tarjeta</span>
+                <span class="stat-chip__value stat-chip__value--indigo">S/ {{ store.todayByMethod.card.toFixed(2) }}</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-card__method-row">
-                    <span class="method-dot" style="background:#8b5cf6"></span>
-                    <span class="stat-card__label">Yape</span>
-                </div>
-                <span class="stat-card__value stat-card__value--sm">S/ {{ store.todayByMethod.yape.toFixed(2) }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__dot" style="background:#8b5cf6"></span>
+                <span class="stat-chip__label">Yape</span>
+                <span class="stat-chip__value stat-chip__value--violet">S/ {{ store.todayByMethod.yape.toFixed(2) }}</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-card__method-row">
-                    <span class="method-dot" style="background:#3b82f6"></span>
-                    <span class="stat-card__label">Plin</span>
-                </div>
-                <span class="stat-card__value stat-card__value--sm">S/ {{ store.todayByMethod.plin.toFixed(2) }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__dot" style="background:#3b82f6"></span>
+                <span class="stat-chip__label">Plin</span>
+                <span class="stat-chip__value stat-chip__value--info">S/ {{ store.todayByMethod.plin.toFixed(2) }}</span>
             </div>
         </div>
 
@@ -666,64 +658,6 @@ const receiptOptions = [
     padding: 1.5rem;
     background: #f3f4f6;
 }
-
-/* ── Stat strip ──────────────────────────────────────────────────────────── */
-.stat-strip {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.stat-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    flex: 1;
-    min-width: 130px;
-}
-
-.stat-card--primary {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    border-color: transparent;
-    color: #fff;
-}
-.stat-card--primary .stat-card__label { color: rgba(255,255,255,0.75); }
-.stat-card--primary .stat-card__sub   { color: rgba(255,255,255,0.6); font-size: 0.75rem; }
-
-.stat-card__method-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.method-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.stat-card__label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.stat-card__value {
-    font-size: 1.6rem;
-    font-weight: 800;
-    color: #111827;
-    line-height: 1;
-}
-.stat-card--primary .stat-card__value { color: #fff; }
-
-.stat-card__value--sm { font-size: 1.2rem; }
 
 /* ── (Filtros ahora usan pv-select / PrimeFlex, sin CSS custom) ────────── */
 

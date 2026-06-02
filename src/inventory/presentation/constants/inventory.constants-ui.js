@@ -45,6 +45,12 @@ export const INVENTORY_MESSAGES = {
   PRODUCT_CREATED: 'Producto creado correctamente',
   PRODUCT_UPDATED: 'Producto actualizado correctamente',
   PRODUCT_DELETED: 'Producto eliminado correctamente',
-  STOCK_UPDATED: 'Stock actualizado correctamente',
-  ERROR_LOADING: 'Error al cargar productos',
+  CATEGORY_CREATED: 'Categoría creada correctamente',
+  CATEGORY_UPDATED: 'Categoría actualizada correctamente',
+  CATEGORY_DELETED: 'Categoría eliminada correctamente',
+  MOVEMENT_REGISTERED: 'Movimiento registrado correctamente',
+  EMPLOYEE_LINK_REQUIRED:
+    'Tu usuario debe estar vinculado a un empleado para registrar entradas y salidas de inventario.',
+  CATEGORY_REQUIRED: 'Selecciona una categoría de inventario.',
+  ERROR_LOADING: 'Error al cargar inventario',
 };

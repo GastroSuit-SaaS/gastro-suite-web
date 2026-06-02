@@ -1193,3 +1193,25 @@ button.p-password-toggle-button:hover,
 .p-tooltip.p-tooltip-right .p-tooltip-arrow {
   border-right-color: var(--bg-secondary);
 }
+
+/* ========================================
+   OVERLAYS FLOTANTES (select, popover, menú)
+   Por encima de .module-tab-bar--sticky (z-index 8)
+   ======================================== */
+
+.p-connected-overlay,
+.p-select-overlay,
+.p-select-list-container,
+.p-multiselect-overlay,
+.p-dropdown-overlay,
+.p-autocomplete-overlay,
+.p-datepicker-panel,
+.p-menu-overlay,
+.p-tieredmenu-overlay,
+.p-popover,
+.bs-popover.p-popover,
+.p-menu.p-menu-overlay,
+body > .p-component.p-popover,
+body > .p-component.p-menu {
+  z-index: var(--z-overlay) !important;
+}

@@ -1,7 +1,10 @@
 <script setup>
 import { reactive, computed, watch } from 'vue'
 import { MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../../domain/models/stock-movement.entity.js'
+import { useIamStore } from '../../../iam/application/iam.store.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+
+const iamStore = useIamStore()
 
 const props = defineProps({
     visible:  { type: Boolean, default: false },
@@ -79,8 +82,17 @@ const productOptions = computed(() =>
         .map(p => ({ label: `${p.name} (${p.stock} ${p.unit})`, value: p.id }))
 )
 
+const registrarLabel = computed(() => {
+    const user = iamStore.currentUser
+    if (!user) return 'Sesión no disponible'
+    if (user.employeeId) {
+        return user.fullName || [user.nombres, user.apellidos].filter(Boolean).join(' ').trim() || user.username
+    }
+    return 'Se vinculará tu usuario al guardar'
+})
+
 const canSave = computed(() =>
-    form.productId && form.quantity > 0
+    form.productId && form.quantity > 0 && !!iamStore.currentUser
 )
 
 const onCancel = () => emit('update:visible', false)
@@ -111,6 +123,13 @@ const onSave = () => {
     >
         <template #content>
             <div class="flex flex-column gap-4 pt-3">
+
+                <div class="registrar-banner" role="status">
+                    <i class="pi pi-user" aria-hidden="true" />
+                    <span>
+                        <strong>Registrado por:</strong> {{ registrarLabel }}
+                    </span>
+                </div>
 
                 <!-- Dirección -->
                 <div class="flex flex-column gap-2">
@@ -201,6 +220,27 @@ const onSave = () => {
 </template>
 
 <style scoped>
+.registrar-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: #1e40af;
+}
+
+.registrar-banner .pi {
+    font-size: 0.95rem;
+}
+
+.registrar-banner strong {
+    font-weight: 700;
+    margin-right: 0.25rem;
+}
+
 .stock-preview {
     background: #f9fafb;
     border: 1px solid #e5e7eb;

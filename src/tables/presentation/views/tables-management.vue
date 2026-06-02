@@ -194,17 +194,17 @@ function onTableSaved(table) {
                 <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'available' && 'stat-chip--active-green']" @click="toggleStatus('available')">
                     <span class="stat-chip__dot" style="background:#22c55e"></span>
                     <span class="stat-chip__label">Disponibles</span>
-                    <span class="stat-chip__value text-green-500">{{ store.availableTables.length }}</span>
+                    <span class="stat-chip__value stat-chip__value--success">{{ store.availableTables.length }}</span>
                 </button>
                 <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'reserved' && 'stat-chip--active-purple']" @click="toggleStatus('reserved')">
                     <span class="stat-chip__dot" style="background:#7c3aed"></span>
                     <span class="stat-chip__label">Reservadas</span>
-                    <span class="stat-chip__value" style="color:#7c3aed">{{ store.reservedTables.length }}</span>
+                    <span class="stat-chip__value stat-chip__value--purple">{{ store.reservedTables.length }}</span>
                 </button>
                 <button :class="['stat-chip', 'stat-chip--btn', 'stat-chip--bar', selectedStatus === 'occupied' && 'stat-chip--active-red']" @click="toggleStatus('occupied')">
                     <span class="stat-chip__dot" style="background:#ef4444"></span>
                     <span class="stat-chip__label">Ocupadas</span>
-                    <span class="stat-chip__value text-red-500">{{ store.occupiedTables.length }}<span class="stat-chip__sub">/{{ store.totalTables }}</span></span>
+                    <span class="stat-chip__value stat-chip__value--danger">{{ store.occupiedTables.length }}<span class="stat-chip__sub">/{{ store.totalTables }}</span></span>
                     <div class="occupancy-bar">
                         <div class="occupancy-bar__fill" :style="{ width: occupancyRate + '%' }"></div>
                     </div>
@@ -213,12 +213,12 @@ function onTableSaved(table) {
                 <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'cleaning' && 'stat-chip--active-blue']" @click="toggleStatus('cleaning')">
                     <span class="stat-chip__dot" style="background:#3b82f6"></span>
                     <span class="stat-chip__label">En Limpieza</span>
-                    <span class="stat-chip__value text-blue-500">{{ store.cleaningTables.length }}</span>
+                    <span class="stat-chip__value stat-chip__value--info">{{ store.cleaningTables.length }}</span>
                 </button>
                 <div class="stat-chip">
                     <span class="stat-chip__dot" style="background:#059669"></span>
                     <span class="stat-chip__label">Consumo activo</span>
-                    <span class="stat-chip__value" style="color:#059669">S/ {{ activeConsumption.toFixed(2) }}</span>
+                    <span class="stat-chip__value stat-chip__value--money">S/ {{ activeConsumption.toFixed(2) }}</span>
                 </div>
             </div>
 

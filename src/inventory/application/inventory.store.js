@@ -2,19 +2,20 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { InventoryApi } from '../infrastructure/api/inventory.api.js';
 import { ProductAssembler } from '../infrastructure/assemblers/product.assembler.js';
+import { InventoryCategoryAssembler } from '../infrastructure/assemblers/inventory-category.assembler.js';
+import { StockMovementAssembler } from '../infrastructure/assemblers/stock-movement.assembler.js';
+import { INVENTORY_MESSAGES } from '../presentation/constants/inventory.constants-ui.js';
 import { Product, STOCK_STATUS } from '../domain/models/product.entity.js';
 import { InventoryCategory } from '../domain/models/inventory-category.entity.js';
 import { StockMovement, MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../domain/models/stock-movement.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
-import { extractCollection } from '../../shared/infrustructure/api-response.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
 
 const api = new InventoryApi();
 
 export const useInventoryStore = defineStore('inventory', () => {
 
-    // ── State ─────────────────────────────────────────────────────────────
     const products        = ref([]);
     const categoriesData  = ref([]);
     const movements       = ref([]);
@@ -22,27 +23,23 @@ export const useInventoryStore = defineStore('inventory', () => {
     const isLoading       = ref(false);
     const error           = ref(null);
     const searchQuery     = ref('');
-    const filterCategory  = ref('');
-    const filterStatus    = ref(null); // null | 'in_stock' | 'low_stock' | 'out_of_stock'
+    const filterCategory  = ref(null);
+    const filterStatus    = ref(null);
     const movementSearch  = ref('');
-    const movementFilterType      = ref('');
-    const movementFilterDirection = ref('');
+    const movementFilterType      = ref(null);
+    const movementFilterDirection = ref(null);
 
-    // ── Getters ───────────────────────────────────────────────────────────
     const totalProducts  = computed(() => products.value.length);
     const activeProducts = computed(() => products.value.filter(p => p.isActive));
     const lowStockProducts  = computed(() => products.value.filter(p => p.stockStatus === STOCK_STATUS.LOW_STOCK));
     const outOfStockProducts = computed(() => products.value.filter(p => p.stockStatus === STOCK_STATUS.OUT_OF_STOCK));
     const inStockProducts    = computed(() => products.value.filter(p => p.stockStatus === STOCK_STATUS.IN_STOCK));
 
-    // ── Category getters (entity-based, same pattern as menu) ─────────
-    const activeCategoryIds = computed(() =>
-        new Set(categoriesData.value.filter(c => c.isActive).map(c => c.id))
-    );
-
     const categories = computed(() => {
         const countMap = {};
-        products.value.forEach(p => { if (p.categoryId) countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1; });
+        products.value.forEach(p => {
+            if (p.categoryId) countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1;
+        });
         return categoriesData.value
             .filter(c => c.isActive)
             .map(c => new InventoryCategory({ ...c, count: countMap[c.id] ?? 0 }));
@@ -50,17 +47,18 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     const allCategories = computed(() => {
         const countMap = {};
-        products.value.forEach(p => { if (p.categoryId) countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1; });
+        products.value.forEach(p => {
+            if (p.categoryId) countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1;
+        });
         return categoriesData.value
             .map(c => new InventoryCategory({ ...c, count: countMap[c.id] ?? 0 }));
     });
 
     const totalCategories = computed(() => categories.value.length);
 
-    /** String-based category list for backward compat (dropdown in create-and-edit-product). */
-    const categoryNames = computed(() => {
-        return categories.value.map(c => c.name).sort();
-    });
+    const categorySelectOptions = computed(() =>
+        categories.value.map(c => ({ label: c.name, value: c.id })),
+    );
 
     const filteredProducts = computed(() => {
         let list = products.value;
@@ -70,7 +68,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         }
 
         if (filterCategory.value) {
-            list = list.filter(p => p.category === filterCategory.value);
+            list = list.filter(p => String(p.categoryId) === String(filterCategory.value));
         }
 
         const q = searchQuery.value.trim().toLowerCase();
@@ -78,7 +76,8 @@ export const useInventoryStore = defineStore('inventory', () => {
             list = list.filter(p =>
                 p.name.toLowerCase().includes(q) ||
                 p.sku.toLowerCase().includes(q) ||
-                (p.description ?? '').toLowerCase().includes(q)
+                (p.description ?? '').toLowerCase().includes(q) ||
+                (p.category ?? '').toLowerCase().includes(q),
             );
         }
 
@@ -86,10 +85,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     });
 
     const totalStockValue = computed(() =>
-        products.value.reduce((sum, p) => sum + (p.cost * p.stock), 0)
+        products.value.reduce((sum, p) => sum + (p.cost * p.stock), 0),
     );
 
-    // ── Movement getters ──────────────────────────────────────────────────
     const totalMovements = computed(() => movements.value.length);
     const entryMovements = computed(() => movements.value.filter(m => m.direction === MOVEMENT_DIRECTION.IN));
     const exitMovements  = computed(() => movements.value.filter(m => m.direction === MOVEMENT_DIRECTION.OUT));
@@ -109,15 +107,15 @@ export const useInventoryStore = defineStore('inventory', () => {
             list = list.filter(m =>
                 m.productName.toLowerCase().includes(q) ||
                 m.productSku.toLowerCase().includes(q) ||
+                (m.userName ?? '').toLowerCase().includes(q) ||
                 (m.notes ?? '').toLowerCase().includes(q) ||
-                (m.reason ?? '').toLowerCase().includes(q)
+                (m.reason ?? '').toLowerCase().includes(q),
             );
         }
 
         return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     });
 
-    // ── Actions ───────────────────────────────────────────────────────────
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
@@ -129,10 +127,12 @@ export const useInventoryStore = defineStore('inventory', () => {
                 api.listMovementsByBranch(branchId),
             ]);
             products.value = ProductAssembler.toEntitiesFromResponse(prodResponse);
-            categoriesData.value = extractCollection(catResponse.data).map((r) => new InventoryCategory(r));
-            movements.value = extractCollection(movResponse.data).map((r) => new StockMovement(r));
+            categoriesData.value = InventoryCategoryAssembler.toEntitiesFromResponse(catResponse);
+            movements.value = StockMovementAssembler.toEntitiesFromResponse(movResponse);
+            return true;
         } catch (e) {
-            error.value = getApiErrorMessage(e, 'Error al cargar productos');
+            error.value = getApiErrorMessage(e, INVENTORY_MESSAGES.ERROR_LOADING);
+            return false;
         } finally {
             isLoading.value = false;
         }
@@ -144,85 +144,128 @@ export const useInventoryStore = defineStore('inventory', () => {
         try {
             const response = await api.getProductById(id);
             selectedProduct.value = ProductAssembler.toEntityFromResponse(response);
+            return true;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? 'Error al obtener el producto';
+            error.value = getApiErrorMessage(e, 'Error al obtener el producto');
+            return false;
         } finally {
             isLoading.value = false;
         }
     }
 
     async function create(productData) {
-        const optimisticId = Math.max(0, ...products.value.map(p => p.id)) + 1;
-        const optimistic = new Product({ id: optimisticId, ...productData });
-        products.value.push(optimistic);
+        const categoryId = ProductAssembler.resolveCategoryId(productData, categoriesData.value);
+        if (!categoryId) {
+            error.value = 'Selecciona una categoría de inventario válida.';
+            return false;
+        }
+
+        error.value = null;
         try {
-            const response = await api.createProduct(ProductAssembler.toResourceFromEntity(productData));
-            if (response) {
-                const saved = ProductAssembler.toEntityFromResponse(response);
-                if (saved?.id) {
-                    const idx = products.value.findIndex(p => p.id === optimisticId);
-                    if (idx !== -1) products.value.splice(idx, 1, saved);
-                }
+            const response = await api.createProduct(
+                ProductAssembler.toCreateResource(
+                    { ...productData, categoryId },
+                    { categories: categoriesData.value },
+                ),
+            );
+            const saved = ProductAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                products.value.push(saved);
+            } else {
+                await fetchAll();
             }
+            return true;
         } catch (e) {
-            products.value = products.value.filter(p => p.id !== optimisticId);
-            error.value = e?.response?.data?.message ?? 'Error al crear el producto';
+            error.value = getApiErrorMessage(e, 'Error al crear el producto');
+            return false;
         }
     }
 
     async function update(id, productData) {
+        error.value = null;
         const snapshot = [...products.value];
-        products.value = products.value.map(p =>
-            p.id === id ? new Product({ ...p, ...productData, id }) : p
-        );
         try {
-            await api.updateProduct(id, ProductAssembler.toResourceFromEntity(productData));
+            const response = await api.updateProduct(
+                id,
+                ProductAssembler.toUpdateResource(productData, {
+                    categories: categoriesData.value,
+                    includeStock: false,
+                }),
+            );
+            const saved = ProductAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                products.value = products.value.map(p => (p.id === id ? saved : p));
+            } else {
+                products.value = products.value.map(p =>
+                    p.id === id ? new Product({ ...p, ...productData, id }) : p,
+                );
+            }
+            return true;
         } catch (e) {
             products.value = snapshot;
-            error.value = e?.response?.data?.message ?? 'Error al actualizar el producto';
+            error.value = getApiErrorMessage(e, 'Error al actualizar el producto');
+            return false;
         }
     }
 
     async function remove(id) {
+        error.value = null;
         const snapshot = [...products.value];
         products.value = products.value.filter(p => p.id !== id);
         try {
             await api.deleteProduct(id);
+            return true;
         } catch (e) {
             products.value = snapshot;
-            error.value = e?.response?.data?.message ?? 'Error al eliminar el producto';
+            error.value = getApiErrorMessage(e, 'Error al eliminar el producto');
+            return false;
         }
     }
 
-    async function updateStock(id, quantity) {
-        const product = products.value.find(p => p.id === id);
-        if (!product) return;
-        const prevStock = product.stock;
-        product.stock = quantity;
-        try {
-            await api.updateProduct(id, { stock: quantity });
-        } catch (e) {
-            product.stock = prevStock;
-            error.value = e?.response?.data?.message ?? 'Error al actualizar stock';
-        }
+    function _currentRegistrarName() {
+        const user = useIamStore().currentUser;
+        if (!user) return '';
+        return user.fullName || [user.nombres, user.apellidos].filter(Boolean).join(' ').trim() || user.username || '';
     }
 
-    // ── Movement Actions ──────────────────────────────────────────────────
+    async function _ensureEmployeeForMovement() {
+        const iamStore = useIamStore();
+        let employeeId = iamStore.currentUser?.employeeId ?? null;
+        if (!employeeId) {
+            await iamStore.ensureEmployeeLink();
+            employeeId = iamStore.currentUser?.employeeId ?? null;
+        }
+        if (!employeeId) {
+            error.value = iamStore.employeeLinkMessage ?? INVENTORY_MESSAGES.EMPLOYEE_LINK_REQUIRED;
+            return null;
+        }
+        return employeeId;
+    }
+
     async function registerMovement(data) {
         const product = products.value.find(p => p.id === data.productId);
-        if (!product) return;
+        if (!product) {
+            error.value = 'Producto no encontrado.';
+            return false;
+        }
 
-        const iamStore = useIamStore();
-        const user = iamStore.currentUser;
+        const employeeId = await _ensureEmployeeForMovement();
+        if (!employeeId) return false;
 
+        const registrarName = _currentRegistrarName();
         const previousStock = product.stock;
         const qty = Number(data.quantity);
+        if (!qty || qty <= 0) {
+            error.value = 'La cantidad debe ser mayor a cero.';
+            return false;
+        }
+
         const newStock = data.direction === MOVEMENT_DIRECTION.IN
             ? previousStock + qty
             : Math.max(0, previousStock - qty);
 
-        const optimisticId = Math.max(0, ...movements.value.map(m => m.id)) + 1;
-        const movement = new StockMovement({
+        const optimisticId = `opt-${Date.now()}`;
+        movements.value.unshift(new StockMovement({
             id: optimisticId,
             productId: product.id,
             productName: product.name,
@@ -234,74 +277,101 @@ export const useInventoryStore = defineStore('inventory', () => {
             newStock,
             reason: data.reason ?? '',
             notes: data.notes ?? '',
-            userId: user?.id ?? null,
-            userName: user?.fullName || user?.username || '',
+            employeeId,
+            userName: registrarName,
             sucursalId: product.sucursalId,
-        });
+        }));
 
-        // Optimistic: update stock + push movement
         product.stock = newStock;
-        movements.value.push(movement);
+        error.value = null;
 
         try {
-            await api.createMovement({
-                product_id: data.productId,
-                type: data.type,
-                direction: data.direction,
-                quantity: qty,
-                reason: data.reason,
-                notes: data.notes,
-            });
+            const response = await api.createMovement(
+                StockMovementAssembler.toCreateResource(data, { employeeId }),
+            );
+            const saved = StockMovementAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                movements.value = movements.value.map(m =>
+                    m.id === optimisticId ? saved : m,
+                );
+                const refreshed = products.value.find(p => p.id === product.id);
+                if (refreshed && saved.newStock != null) {
+                    refreshed.stock = saved.newStock;
+                }
+            } else {
+                await fetchAll();
+            }
+            return true;
         } catch (e) {
-            // Rollback
             product.stock = previousStock;
             movements.value = movements.value.filter(m => m.id !== optimisticId);
-            error.value = e?.response?.data?.message ?? 'Error al registrar movimiento';
+            error.value = getApiErrorMessage(e, 'Error al registrar movimiento');
+            return false;
         }
     }
 
-    // ── Category Actions ─────────────────────────────────────────────────
     async function createCategory(data) {
-        const optimisticId = Math.max(0, ...categoriesData.value.map(c => c.id)) + 1;
-        categoriesData.value.push(new InventoryCategory({ id: optimisticId, ...data }));
+        error.value = null;
         try {
-            const response = await api.createCategory({ name: data.name, description: data.description, color: data.color, is_active: data.isActive });
-            if (response) {
-                const saved = response?.data?.data ?? response?.data;
-                if (saved?.id) {
-                    const idx = categoriesData.value.findIndex(c => c.id === optimisticId);
-                    if (idx !== -1) categoriesData.value.splice(idx, 1, new InventoryCategory({ ...data, id: saved.id }));
-                }
+            const branchId = requireActiveBranchId();
+            const response = await api.createCategory(
+                InventoryCategoryAssembler.toCreateResource(
+                    new InventoryCategory(data),
+                    branchId,
+                    categoriesData.value,
+                ),
+            );
+            const saved = InventoryCategoryAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                categoriesData.value.push(saved);
+            } else {
+                await fetchAll();
             }
-        } catch { /* optimistic entry stays */ }
+            return true;
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'Error al crear la categoría');
+            return false;
+        }
     }
 
     async function updateCategory(id, data) {
+        error.value = null;
         const snapshot = [...categoriesData.value];
-        categoriesData.value = categoriesData.value.map(c =>
-            c.id === id ? new InventoryCategory({ ...c, ...data, id }) : c
-        );
-        // Also update the category name string on products that reference this category
-        const updatedCat = categoriesData.value.find(c => c.id === id);
-        if (updatedCat) {
-            products.value.forEach(p => {
-                if (p.categoryId === id) p.category = updatedCat.name;
-            });
-        }
         try {
-            await api.updateCategory(id, { name: data.name, description: data.description, color: data.color, is_active: data.isActive });
-        } catch {
+            const response = await api.updateCategory(
+                id,
+                InventoryCategoryAssembler.toUpdateResource(new InventoryCategory({ ...data, id })),
+            );
+            const saved = InventoryCategoryAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                categoriesData.value = categoriesData.value.map(c => (c.id === id ? saved : c));
+                products.value.forEach(p => {
+                    if (String(p.categoryId) === String(id)) p.category = saved.name;
+                });
+            } else {
+                categoriesData.value = categoriesData.value.map(c =>
+                    c.id === id ? new InventoryCategory({ ...c, ...data, id }) : c,
+                );
+            }
+            return true;
+        } catch (e) {
             categoriesData.value = snapshot;
+            error.value = getApiErrorMessage(e, 'Error al actualizar la categoría');
+            return false;
         }
     }
 
     async function removeCategory(id) {
+        error.value = null;
         const snapshot = [...categoriesData.value];
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
         try {
             await api.deleteCategory(id);
-        } catch {
+            return true;
+        } catch (e) {
             categoriesData.value = snapshot;
+            error.value = getApiErrorMessage(e, 'Error al eliminar la categoría');
+            return false;
         }
     }
 
@@ -310,10 +380,10 @@ export const useInventoryStore = defineStore('inventory', () => {
         searchQuery, filterCategory, filterStatus,
         movementSearch, movementFilterType, movementFilterDirection,
         totalProducts, activeProducts, lowStockProducts, outOfStockProducts, inStockProducts,
-        categories, allCategories, totalCategories, categoryNames,
+        categories, allCategories, totalCategories, categorySelectOptions,
         filteredProducts, totalStockValue,
         totalMovements, entryMovements, exitMovements, filteredMovements,
-        fetchAll, fetchById, create, update, remove, updateStock, registerMovement,
+        fetchAll, fetchById, create, update, remove, registerMovement,
         createCategory, updateCategory, removeCategory,
     };
 });

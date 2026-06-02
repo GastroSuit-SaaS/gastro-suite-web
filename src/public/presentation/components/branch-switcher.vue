@@ -78,7 +78,8 @@ onMounted(() => {
         <!-- Branch popover -->
         <pv-popover
             ref="popoverRef"
-            :pt="{ root: { class: 'bs-popover' }, content: { class: 'bs-popover__content' } }"
+            append-to="body"
+            :pt="{ root: { class: 'bs-popover', style: { zIndex: 1100 } }, content: { class: 'bs-popover__content' } }"
             @show="isOpen = true"
             @hide="isOpen = false"
         >
@@ -227,6 +228,7 @@ onMounted(() => {
 <!-- Global styles for popover (teleported to body) -->
 <style>
 .bs-popover.p-popover {
+    z-index: var(--z-overlay) !important;
     background: #fff;
     border: 1px solid #E5E7EB;
     border-radius: 14px;

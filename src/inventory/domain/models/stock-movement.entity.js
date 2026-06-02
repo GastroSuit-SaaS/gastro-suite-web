@@ -25,6 +25,7 @@ export class StockMovement {
         newStock      = 0,
         reason        = '',
         notes         = '',
+        employeeId    = null,
         userId        = null,
         userName      = '',
         sucursalId    = null,
@@ -41,7 +42,8 @@ export class StockMovement {
         this.newStock      = newStock;
         this.reason        = reason;
         this.notes         = notes;
-        this.userId        = userId;
+        this.employeeId    = employeeId ?? userId;
+        this.userId        = this.employeeId;
         this.userName      = userName;
         this.sucursalId    = sucursalId;
         this.createdAt     = createdAt ? new Date(createdAt) : new Date();

@@ -9,8 +9,11 @@ import RegisterStockMovement          from './register-stock-movement.vue'
 import ModuleStateFeedback            from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar                   from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab                      from '../../../shared/presentation/components/module-tab.vue'
+import { useNotification } from '../../../shared/composables/use-notification.js'
+import { INVENTORY_MESSAGES } from '../constants/inventory.constants-ui.js'
 
 const store = useInventoryStore()
+const { showSuccess, showError } = useNotification()
 const { confirmDelete } = useConfirmDialog()
 
 onMounted(() => store.fetchAll())
@@ -32,10 +35,12 @@ const paginatedProducts = computed(() => {
     return store.filteredProducts.slice(start, start + PAGE_SIZE)
 })
 
-const categoryOptions = computed(() => [
-    { label: 'Todas', value: '' },
-    ...store.categoryNames.map(c => ({ label: c, value: c })),
-])
+const categoryFilterOptions = computed(() => store.categorySelectOptions)
+
+const canCreateProduct = computed(() => store.categorySelectOptions.length > 0)
+
+/** Overlays al body para quedar sobre tabs sticky */
+const OVERLAY_TARGET = 'body'
 
 function toggleStatus(status) {
     selectedStatus.value = selectedStatus.value === status ? null : status
@@ -60,16 +65,26 @@ function openEdit(product) {
 }
 
 function onDelete(product) {
-    confirmDelete('el producto', product.name, () => store.remove(product.id))
+    confirmDelete({
+        target: product.name,
+        accept: async () => {
+            const ok = await store.remove(product.id)
+            if (ok) showSuccess(INVENTORY_MESSAGES.PRODUCT_DELETED)
+            else if (store.error) showError(store.error)
+        },
+    })
 }
 
-function onSaved(data) {
-    if (editingItem.value) {
-        store.update(editingItem.value.id, data)
-    } else {
-        store.create(data)
+async function onSaved(data) {
+    const ok = editingItem.value
+        ? await store.update(editingItem.value.id, data)
+        : await store.create(data)
+    if (ok) {
+        showSuccess(editingItem.value ? INVENTORY_MESSAGES.PRODUCT_UPDATED : INVENTORY_MESSAGES.PRODUCT_CREATED)
+        editingItem.value = null
+    } else if (store.error) {
+        showError(store.error)
     }
-    editingItem.value = null
 }
 
 function getStockStatusLabel(product) {
@@ -99,16 +114,26 @@ function openEditCategory(cat) {
 }
 
 function onDeleteCategory(cat) {
-    confirmDelete('la categoría', cat.name, () => store.removeCategory(cat.id))
+    confirmDelete({
+        target: cat.name,
+        accept: async () => {
+            const ok = await store.removeCategory(cat.id)
+            if (ok) showSuccess(INVENTORY_MESSAGES.CATEGORY_DELETED)
+            else if (store.error) showError(store.error)
+        },
+    })
 }
 
-function onCategorySaved(data) {
-    if (editingCategory.value) {
-        store.updateCategory(editingCategory.value.id, data)
-    } else {
-        store.createCategory(data)
+async function onCategorySaved(data) {
+    const ok = editingCategory.value
+        ? await store.updateCategory(editingCategory.value.id, data)
+        : await store.createCategory(data)
+    if (ok) {
+        showSuccess(editingCategory.value ? INVENTORY_MESSAGES.CATEGORY_UPDATED : INVENTORY_MESSAGES.CATEGORY_CREATED)
+        editingCategory.value = null
+    } else if (store.error) {
+        showError(store.error)
     }
-    editingCategory.value = null
 }
 
 // ── Movements state ──────────────────────────────────────
@@ -140,7 +165,6 @@ const MOVEMENT_TYPE_COLORS = {
 }
 
 const movementTypeFilterOptions = [
-    { label: 'Todos', value: '' },
     { label: 'Compra',        value: 'purchase'   },
     { label: 'Uso cocina',    value: 'usage'      },
     { label: 'Merma',         value: 'waste'      },
@@ -150,7 +174,6 @@ const movementTypeFilterOptions = [
 ]
 
 const movementDirFilterOptions = [
-    { label: 'Todas',    value: '' },
     { label: 'Entradas', value: 'in'  },
     { label: 'Salidas',  value: 'out' },
 ]
@@ -159,8 +182,13 @@ function openRegisterMovement() {
     showMovementDialog.value = true
 }
 
-function onMovementSaved(data) {
-    store.registerMovement(data)
+async function onMovementSaved(data) {
+    const ok = await store.registerMovement(data)
+    if (ok) {
+        showSuccess(INVENTORY_MESSAGES.MOVEMENT_REGISTERED)
+    } else if (store.error) {
+        showError(store.error)
+    }
 }
 
 function formatDate(d) {
@@ -171,7 +199,7 @@ function formatDate(d) {
 </script>
 
 <template>
-    <div class="inv-layout">
+    <div class="inv-layout module-page">
 
     <module-state-feedback
         :loading="store.isLoading"
@@ -179,9 +207,10 @@ function formatDate(d) {
         loading-label="Cargando inventario..."
         @retry="store.fetchAll()"
     >
+        <div class="inv-shell">
 
         <!-- ══ Tab navigation ═════════════════════════════════════════════ -->
-        <module-tab-bar v-model="activeTab" sticky>
+        <module-tab-bar v-model="activeTab" sticky aria-label="Inventario">
             <module-tab value="products" icon="pi-box">
                 Productos
             </module-tab>
@@ -194,41 +223,48 @@ function formatDate(d) {
         </module-tab-bar>
 
         <!-- ══════════════════ TAB: PRODUCTOS ════════════════════════════ -->
-        <div v-if="activeTab === 'products'" class="inv-home">
+        <div v-if="activeTab === 'products'" class="inv-tab-body">
+        <div class="inv-home">
 
-            <!-- ── Stat cards ──────────────────────────────────────── -->
-            <div class="stat-strip">
-                <div class="stat-card stat-card--primary" style="cursor:pointer" @click="clearStatus">
-                    <span class="stat-card__label">Total productos</span>
-                    <span class="stat-card__value">{{ store.totalProducts }}</span>
-                    <span class="stat-card__sub">{{ formatCurrency(store.totalStockValue) }} en stock</span>
-                </div>
-                <div class="stat-card" :class="{ 'stat-card--selected': selectedStatus === 'in_stock' }" style="cursor:pointer" @click="toggleStatus('in_stock')">
-                    <div class="stat-card__method-row">
-                        <span class="method-dot" style="background:#059669"></span>
-                        <span class="stat-card__label">En stock</span>
-                    </div>
-                    <span class="stat-card__value stat-card__value--sm">{{ store.inStockProducts.length }}</span>
-                </div>
-                <div class="stat-card" :class="{ 'stat-card--selected': selectedStatus === 'low_stock' }" style="cursor:pointer" @click="toggleStatus('low_stock')">
-                    <div class="stat-card__method-row">
-                        <span class="method-dot" style="background:#f59e0b"></span>
-                        <span class="stat-card__label">Stock bajo</span>
-                    </div>
-                    <span class="stat-card__value stat-card__value--sm">{{ store.lowStockProducts.length }}</span>
-                </div>
-                <div class="stat-card" :class="{ 'stat-card--selected': selectedStatus === 'out_of_stock' }" style="cursor:pointer" @click="toggleStatus('out_of_stock')">
-                    <div class="stat-card__method-row">
-                        <span class="method-dot" style="background:#dc2626"></span>
-                        <span class="stat-card__label">Sin stock</span>
-                    </div>
-                    <span class="stat-card__value stat-card__value--sm">{{ store.outOfStockProducts.length }}</span>
-                </div>
+            <!-- ── Resumen compacto (chips, como Mesas) ─────────────── -->
+            <div class="stat-row">
+                <button type="button" class="stat-chip stat-chip--btn" @click="clearStatus">
+                    <span class="stat-chip__label">Total productos</span>
+                    <span class="stat-chip__value">{{ store.totalProducts }}</span>
+                    <span class="stat-chip__sub">{{ formatCurrency(store.totalStockValue) }}</span>
+                </button>
+                <button
+                    type="button"
+                    :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'in_stock' && 'stat-chip--active-green']"
+                    @click="toggleStatus('in_stock')"
+                >
+                    <span class="stat-chip__dot" style="background:#059669"></span>
+                    <span class="stat-chip__label">En stock</span>
+                    <span class="stat-chip__value stat-chip__value--success">{{ store.inStockProducts.length }}</span>
+                </button>
+                <button
+                    type="button"
+                    :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'low_stock' && 'stat-chip--active-orange']"
+                    @click="toggleStatus('low_stock')"
+                >
+                    <span class="stat-chip__dot" style="background:#f59e0b"></span>
+                    <span class="stat-chip__label">Stock bajo</span>
+                    <span class="stat-chip__value stat-chip__value--warning">{{ store.lowStockProducts.length }}</span>
+                </button>
+                <button
+                    type="button"
+                    :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'out_of_stock' && 'stat-chip--active-red']"
+                    @click="toggleStatus('out_of_stock')"
+                >
+                    <span class="stat-chip__dot" style="background:#dc2626"></span>
+                    <span class="stat-chip__label">Sin stock</span>
+                    <span class="stat-chip__value stat-chip__value--danger">{{ store.outOfStockProducts.length }}</span>
+                </button>
             </div>
 
             <!-- ── Filtros ─────────────────────────────────────────── -->
-            <div class="flex align-items-center flex-wrap gap-3">
-                <pv-icon-field class="flex-1" style="min-width: 200px">
+            <div class="inv-toolbar">
+                <pv-icon-field class="inv-toolbar__search">
                     <pv-input-icon class="pi pi-search" />
                     <pv-input-text
                         v-model="store.searchQuery"
@@ -241,23 +277,52 @@ function formatDate(d) {
 
                 <pv-select
                     v-model="store.filterCategory"
-                    :options="categoryOptions"
+                    :options="categoryFilterOptions"
                     optionLabel="label"
                     optionValue="value"
                     placeholder="CATEGORÍA"
+                    showClear
+                    :append-to="OVERLAY_TARGET"
                     size="small"
-                    style="min-width: 160px"
+                    class="inv-toolbar__select"
                     @change="productPage = 1"
                 />
 
-                <pv-button label="Nuevo producto" icon="pi pi-plus" size="small" @click="openCreate" />
+                <pv-button
+                    label="Nuevo producto"
+                    icon="pi pi-plus"
+                    size="small"
+                    :disabled="!canCreateProduct"
+                    v-tooltip.top="!canCreateProduct ? 'Crea al menos una categoría en la pestaña Categorías' : undefined"
+                    @click="openCreate"
+                />
             </div>
 
             <!-- ── Empty ───────────────────────────────────────────── -->
-            <div v-if="store.filteredProducts.length === 0" class="inv-empty">
-                <i class="pi pi-inbox" style="font-size:2rem;color:#d1d5db"></i>
+            <div v-if="store.filteredProducts.length === 0" class="inv-empty inv-panel">
+                <i class="pi pi-inbox inv-empty__icon"></i>
                 <span class="inv-empty__title">No se encontraron productos</span>
-                <span class="inv-empty__sub">Agrega productos para comenzar a gestionar tu inventario</span>
+                <span class="inv-empty__sub">
+                    {{ store.products.length === 0
+                        ? 'Crea categorías y luego agrega tu primer producto de bodega.'
+                        : 'Prueba otros filtros o términos de búsqueda.' }}
+                </span>
+                <pv-button
+                    v-if="store.products.length === 0 && canCreateProduct"
+                    label="Nuevo producto"
+                    icon="pi pi-plus"
+                    size="small"
+                    @click="openCreate"
+                />
+                <pv-button
+                    v-else-if="store.products.length === 0"
+                    label="Ir a categorías"
+                    icon="pi pi-tag"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    @click="activeTab = 'categories'"
+                />
             </div>
 
             <!-- ── Tabla de productos ──────────────────────────────── -->
@@ -327,13 +392,18 @@ function formatDate(d) {
                 </div>
             </div>
         </div>
+        </div>
 
         <!-- ══════════════════ TAB: CATEGORÍAS ═══════════════════════════ -->
-        <div v-else-if="activeTab === 'categories'" class="inv-home">
+        <div v-else-if="activeTab === 'categories'" class="inv-tab-body">
+        <div class="inv-home">
 
-            <div class="flex align-items-center justify-content-between">
-                <span class="text-base font-bold text-color">Categorías de Inventario</span>
-                <pv-button label="Nueva Categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
+            <div class="inv-toolbar inv-toolbar--split">
+                <div>
+                    <h2 class="inv-section-title">Categorías de inventario</h2>
+                    <p class="inv-section-hint">Agrupa insumos y productos de bodega por tipo.</p>
+                </div>
+                <pv-button label="Nueva categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
             </div>
 
             <div v-if="store.allCategories.length > 0" class="cats-grid">
@@ -375,45 +445,43 @@ function formatDate(d) {
                     </div>
                 </div>
             </div>
-            <div v-else class="inv-empty">
-                <i class="pi pi-tag" style="font-size:2rem;color:#d1d5db"></i>
+            <div v-else class="inv-empty inv-panel">
+                <i class="pi pi-tag inv-empty__icon"></i>
                 <span class="inv-empty__title">No hay categorías configuradas</span>
-                <span class="inv-empty__sub">Crea categorías para organizar los productos del inventario</span>
+                <span class="inv-empty__sub">Crea categorías para organizar los productos del inventario.</span>
+                <pv-button label="Nueva categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
             </div>
+        </div>
         </div>
 
         <!-- ══════════════════ TAB: MOVIMIENTOS ══════════════════════ -->
-        <div v-else class="inv-home">
+        <div v-else class="inv-tab-body">
+        <div class="inv-home">
 
-            <!-- Stat strip movimientos -->
-            <div class="stat-strip">
-                <div class="stat-card stat-card--primary">
-                    <span class="stat-card__label">Total movimientos</span>
-                    <span class="stat-card__value">{{ store.totalMovements }}</span>
+            <div class="stat-row">
+                <div class="stat-chip">
+                    <span class="stat-chip__label">Total movimientos</span>
+                    <span class="stat-chip__value">{{ store.totalMovements }}</span>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-card__method-row">
-                        <span class="method-dot" style="background:#059669"></span>
-                        <span class="stat-card__label">Entradas</span>
-                    </div>
-                    <span class="stat-card__value stat-card__value--sm">{{ store.entryMovements.length }}</span>
+                <div class="stat-chip">
+                    <span class="stat-chip__dot" style="background:#059669"></span>
+                    <span class="stat-chip__label">Entradas</span>
+                    <span class="stat-chip__value stat-chip__value--success">{{ store.entryMovements.length }}</span>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-card__method-row">
-                        <span class="method-dot" style="background:#dc2626"></span>
-                        <span class="stat-card__label">Salidas</span>
-                    </div>
-                    <span class="stat-card__value stat-card__value--sm">{{ store.exitMovements.length }}</span>
+                <div class="stat-chip">
+                    <span class="stat-chip__dot" style="background:#dc2626"></span>
+                    <span class="stat-chip__label">Salidas</span>
+                    <span class="stat-chip__value stat-chip__value--danger">{{ store.exitMovements.length }}</span>
                 </div>
             </div>
 
             <!-- Filtros movimientos -->
-            <div class="flex align-items-center flex-wrap gap-3">
-                <pv-icon-field class="flex-1" style="min-width: 200px">
+            <div class="inv-toolbar">
+                <pv-icon-field class="inv-toolbar__search">
                     <pv-input-icon class="pi pi-search" />
                     <pv-input-text
                         v-model="store.movementSearch"
-                        placeholder="Buscar por producto, nota..."
+                        placeholder="Buscar producto, SKU, registrado por, nota..."
                         class="w-full"
                         size="small"
                         @input="movementPage = 1"
@@ -426,8 +494,10 @@ function formatDate(d) {
                     optionLabel="label"
                     optionValue="value"
                     placeholder="MOTIVO"
+                    showClear
+                    :append-to="OVERLAY_TARGET"
                     size="small"
-                    style="min-width: 150px"
+                    class="inv-toolbar__select"
                     @change="movementPage = 1"
                 />
 
@@ -437,8 +507,10 @@ function formatDate(d) {
                     optionLabel="label"
                     optionValue="value"
                     placeholder="DIRECCIÓN"
+                    showClear
+                    :append-to="OVERLAY_TARGET"
                     size="small"
-                    style="min-width: 150px"
+                    class="inv-toolbar__select"
                     @change="movementPage = 1"
                 />
 
@@ -446,10 +518,17 @@ function formatDate(d) {
             </div>
 
             <!-- Empty -->
-            <div v-if="store.filteredMovements.length === 0" class="inv-empty">
-                <i class="pi pi-arrow-right-arrow-left" style="font-size:2rem;color:#d1d5db"></i>
+            <div v-if="store.filteredMovements.length === 0" class="inv-empty inv-panel">
+                <i class="pi pi-arrow-right-arrow-left inv-empty__icon"></i>
                 <span class="inv-empty__title">No hay movimientos registrados</span>
-                <span class="inv-empty__sub">Registra entradas y salidas de productos para llevar control del inventario</span>
+                <span class="inv-empty__sub">Registra entradas y salidas para llevar el kardex de bodega.</span>
+                <pv-button
+                    v-if="store.products.length > 0"
+                    label="Registrar movimiento"
+                    icon="pi pi-plus"
+                    size="small"
+                    @click="openRegisterMovement"
+                />
             </div>
 
             <!-- Tabla movimientos -->
@@ -465,7 +544,7 @@ function formatDate(d) {
                             <th style="text-align:right">Stock ant.</th>
                             <th style="text-align:right">Stock nuevo</th>
                             <th>Nota</th>
-                            <th>Usuario</th>
+                            <th>Registrado por</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -496,7 +575,9 @@ function formatDate(d) {
                             <td class="td-amount" style="color:#6b7280">{{ m.previousStock }}</td>
                             <td class="td-amount font-bold">{{ m.newStock }}</td>
                             <td class="td-notes">{{ m.notes || '—' }}</td>
-                            <td class="td-user">{{ m.userName || '—' }}</td>
+                            <td class="td-user">
+                                <span class="font-medium text-color">{{ m.userName || '—' }}</span>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -519,7 +600,9 @@ function formatDate(d) {
                 </div>
             </div>
         </div>
+        </div>
 
+        </div>
     </module-state-feedback>
     </div>
 
@@ -528,7 +611,7 @@ function formatDate(d) {
         v-model:visible="showDialog"
         :edit="!!editingItem"
         :product="editingItem"
-        :categories="store.categoryNames"
+        :categories="store.categorySelectOptions"
         @product-saved="onSaved"
     />
 
@@ -548,81 +631,85 @@ function formatDate(d) {
 
 <style scoped>
 /* ── Layout ──────────────────────────────────────────────────────────── */
-.inv-layout {
+.inv-layout.module-page {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
 }
 
-/* ── Contenedor principal (ambos tabs) ───────────────────────────────────── */
+.inv-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.inv-tab-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* ── Contenedor principal (cada tab) ───────────────────────────────────── */
 .inv-home {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: 1.5rem;
-    background: #f3f4f6;
+    padding: 1.25rem 1.5rem 1.5rem;
+    background: var(--module-page-bg, #f3f4f6);
 }
 
-/* ── Stat strip ──────────────────────────────────────────────────────────── */
-.stat-strip {
+.inv-toolbar {
     display: flex;
-    gap: 0.75rem;
+    align-items: center;
     flex-wrap: wrap;
-}
-
-.stat-card {
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    padding: 1rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.inv-toolbar--split {
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.inv-toolbar__search {
     flex: 1;
-    min-width: 130px;
-    transition: border-color 0.15s;
-}
-.stat-card--selected {
-    border-color: #6366f1;
-    background: #f5f3ff;
+    min-width: 200px;
 }
 
-.stat-card--primary {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    border-color: transparent;
-    color: #fff;
-}
-.stat-card--primary .stat-card__label { color: rgba(255,255,255,0.75); }
-.stat-card--primary .stat-card__sub   { color: rgba(255,255,255,0.6); font-size: 0.75rem; }
-
-.stat-card__method-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+.inv-toolbar__select {
+    min-width: 150px;
 }
 
-.method-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.stat-card__label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.stat-card__value {
-    font-size: 1.6rem;
-    font-weight: 800;
+.inv-section-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
     color: #111827;
-    line-height: 1;
 }
-.stat-card--primary .stat-card__value { color: #fff; }
-.stat-card__value--sm { font-size: 1.2rem; }
+
+.inv-section-hint {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: #6b7280;
+}
+
+.inv-panel {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.inv-empty__icon {
+    font-size: 2.25rem;
+    color: #d1d5db;
+}
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 .inv-empty {
@@ -631,12 +718,14 @@ function formatDate(d) {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.625rem;
     color: #9ca3af;
-    padding: 3rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    min-height: 220px;
 }
-.inv-empty__title { font-size: 1rem; font-weight: 600; color: #6b7280; }
-.inv-empty__sub   { font-size: 0.83rem; }
+.inv-empty__title { font-size: 1rem; font-weight: 600; color: #374151; }
+.inv-empty__sub   { font-size: 0.875rem; color: #6b7280; max-width: 28rem; line-height: 1.45; }
 
 /* ── Tabla ───────────────────────────────────────────────────────────────── */
 .inv-table-wrap {

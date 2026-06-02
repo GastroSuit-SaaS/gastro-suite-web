@@ -152,50 +152,45 @@ function clearSearch() {
             @retry="store.fetchAll()"
         >
 
-        <!-- ── Stat Cards ────────────────────────────────────────── -->
+        <!-- ── Resumen compacto (chips) ────────────────────────── -->
         <div class="stat-row">
             <button
-                :class="['stat-card', store.filterStatus === null && !store.filterType && 'stat-card--active']"
+                type="button"
+                :class="['stat-chip', 'stat-chip--btn', store.filterStatus === null && !store.filterType && 'stat-chip--active-indigo']"
                 @click="clearReportFilters()"
             >
-                <i class="pi pi-file stat-card__icon" style="color:#6366f1"></i>
-                <div class="stat-card__body">
-                    <span class="stat-card__value">{{ store.totalReports }}</span>
-                    <span class="stat-card__label">Total reportes</span>
-                </div>
+                <span class="stat-chip__label">Total reportes</span>
+                <span class="stat-chip__value">{{ store.totalReports }}</span>
             </button>
 
             <button
-                :class="['stat-card', store.filterStatus === 'generated' && 'stat-card--active']"
+                type="button"
+                :class="['stat-chip', 'stat-chip--btn', store.filterStatus === 'generated' && 'stat-chip--active-green']"
                 @click="toggleStatus('generated')"
             >
-                <i class="pi pi-check-circle stat-card__icon" style="color:#059669"></i>
-                <div class="stat-card__body">
-                    <span class="stat-card__value">{{ store.generatedCount }}</span>
-                    <span class="stat-card__label">Generados</span>
-                </div>
+                <span class="stat-chip__dot" style="background:#059669"></span>
+                <span class="stat-chip__label">Generados</span>
+                <span class="stat-chip__value stat-chip__value--success">{{ store.generatedCount }}</span>
             </button>
 
             <button
-                :class="['stat-card', store.filterStatus === 'pending' && 'stat-card--active']"
+                type="button"
+                :class="['stat-chip', 'stat-chip--btn', store.filterStatus === 'pending' && 'stat-chip--active-orange']"
                 @click="toggleStatus('pending')"
             >
-                <i class="pi pi-clock stat-card__icon" style="color:#f59e0b"></i>
-                <div class="stat-card__body">
-                    <span class="stat-card__value">{{ store.pendingCount }}</span>
-                    <span class="stat-card__label">Pendientes</span>
-                </div>
+                <span class="stat-chip__dot" style="background:#f59e0b"></span>
+                <span class="stat-chip__label">Pendientes</span>
+                <span class="stat-chip__value stat-chip__value--warning">{{ store.pendingCount }}</span>
             </button>
 
             <button
-                :class="['stat-card', store.filterStatus === 'failed' && 'stat-card--active']"
+                type="button"
+                :class="['stat-chip', 'stat-chip--btn', store.filterStatus === 'failed' && 'stat-chip--active-red']"
                 @click="toggleStatus('failed')"
             >
-                <i class="pi pi-times-circle stat-card__icon" style="color:#dc2626"></i>
-                <div class="stat-card__body">
-                    <span class="stat-card__value">{{ store.failedCount }}</span>
-                    <span class="stat-card__label">Fallidos</span>
-                </div>
+                <span class="stat-chip__dot" style="background:#dc2626"></span>
+                <span class="stat-chip__label">Fallidos</span>
+                <span class="stat-chip__value stat-chip__value--danger">{{ store.failedCount }}</span>
             </button>
         </div>
 
@@ -388,21 +383,6 @@ function clearSearch() {
 
 <style scoped>
 .rpt-layout { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; }
-
-/* ── Stat cards ─────────────────────────────────────────── */
-.stat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.85rem; }
-.stat-card {
-    display: flex; align-items: center; gap: 0.85rem;
-    padding: 1rem 1.1rem; background: #fff; border: 1px solid #e5e7eb;
-    border-radius: 12px; cursor: pointer; transition: all 0.15s;
-    text-align: left;
-}
-.stat-card:hover { border-color: #c7d2fe; }
-.stat-card--active { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
-.stat-card__icon { font-size: 1.3rem; }
-.stat-card__body { display: flex; flex-direction: column; }
-.stat-card__value { font-size: 1.35rem; font-weight: 800; color: #111827; line-height: 1; }
-.stat-card__label { font-size: 0.7rem; color: #6b7280; margin-top: 0.15rem; font-weight: 500; }
 
 /* ── Toolbar ────────────────────────────────────────────── */
 .rpt-toolbar {

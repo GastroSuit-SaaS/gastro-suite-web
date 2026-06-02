@@ -6,6 +6,7 @@ const props = defineProps({
     visible:    { type: Boolean, default: false },
     edit:       { type: Boolean, default: false },
     product:    { type: Object,  default: null  },
+    /** { label, value } con value = categoryId */
     categories: { type: Array,   default: () => [] },
 })
 
@@ -32,11 +33,11 @@ const form = reactive({
     minStock:    0,
     maxStock:    null,
     unit:        'unidad',
-    category:    '',
+    categoryId:  null,
     isActive:    true,
 })
 
-const errors = reactive({ name: false, sku: false, price: false })
+const errors = reactive({ name: false, sku: false, price: false, categoryId: false })
 
 watch(() => props.visible, (val) => {
     if (val) {
@@ -50,11 +51,12 @@ watch(() => props.visible, (val) => {
         form.minStock    = src?.minStock    ?? 0
         form.maxStock    = src?.maxStock    ?? null
         form.unit        = src?.unit        ?? 'unidad'
-        form.category    = src?.category    ?? ''
+        form.categoryId  = src?.categoryId  ?? null
         form.isActive    = src?.isActive    ?? true
         errors.name  = false
         errors.sku   = false
         errors.price = false
+        errors.categoryId = false
     }
 })
 
@@ -66,8 +68,9 @@ function onSave() {
     errors.name  = !form.name.trim()
     errors.sku   = !form.sku.trim()
     errors.price = form.price <= 0
+    errors.categoryId = !form.categoryId
 
-    if (errors.name || errors.sku || errors.price) return
+    if (errors.name || errors.sku || errors.price || errors.categoryId) return
 
     emit('product-saved', {
         name:        form.name.trim(),
@@ -75,11 +78,11 @@ function onSave() {
         sku:         form.sku.trim(),
         price:       form.price,
         cost:        form.cost,
-        stock:       form.stock,
+        stock:       props.edit ? undefined : form.stock,
         minStock:    form.minStock,
         maxStock:    form.maxStock,
         unit:        form.unit,
-        category:    form.category,
+        categoryId:  form.categoryId,
         isActive:    form.isActive,
     })
     emit('update:visible', false)
@@ -169,7 +172,15 @@ function onSave() {
                 <div class="flex gap-3">
                     <div class="flex flex-column gap-2 flex-1">
                         <label class="text-sm font-medium" style="color: #374151;">Stock actual</label>
-                        <pv-input-number v-model="form.stock" :min="0" class="w-full" />
+                        <pv-input-number
+                            v-model="form.stock"
+                            :min="0"
+                            class="w-full"
+                            :disabled="edit"
+                        />
+                        <small v-if="edit" class="text-color-secondary">
+                            El stock se ajusta con movimientos de entrada o salida.
+                        </small>
                     </div>
                     <div class="flex flex-column gap-2 flex-1">
                         <label class="text-sm font-medium" style="color: #374151;">Stock mínimo</label>
@@ -183,16 +194,21 @@ function onSave() {
 
                 <!-- Categoría -->
                 <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Categoría</label>
+                    <label class="text-sm font-medium" style="color: #374151;">
+                        Categoría <span class="text-red-500">*</span>
+                    </label>
                     <pv-select
-                        v-model="form.category"
-                        :options="categories.map(c => ({ label: c, value: c }))"
+                        v-model="form.categoryId"
+                        :options="categories"
                         option-label="label"
                         option-value="value"
-                        editable
                         class="w-full"
-                        placeholder="Selecciona o escribe"
+                        placeholder="Selecciona categoría"
+                        :invalid="errors.categoryId"
                     />
+                    <small v-if="errors.categoryId" class="text-red-500">
+                        La categoría es obligatoria (créala en la pestaña Categorías si no existe).
+                    </small>
                 </div>
 
                 <!-- Descripción -->

@@ -157,7 +157,7 @@ export const useIamStore = defineStore('iam', () => {
         const empresaId = currentUser.value.empresaId ?? companyId.value;
         if (!empresaId) {
             employeeLinkStatus.value  = 'missing_company';
-            employeeLinkMessage.value = 'Tu usuario no tiene empresa asociada. No se pueden registrar cobros ni movimientos de caja.';
+            employeeLinkMessage.value = 'Tu usuario no tiene empresa asociada. No se pueden registrar cobros, movimientos de caja ni inventario.';
             return { ok: false, reason: 'missing_company' };
         }
 

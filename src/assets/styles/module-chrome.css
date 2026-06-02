@@ -52,7 +52,8 @@
 .module-tab-bar--sticky {
     position: sticky;
     top: 0;
-    z-index: var(--z-sticky);
+    z-index: var(--z-module-chrome);
+    background: var(--module-surface-bg);
 }
 
 /* ── Botón de tab ─────────────────────────────────────────────────────────── */
@@ -227,4 +228,128 @@
     background: #f8fafc !important;
     border-top: 1px solid var(--module-surface-border) !important;
     color: #475569 !important;
+}
+
+/* ── Stat chips — resumen compacto (Mesas, Inventario, Pagos, POS, Reportes) ─ */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+}
+
+.stat-chip__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.stat-chip--btn {
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.stat-chip--btn:hover {
+    background: #f3f4f6;
+}
+
+.stat-chip__label {
+    font-size: 0.78rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.stat-chip__value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+/** Valores con acento — tonos 700+ legibles sobre chip blanco (#fff) */
+.stat-chip__value--money {
+    color: #1e40af;
+}
+
+.stat-chip__value--success {
+    color: #047857;
+}
+
+.stat-chip__value--warning {
+    color: #b45309;
+}
+
+.stat-chip__value--danger {
+    color: #b91c1c;
+}
+
+.stat-chip__value--info {
+    color: #1d4ed8;
+}
+
+.stat-chip__value--indigo {
+    color: #4338ca;
+}
+
+.stat-chip__value--purple {
+    color: #6d28d9;
+}
+
+.stat-chip__value--violet {
+    color: #5b21b6;
+}
+
+.stat-chip__sub {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #4338ca;
+}
+
+.stat-chip--active-green {
+    background: #dcfce7 !important;
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 2px #bbf7d0;
+}
+
+.stat-chip--active-orange {
+    background: #ffedd5 !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 2px #fed7aa;
+}
+
+.stat-chip--active-red {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px #fecaca;
+}
+
+.stat-chip--active-blue {
+    background: #dbeafe !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.stat-chip--active-purple {
+    background: #ede9fe !important;
+    border-color: #7c3aed !important;
+    box-shadow: 0 0 0 2px #ddd6fe;
+}
+
+.stat-chip--active-indigo {
+    background: #eef2ff !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px #e0e7ff;
 }

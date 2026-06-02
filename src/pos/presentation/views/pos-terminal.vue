@@ -86,19 +86,19 @@ onMounted(() => {
             @retry="posStore.fetchAll()"
         >
 
-        <!-- -- Stat cards (siempre visibles) ----------------------------- -->
-        <div class="flex flex-wrap gap-3">
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <span class="text-sm text-color-secondary">Ordenes Activas</span>
-                <span class="text-4xl font-bold text-color">{{ posStore.activeOrders.length }}</span>
+        <!-- -- Resumen compacto (chips) ----------------------------- -->
+        <div class="stat-row">
+            <div class="stat-chip">
+                <span class="stat-chip__label">Órdenes activas</span>
+                <span class="stat-chip__value">{{ posStore.activeOrders.length }}</span>
             </div>
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <span class="text-sm text-color-secondary">Total en Proceso</span>
-                <span class="text-4xl font-bold text-primary">S/ {{ posStore.totalInProcess.toFixed(2) }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__label">Total en proceso</span>
+                <span class="stat-chip__value stat-chip__value--money">S/ {{ posStore.totalInProcess.toFixed(2) }}</span>
             </div>
-            <div class="stat-card flex flex-column gap-2 p-3 surface-card border-1 surface-border border-round-lg flex-1">
-                <span class="text-sm text-color-secondary">Mesas Ocupadas</span>
-                <span class="text-4xl font-bold text-color">{{ posStore.occupiedTables.length }}</span>
+            <div class="stat-chip">
+                <span class="stat-chip__label">Mesas ocupadas</span>
+                <span class="stat-chip__value">{{ posStore.occupiedTables.length }}</span>
             </div>
         </div>
 
@@ -284,8 +284,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.stat-card { min-width: 160px; }
-
 /* Loading/Error states handled by shared ModuleStateFeedback component */
 
 /* -- Empty state ----------------------------------------------------------- */
@@ -413,9 +411,6 @@ onMounted(() => {
 
 /* -- Responsive: = 640px --------------------------------------------------- */
 @media (max-width: 640px) {
-    /* Stat cards: reduce min-width so 3 fit on small screens */
-    .stat-card { min-width: 100px; flex: 1 1 100px; }
-
     /* Zone grid: single column on small phones */
     .zone-grid { grid-template-columns: 1fr; }
 
