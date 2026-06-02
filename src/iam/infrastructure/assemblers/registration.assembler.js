@@ -1,13 +1,6 @@
 /**
- * Mapeo del wizard de registro → DTOs del API (companies, auth, employees support).
+ * Mapeo del wizard de registro → DTOs del API (companies, auth).
  */
-
-const DOCUMENT_TYPE_MAP = {
-    DNI: 'DNI',
-    CE: 'CE',
-    RUC: 'RUC',
-    Pasaporte: 'PASAPORTE',
-};
 
 export class RegistrationAssembler {
 
@@ -32,18 +25,4 @@ export class RegistrationAssembler {
         };
     }
 
-    static toCreateEmployeeRequest(companyId, userId, usuario) {
-        const docType = DOCUMENT_TYPE_MAP[usuario.tipoDocumento] ?? usuario.tipoDocumento;
-        return {
-            companyId,
-            userId,
-            branchId: null,
-            employeeName: usuario.nombres,
-            employeeSurname: usuario.apellidos,
-            employeeEmail: usuario.email,
-            employeeDocumentType: docType,
-            employeeDocumentNumber: usuario.numeroDocumento,
-            employeePhoneNumber: usuario.telefono,
-        };
-    }
 }

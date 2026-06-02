@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class InventoryApi extends BaseApi {
     #products;
@@ -8,9 +9,9 @@ export class InventoryApi extends BaseApi {
 
     constructor() {
         super();
-        this.#products    = new BaseEndpoint(this, import.meta.env.VITE_INVENTORY_ENDPOINT ?? '/inventory/products');
-        this.#categories  = new BaseEndpoint(this, '/inventory/categories');
-        this.#movements   = new BaseEndpoint(this, '/inventory/movements');
+        this.#products    = new BaseEndpoint(this, apiEnv.inventoryProducts);
+        this.#categories  = new BaseEndpoint(this, apiEnv.inventoryCategories);
+        this.#movements   = new BaseEndpoint(this, apiEnv.inventoryMovements);
     }
 
     listProductsByBranch(branchId, params) {

@@ -1,12 +1,13 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class ReportsApi extends BaseApi {
     #crud;
 
     constructor() {
         super();
-        this.#crud = new BaseEndpoint(this, import.meta.env.VITE_REPORTS_ENDPOINT ?? '/reports');
+        this.#crud = new BaseEndpoint(this, apiEnv.reports);
     }
 
     listByBranch(branchId, params) {

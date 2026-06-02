@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class MenuApi extends BaseApi {
     #items;
@@ -7,8 +8,8 @@ export class MenuApi extends BaseApi {
 
     constructor() {
         super();
-        this.#items = new BaseEndpoint(this, import.meta.env.VITE_MENU_ENDPOINT ?? '/menu-items');
-        this.#categories = new BaseEndpoint(this, import.meta.env.VITE_CATEGORIES_ENDPOINT ?? '/menu-categories');
+        this.#items = new BaseEndpoint(this, apiEnv.menuItems);
+        this.#categories = new BaseEndpoint(this, apiEnv.menuCategories);
     }
 
     listItemsByBranch(branchId, params) {

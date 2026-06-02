@@ -1,12 +1,13 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class PaymentsApi extends BaseApi {
     #crud;
 
     constructor() {
         super();
-        this.#crud = new BaseEndpoint(this, import.meta.env.VITE_PAYMENTS_ENDPOINT ?? '/payments');
+        this.#crud = new BaseEndpoint(this, apiEnv.payments);
     }
 
     listByBranch(branchId, params) {

@@ -1,12 +1,13 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class ReservationsApi extends BaseApi {
     #root;
 
     constructor() {
         super();
-        this.#root = new BaseEndpoint(this, import.meta.env.VITE_PLATFORM_API_URL ?? '');
+        this.#root = new BaseEndpoint(this, '');
     }
 
     listByBranch(branchId, date) {
@@ -19,11 +20,11 @@ export class ReservationsApi extends BaseApi {
     }
 
     cancel(reservationId) {
-        return this.#root.postAt(`/reservations/${reservationId}/cancel`, {});
+        return this.#root.postAt(`${apiEnv.reservations}/${reservationId}/cancel`, {});
     }
 
     checkIn(reservationId, body = {}) {
-        return this.#root.postAt(`/reservations/${reservationId}/check-in`, body);
+        return this.#root.postAt(`${apiEnv.reservations}/${reservationId}/check-in`, body);
     }
 }
 

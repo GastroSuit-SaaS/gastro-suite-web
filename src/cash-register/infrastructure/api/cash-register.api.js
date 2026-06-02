@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class CashRegisterApi extends BaseApi {
     #movements;
@@ -7,8 +8,8 @@ export class CashRegisterApi extends BaseApi {
 
     constructor() {
         super();
-        this.#movements = new BaseEndpoint(this, import.meta.env.VITE_CASH_REGISTER_ENDPOINT ?? '/cash-register/movements');
-        this.#sessions  = new BaseEndpoint(this, import.meta.env.VITE_CASH_REGISTER_SESSIONS_ENDPOINT ?? '/cash-register/sessions');
+        this.#movements = new BaseEndpoint(this, apiEnv.cashMovements);
+        this.#sessions  = new BaseEndpoint(this, apiEnv.cashSessions);
     }
 
     listSessionsByBranch(branchId, params) {

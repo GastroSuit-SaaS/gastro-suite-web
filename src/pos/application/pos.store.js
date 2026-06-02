@@ -28,6 +28,7 @@ import {
     loadPosOpsReadCache,
     savePosOpsReadCache,
 } from '../../shared/infrustructure/offline/read-cache.js';
+import { apiEnv } from '../../shared/infrustructure/env.js';
 
 const api = new PosApi();
 const ITEM_SYNC_DEBOUNCE_MS = 450;
@@ -65,9 +66,7 @@ export const usePosStore = defineStore('pos', () => {
     /** Todos los tickets de la venta (incl. entregados) para enlazar cada línea con su ticket. */
     const kitchenTicketsAll       = ref([]);
     /** Alineado con gastro-suite.pos.billable-requires-sent (API). */
-    const billableRequiresSent    = ref(
-        import.meta.env.VITE_POS_BILLABLE_REQUIRES_SENT !== 'false',
-    );
+    const billableRequiresSent    = ref(apiEnv.posBillableRequiresSent);
 
     // ── Getters ───────────────────────────────────────────────────────────
     const activeOrders   = computed(() => sales.value.filter(s => s.status === SALE_STATUS.ACTIVE));

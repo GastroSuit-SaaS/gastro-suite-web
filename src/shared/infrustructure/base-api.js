@@ -2,9 +2,9 @@ import axios from 'axios';
 import { getActivePinia } from 'pinia';
 import { clearAllAppLocalStorage, SESSION_KEYS } from './session-storage.js';
 import { resetApplicationStores } from '../application/reset-application-stores.js';
+import { getPlatformApiUrl } from './env.js';
 
-const platformApi =
-    import.meta.env.VITE_PLATFORM_API_URL || 'https://gastro-api-preprod-production-1ece.up.railway.app/api/v1';
+const platformApi = getPlatformApiUrl();
 
 
 /** Rutas que no deben llevar JWT (login/registro). */  

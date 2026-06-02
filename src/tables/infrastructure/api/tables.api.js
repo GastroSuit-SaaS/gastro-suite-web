@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 import { TableAssembler } from '../assemblers/table.assembler.js';
 
 export class TablesApi extends BaseApi {
@@ -8,8 +9,8 @@ export class TablesApi extends BaseApi {
 
     constructor() {
         super();
-        this.#tables = new BaseEndpoint(this, import.meta.env.VITE_TABLES_ENDPOINT ?? '/tables');
-        this.#zones  = new BaseEndpoint(this, import.meta.env.VITE_ZONES_ENDPOINT ?? '/zones');
+        this.#tables = new BaseEndpoint(this, apiEnv.tables);
+        this.#zones  = new BaseEndpoint(this, apiEnv.zones);
     }
 
     listZonesByBranch(branchId) {

@@ -11,14 +11,14 @@
 
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class DashboardApi extends BaseApi {
     #endpoint;
 
     constructor() {
         super();
-        // TODO: set the correct environment variable for this endpoint path
-        this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_DASHBOARD_ENDPOINT ?? '/dashboard');
+        this.#endpoint = new BaseEndpoint(this, apiEnv.dashboard);
     }
 
     getAll() {

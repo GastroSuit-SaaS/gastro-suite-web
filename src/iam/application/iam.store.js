@@ -199,11 +199,11 @@ export const useIamStore = defineStore('iam', () => {
     }
 
     /**
-     * Onboarding OWNER (perfil dev en API):
+     * Onboarding OWNER:
      * 1. POST /companies
-     * 2. POST /support/auth/sign-up
-     * 3. POST /auth/sign-in (empleado + companyId en JWT)
-     * 4. POST /support/employees (vincular userId ↔ companyId)
+     * 2. POST /auth/sign-up
+     * 3. POST /auth/sign-in
+     * 4. POST /auth/ensure-employee (vincular usuario ↔ empresa)
      * @param {{ empresa: import('../domain/models/empresa-registration.vo.js').EmpresaRegistration, usuario: import('../domain/models/usuario-registration.vo.js').UsuarioRegistration }} payload
      */
     async function register(payload) {
@@ -242,11 +242,20 @@ export const useIamStore = defineStore('iam', () => {
                 );
             }
 
-            await api.createOwnerEmployee(
-                RegistrationAssembler.toCreateEmployeeRequest(companyId, userId, usuario)
-            );
-
-            await ensureEmployeeLink();
+            const linkRes = await api.ensureEmployeeLink({
+                companyId,
+                branchId: null,
+                nombres: usuario.nombres,
+                apellidos: usuario.apellidos,
+                email: usuario.email,
+            });
+            const linked = linkRes.data;
+            if (linked?.employeeId) {
+                _setUser(UserAssembler.toEntityFromSignInResponse({
+                    ...linked,
+                    token: token.value,
+                }));
+            }
 
             if (currentUser.value) {
                 _setUser(new User({

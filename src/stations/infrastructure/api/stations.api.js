@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class StationsApi extends BaseApi {
     #stations;
@@ -7,8 +8,8 @@ export class StationsApi extends BaseApi {
 
     constructor() {
         super();
-        this.#stations = new BaseEndpoint(this, import.meta.env.VITE_STATIONS_ENDPOINT ?? '/stations');
-        this.#tickets  = new BaseEndpoint(this, import.meta.env.VITE_TICKETS_ENDPOINT ?? '/pos/tickets');
+        this.#stations = new BaseEndpoint(this, apiEnv.stations);
+        this.#tickets  = new BaseEndpoint(this, apiEnv.posTickets);
     }
 
     listStationsByBranch(branchId) {

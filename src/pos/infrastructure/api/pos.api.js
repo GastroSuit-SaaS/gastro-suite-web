@@ -1,5 +1,6 @@
 import { BaseApi } from '../../../shared/infrustructure/base-api.js';
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrustructure/env.js';
 
 export class PosApi extends BaseApi {
     #sales;
@@ -7,8 +8,8 @@ export class PosApi extends BaseApi {
 
     constructor() {
         super();
-        this.#sales = new BaseEndpoint(this, import.meta.env.VITE_POS_ENDPOINT ?? '/pos/sales');
-        this.#tickets = new BaseEndpoint(this, import.meta.env.VITE_TICKETS_ENDPOINT ?? '/pos/tickets');
+        this.#sales = new BaseEndpoint(this, apiEnv.posSales);
+        this.#tickets = new BaseEndpoint(this, apiEnv.posTickets);
     }
 
     listByBranch(branchId, params) {
@@ -52,7 +53,7 @@ export class PosApi extends BaseApi {
     }
 
     getOperationsConfig() {
-        return this.http.get('/pos/operations-config');
+        return this.http.get(apiEnv.posOperationsConfig);
     }
 }
 

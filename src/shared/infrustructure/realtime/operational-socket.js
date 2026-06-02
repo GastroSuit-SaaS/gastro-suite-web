@@ -1,5 +1,6 @@
 import { Client } from '@stomp/stompjs';
 import { SESSION_KEYS } from '../session-storage.js';
+import { apiEnv, getPlatformApiUrl } from '../env.js';
 import {
     OPERATIONAL_CHANNELS,
     operationalTopic,
@@ -9,10 +10,9 @@ import {
 const DEFAULT_WS_URL = 'ws://localhost:8080/ws/operational';
 
 function resolveWsUrl() {
-    const explicit = import.meta.env.VITE_WS_OPERATIONAL_URL;
-    if (explicit) return explicit;
+    if (apiEnv.wsOperationalUrl) return apiEnv.wsOperationalUrl;
 
-    const api = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api/v1';
+    const api = getPlatformApiUrl();
     try {
         const url = new URL(api);
         const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
