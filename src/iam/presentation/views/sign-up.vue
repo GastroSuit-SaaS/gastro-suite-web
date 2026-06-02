@@ -1,9 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../application/iam.store.js'
 import { IAM_ROUTES } from '../iam.routes.js'
 import { SIGN_UP_STEPS } from '../constants/iam.constants-ui.js'
+import {
+    loadSignUpDraft,
+    saveSignUpDraft,
+    clearSignUpDraft,
+    applySignUpDraftToForm,
+} from '../../infrastructure/sign-up-draft.js'
 import IamBranding          from '../components/iam-branding.vue'
 import SignUpStepper        from '../components/sign-up-stepper.vue'
 import SignUpStepEmpresa    from '../components/sign-up-step-empresa.vue'
@@ -20,7 +26,7 @@ const currentStep = ref(1)
 const stepEmpresa  = ref()
 const stepUsuario  = ref()
 
-/** Snapshot del wizard: el paso 1 se desmonta con v-if al ir al paso 2. */
+/** Snapshots usados al registrar y en el paso final. */
 const draftEmpresa = ref(null)
 const draftUsuario = ref(null)
 
@@ -47,34 +53,81 @@ function snapshotUsuario(data) {
     }
 }
 
+/** Lee formularios montados (v-show) y persiste borrador en sessionStorage. */
+function syncDraftFromSteps() {
+    if (stepEmpresa.value?.data) {
+        draftEmpresa.value = snapshotEmpresa(stepEmpresa.value.data)
+    }
+    if (stepUsuario.value?.data) {
+        draftUsuario.value = snapshotUsuario(stepUsuario.value.data)
+    }
+    saveSignUpDraft({
+        currentStep: currentStep.value,
+        empresa: draftEmpresa.value,
+        usuario: draftUsuario.value,
+    })
+}
+
+function restoreDraftFromStorage() {
+    const saved = loadSignUpDraft()
+    if (!saved) return
+
+    if (saved.empresa) {
+        draftEmpresa.value = saved.empresa
+        applySignUpDraftToForm(stepEmpresa.value?.data, saved.empresa)
+    }
+    if (saved.usuario) {
+        draftUsuario.value = saved.usuario
+        applySignUpDraftToForm(stepUsuario.value?.data, saved.usuario)
+    }
+    if (saved.currentStep >= 1 && saved.currentStep <= SIGN_UP_STEPS.length - 1) {
+        currentStep.value = saved.currentStep
+    }
+}
+
+onMounted(async () => {
+    await nextTick()
+    restoreDraftFromStorage()
+    window.addEventListener('beforeunload', syncDraftFromSteps)
+})
+
+onBeforeUnmount(() => {
+    window.removeEventListener('beforeunload', syncDraftFromSteps)
+    if (currentStep.value < SIGN_UP_STEPS.length) {
+        syncDraftFromSteps()
+    }
+})
+
 // ── Navegación ────────────────────────────────────────────
 async function nextStep() {
     const stepRefs = [stepEmpresa, stepUsuario]
     const currentRef = stepRefs[currentStep.value - 1]
     if (currentRef?.value && !currentRef.value.validate()) return
 
-    if (currentStep.value === 1 && stepEmpresa.value?.data) {
-        draftEmpresa.value = snapshotEmpresa(stepEmpresa.value.data)
-    }
+    syncDraftFromSteps()
 
-    // Paso 2 → 3: registrar (empresa ya guardada en draftEmpresa)
+    // Paso 2 → 3: registrar
     if (currentStep.value === SIGN_UP_STEPS.length - 1) {
         iamStore.clearAuthError()
-        if (stepUsuario.value?.data) {
-            draftUsuario.value = snapshotUsuario(stepUsuario.value.data)
-        }
         const ok = await iamStore.register({
             empresa: draftEmpresa.value,
             usuario: draftUsuario.value,
         })
         if (!ok) return
+        clearSignUpDraft()
     }
 
     currentStep.value++
+    if (currentStep.value < SIGN_UP_STEPS.length) {
+        syncDraftFromSteps()
+    }
 }
 
 function prevStep() {
-    if (currentStep.value > 1) currentStep.value--
+    if (currentStep.value <= 1) return
+    syncDraftFromSteps()
+    currentStep.value--
+    syncDraftFromSteps()
 }
 
 // ── Resumen para el step final ────────────────────────────
@@ -115,16 +168,14 @@ const summaryUsuarioNombre = computed(() => {
                     <span>{{ iamStore.error }}</span>
                 </div>
 
-                <!-- Contenido del paso actual -->
+                <!-- Pasos 1 y 2: v-show mantiene el estado al ir atrás/adelante -->
                 <div class="mb-4">
-                    <sign-up-step-empresa
-                        v-if="currentStep === 1"
-                        ref="stepEmpresa"
-                    />
-                    <sign-up-step-usuario
-                        v-if="currentStep === 2"
-                        ref="stepUsuario"
-                    />
+                    <div v-show="currentStep === 1">
+                        <sign-up-step-empresa ref="stepEmpresa" />
+                    </div>
+                    <div v-show="currentStep === 2">
+                        <sign-up-step-usuario ref="stepUsuario" />
+                    </div>
                     <sign-up-step-finalizado
                         v-if="currentStep === 3"
                         :empresa-nombre="summaryEmpresaNombre"

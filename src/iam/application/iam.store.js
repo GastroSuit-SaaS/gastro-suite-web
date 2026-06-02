@@ -260,8 +260,8 @@ export const useIamStore = defineStore('iam', () => {
             const status = err?.response?.status;
             if (err?.message && !err?.response) {
                 error.value = err.message;
-            } else if (status === 409) {
-                error.value = 'El usuario o la empresa ya están registrados.';
+            } else if (status === 409 || getApiErrorCode(err) === 'CMP_ERROR') {
+                error.value = getApiErrorMessage(err, 'El RUC o la razón social ya están registrados.');
             } else if (status === 400) {
                 error.value = getApiErrorMessage(err, 'Revisa los datos del formulario.');
             } else if (status === 401) {
