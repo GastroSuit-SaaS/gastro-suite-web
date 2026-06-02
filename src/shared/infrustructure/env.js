@@ -5,11 +5,11 @@
 
 const DEV_PLATFORM_API = 'http://localhost:8080/api/v1';
 
-function readEnv(key, devFallback = '') {
+/** Valor de VITE_* o default embebido (local y producción si falta la variable en CI). */
+function readEnv(key, defaultValue = '') {
     const value = import.meta.env[key];
     if (value !== undefined && value !== '') return value;
-    if (import.meta.env.DEV) return devFallback;
-    return '';
+    return defaultValue;
 }
 
 export function getPlatformApiUrl() {

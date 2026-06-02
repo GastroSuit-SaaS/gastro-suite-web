@@ -111,7 +111,10 @@ export const useIamStore = defineStore('iam', () => {
             return true;
         } catch (err) {
             const status = err?.response?.status;
-            error.value = status === 401
+            const code = getApiErrorCode(err);
+            const invalidCredentials = status === 401
+                || (status === 400 && code === 'USR_ERROR');
+            error.value = invalidCredentials
                 ? 'Usuario o contraseña incorrectos.'
                 : getApiErrorMessage(
                     err,
