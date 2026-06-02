@@ -4,8 +4,10 @@ import { IamApi } from '../infrastructure/api/iam.api.js';
 import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
 import { RegistrationAssembler } from '../infrastructure/assemblers/registration.assembler.js';
 import { User } from '../domain/models/user.entity.js';
-import { SESSION_KEYS, clearSessionStorage } from '../../shared/infrustructure/session-storage.js';
+import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructure/session-storage.js';
 import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
+import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
+import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
 
 const api = new IamApi();
 
@@ -81,7 +83,8 @@ export const useIamStore = defineStore('iam', () => {
         _setBranch(null);
         employeeLinkStatus.value  = 'idle';
         employeeLinkMessage.value = null;
-        clearSessionStorage();
+        clearAllAppLocalStorage();
+        clearSignUpDraft();
     }
 
     async function signIn(credentials) {
@@ -125,6 +128,7 @@ export const useIamStore = defineStore('iam', () => {
 
     async function logout() {
         error.value = null;
+        resetOperationalSocketClient();
         _clearSession();
     }
 

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getActivePinia } from 'pinia';
-import { clearSessionStorage, SESSION_KEYS } from './session-storage.js';
+import { clearAllAppLocalStorage, SESSION_KEYS } from './session-storage.js';
 
 const platformApi =
     import.meta.env.VITE_PLATFORM_API_URL || 'https://gastro-api-preprod-production-1ece.up.railway.app/api/v1';
@@ -63,7 +63,7 @@ export class BaseApi {
               iam.error = null;
             });
           } else {
-            clearSessionStorage();
+            clearAllAppLocalStorage();
           }
 
           const path = window.location?.pathname ?? '';

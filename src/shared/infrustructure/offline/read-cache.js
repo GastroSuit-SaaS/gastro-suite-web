@@ -1,4 +1,5 @@
-const PREFIX = 'gastro_suite_read_cache_';
+export const READ_CACHE_PREFIX = 'gastro_suite_read_cache_';
+const PREFIX = READ_CACHE_PREFIX;
 
 function key(branchId, domain) {
     return `${PREFIX}${domain}_${branchId}`;
@@ -62,4 +63,14 @@ export function savePosOpsReadCache(branchId, config) {
 export function loadPosOpsReadCache(branchId) {
     const data = read(branchId, 'pos_ops');
     return data?.config ?? null;
+}
+
+/** Elimina todas las entradas de caché de lectura (menú, mesas, POS, etc.). */
+export function clearAllReadCaches() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(PREFIX)) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
 }
