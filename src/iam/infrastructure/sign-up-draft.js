@@ -39,15 +39,3 @@ export function saveSignUpDraft(draft) {
 export function clearSignUpDraft() {
     sessionStorage.removeItem(STORAGE_KEY);
 }
-
-/**
- * Copia campos planos sobre un objeto reactivo del paso.
- * @param {object} target
- * @param {object|null|undefined} source
- */
-export function applySignUpDraftToForm(target, source) {
-    if (!target || !source) return;
-    Object.keys(source).forEach((key) => {
-        if (key in target) target[key] = source[key];
-    });
-}

@@ -6,21 +6,21 @@ import { TIPOS_DOCUMENTO } from '../constants/peru-geo.constants.js'
 /**
  * SignUpStepUsuario — Step 2: Usuario administrador principal (OWNER).
  *
- * Expone:
- *   validate() → boolean         — valida y actualiza errores, retorna true si OK
- *   data       → UsuarioRegistration — estado actual del formulario
+ * form — objeto reactivo del padre (misma referencia en inputs y borrador).
  */
+const props = defineProps({
+    form: { type: Object, required: true },
+})
 
-const data   = reactive(new UsuarioRegistration())
 const errors = reactive(Object.fromEntries(Object.keys(new UsuarioRegistration().validate()).map(k => [k, false])))
 
 function validate() {
-    const result = data.validate()
+    const result = new UsuarioRegistration(props.form).validate()
     Object.assign(errors, result)
     return Object.values(result).every(v => !v)
 }
 
-defineExpose({ validate, data })
+defineExpose({ validate })
 </script>
 
 <template>
@@ -37,7 +37,7 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Nombres <span class="text-red-500">*</span></label>
                     <pv-input-text
-                        v-model="data.nombres"
+                        v-model="form.nombres"
                         placeholder="María"
                         :invalid="errors.nombres"
                         class="w-full"
@@ -47,7 +47,7 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Apellidos <span class="text-red-500">*</span></label>
                     <pv-input-text
-                        v-model="data.apellidos"
+                        v-model="form.apellidos"
                         placeholder="García"
                         :invalid="errors.apellidos"
                         class="w-full"
@@ -62,11 +62,11 @@ defineExpose({ validate, data })
                 <pv-icon-field>
                     <pv-input-icon class="pi pi-user" />
                     <pv-input-text
-                        v-model="data.username"
+                        v-model="form.username"
                         placeholder="maria.garcia"
                         :invalid="errors.username"
                         class="w-full"
-                        @input="data.username = data.username.toLowerCase().replace(/[^a-z0-9._-]/g, '')"
+                        @input="form.username = form.username.toLowerCase().replace(/[^a-z0-9._-]/g, '')"
                     />
                 </pv-icon-field>
                 <small class="text-color-secondary">
@@ -81,7 +81,7 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Tipo de Documento <span class="text-red-500">*</span></label>
                     <pv-select
-                        v-model="data.tipoDocumento"
+                        v-model="form.tipoDocumento"
                         :options="TIPOS_DOCUMENTO"
                         placeholder="DNI"
                         :invalid="errors.tipoDocumento"
@@ -92,11 +92,11 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Número de Documento <span class="text-red-500">*</span></label>
                     <pv-input-text
-                        v-model="data.numeroDocumento"
+                        v-model="form.numeroDocumento"
                         placeholder="12345678"
                         :invalid="errors.numeroDocumento"
                         class="w-full"
-                        @input="data.numeroDocumento = data.numeroDocumento.replace(/\D/g, '')"
+                        @input="form.numeroDocumento = form.numeroDocumento.replace(/\D/g, '')"
                     />
                     <small v-if="errors.numeroDocumento" class="text-red-500">El número de documento es requerido</small>
                 </div>
@@ -109,7 +109,7 @@ defineExpose({ validate, data })
                     <pv-icon-field>
                         <pv-input-icon class="pi pi-envelope" />
                         <pv-input-text
-                            v-model="data.email"
+                            v-model="form.email"
                             placeholder="admin@empresa.pe"
                             type="email"
                             :invalid="errors.email"
@@ -123,7 +123,7 @@ defineExpose({ validate, data })
                     <pv-icon-field>
                         <pv-input-icon class="pi pi-phone" />
                         <pv-input-text
-                            v-model="data.telefono"
+                            v-model="form.telefono"
                             placeholder="+51 987 654 321"
                             :invalid="errors.telefono"
                             class="w-full"
@@ -138,7 +138,7 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Contraseña <span class="text-red-500">*</span></label>
                     <pv-password
-                        v-model="data.password"
+                        v-model="form.password"
                         placeholder="Mínimo 8 caracteres"
                         toggle-mask
                         :invalid="errors.password"
@@ -153,7 +153,7 @@ defineExpose({ validate, data })
                 <div class="flex flex-column gap-1 flex-1">
                     <label class="font-semibold text-sm text-color">Confirmar Contraseña <span class="text-red-500">*</span></label>
                     <pv-password
-                        v-model="data.confirmPassword"
+                        v-model="form.confirmPassword"
                         placeholder="Repite tu contraseña"
                         toggle-mask
                         :feedback="false"

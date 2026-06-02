@@ -1,14 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useIamStore } from '../../application/iam.store.js'
 import { IAM_ROUTES } from '../iam.routes.js'
 import { SIGN_UP_STEPS } from '../constants/iam.constants-ui.js'
+import { EmpresaRegistration } from '../../domain/models/empresa-registration.vo.js'
+import { UsuarioRegistration } from '../../domain/models/usuario-registration.vo.js'
 import {
     loadSignUpDraft,
     saveSignUpDraft,
     clearSignUpDraft,
-    applySignUpDraftToForm,
 } from '../../infrastructure/sign-up-draft.js'
 import IamBranding          from '../components/iam-branding.vue'
 import SignUpStepper        from '../components/sign-up-stepper.vue'
@@ -19,16 +20,20 @@ import SignUpStepFinalizado from '../components/sign-up-step-finalizado.vue'
 const router   = useRouter()
 const iamStore = useIamStore()
 
-// ── Stepper ───────────────────────────────────────────────
-const currentStep = ref(1)
+const savedDraft = loadSignUpDraft()
 
-// ── Template refs para cada step component ────────────────
-const stepEmpresa  = ref()
-const stepUsuario  = ref()
+/** Estado compartido con los inputs — hidratado antes del primer render. */
+const formEmpresa = reactive(new EmpresaRegistration(savedDraft?.empresa ?? {}))
+const formUsuario = reactive(new UsuarioRegistration(savedDraft?.usuario ?? {}))
 
-/** Snapshots usados al registrar y en el paso final. */
-const draftEmpresa = ref(null)
-const draftUsuario = ref(null)
+const currentStep = ref(
+    savedDraft?.currentStep >= 1 && savedDraft?.currentStep <= SIGN_UP_STEPS.length - 1
+        ? savedDraft.currentStep
+        : 1,
+)
+
+const stepEmpresa = ref()
+const stepUsuario = ref()
 
 function snapshotEmpresa(data) {
     return {
@@ -53,65 +58,37 @@ function snapshotUsuario(data) {
     }
 }
 
-/** Lee formularios montados (v-show) y persiste borrador en sessionStorage. */
-function syncDraftFromSteps() {
-    if (stepEmpresa.value?.data) {
-        draftEmpresa.value = snapshotEmpresa(stepEmpresa.value.data)
-    }
-    if (stepUsuario.value?.data) {
-        draftUsuario.value = snapshotUsuario(stepUsuario.value.data)
-    }
+function persistDraft() {
     saveSignUpDraft({
         currentStep: currentStep.value,
-        empresa: draftEmpresa.value,
-        usuario: draftUsuario.value,
+        empresa: snapshotEmpresa(formEmpresa),
+        usuario: snapshotUsuario(formUsuario),
     })
 }
 
-function restoreDraftFromStorage() {
-    const saved = loadSignUpDraft()
-    if (!saved) return
-
-    if (saved.empresa) {
-        draftEmpresa.value = saved.empresa
-        applySignUpDraftToForm(stepEmpresa.value?.data, saved.empresa)
-    }
-    if (saved.usuario) {
-        draftUsuario.value = saved.usuario
-        applySignUpDraftToForm(stepUsuario.value?.data, saved.usuario)
-    }
-    if (saved.currentStep >= 1 && saved.currentStep <= SIGN_UP_STEPS.length - 1) {
-        currentStep.value = saved.currentStep
-    }
-}
-
-onMounted(async () => {
-    await nextTick()
-    restoreDraftFromStorage()
-    window.addEventListener('beforeunload', syncDraftFromSteps)
+onMounted(() => {
+    window.addEventListener('beforeunload', persistDraft)
 })
 
 onBeforeUnmount(() => {
-    window.removeEventListener('beforeunload', syncDraftFromSteps)
+    window.removeEventListener('beforeunload', persistDraft)
     if (currentStep.value < SIGN_UP_STEPS.length) {
-        syncDraftFromSteps()
+        persistDraft()
     }
 })
 
-// ── Navegación ────────────────────────────────────────────
 async function nextStep() {
     const stepRefs = [stepEmpresa, stepUsuario]
     const currentRef = stepRefs[currentStep.value - 1]
     if (currentRef?.value && !currentRef.value.validate()) return
 
-    syncDraftFromSteps()
+    persistDraft()
 
-    // Paso 2 → 3: registrar
     if (currentStep.value === SIGN_UP_STEPS.length - 1) {
         iamStore.clearAuthError()
         const ok = await iamStore.register({
-            empresa: draftEmpresa.value,
-            usuario: draftUsuario.value,
+            empresa: snapshotEmpresa(formEmpresa),
+            usuario: snapshotUsuario(formUsuario),
         })
         if (!ok) return
         clearSignUpDraft()
@@ -119,48 +96,36 @@ async function nextStep() {
 
     currentStep.value++
     if (currentStep.value < SIGN_UP_STEPS.length) {
-        syncDraftFromSteps()
+        persistDraft()
     }
 }
 
 function prevStep() {
     if (currentStep.value <= 1) return
-    syncDraftFromSteps()
+    persistDraft()
     currentStep.value--
-    syncDraftFromSteps()
 }
 
-// ── Resumen para el step final ────────────────────────────
-const summary = computed(() => ({
-    empresa: draftEmpresa.value ?? {},
-    usuario: draftUsuario.value ?? {},
-}))
-
-const summaryEmpresaNombre = computed(() => summary.value.empresa.nombreComercial ?? '')
-const summaryUsuarioNombre = computed(() => {
-    const u = summary.value.usuario
-    return [u.nombres, u.apellidos].filter(Boolean).join(' ')
-})
+const summaryEmpresaNombre = computed(() => formEmpresa.nombreComercial ?? '')
+const summaryUsuarioNombre = computed(() =>
+    [formUsuario.nombres, formUsuario.apellidos].filter(Boolean).join(' '),
+)
 </script>
 
 <template>
     <div class="flex flex-column md:flex-row w-full min-h-screen">
 
-        <!-- Panel izquierdo — Branding -->
         <iam-branding />
 
-        <!-- Panel derecho — Formulario multi-paso -->
         <div class="bg-surface flex flex-column align-items-center justify-content-start p-4 md:p-6 w-full md:w-6 md:h-screen overflow-y-auto">
 
             <div class="w-full form-container px-2 md:px-3">
 
-                <!-- Header -->
                 <div class="mb-5 text-center">
                     <h2 class="text-3xl md:text-4xl font-bold mb-1 text-color">Crear Cuenta</h2>
                     <p class="text-sm m-0 text-color-secondary">Registra tu restaurante en GastroSuite</p>
                 </div>
 
-                <!-- Stepper indicador -->
                 <sign-up-stepper :steps="SIGN_UP_STEPS" :current-step="currentStep" />
 
                 <div v-if="iamStore.error && currentStep < SIGN_UP_STEPS.length" class="register-error mb-3">
@@ -168,13 +133,12 @@ const summaryUsuarioNombre = computed(() => {
                     <span>{{ iamStore.error }}</span>
                 </div>
 
-                <!-- Pasos 1 y 2: v-show mantiene el estado al ir atrás/adelante -->
                 <div class="mb-4">
                     <div v-show="currentStep === 1">
-                        <sign-up-step-empresa ref="stepEmpresa" />
+                        <sign-up-step-empresa ref="stepEmpresa" :form="formEmpresa" />
                     </div>
                     <div v-show="currentStep === 2">
-                        <sign-up-step-usuario ref="stepUsuario" />
+                        <sign-up-step-usuario ref="stepUsuario" :form="formUsuario" />
                     </div>
                     <sign-up-step-finalizado
                         v-if="currentStep === 3"
@@ -183,7 +147,6 @@ const summaryUsuarioNombre = computed(() => {
                     />
                 </div>
 
-                <!-- Navegación (oculta en el step final) -->
                 <div v-if="currentStep < SIGN_UP_STEPS.length" class="flex gap-3 mt-4">
                     <pv-button
                         v-if="currentStep > 1"
@@ -205,7 +168,6 @@ const summaryUsuarioNombre = computed(() => {
                     />
                 </div>
 
-                <!-- Ir a iniciar sesión -->
                 <div v-if="currentStep < SIGN_UP_STEPS.length" class="text-center mt-4">
                     <p class="text-sm text-color-secondary m-0">
                         ¿Ya tienes una cuenta?
@@ -215,7 +177,6 @@ const summaryUsuarioNombre = computed(() => {
                     </p>
                 </div>
 
-                <!-- Footer -->
                 <div class="text-center pt-4 pb-2">
                     <p class="text-xs text-color-secondary m-0">
                         &copy; {{ new Date().getFullYear() }} Metasoft Solutions. Todos los derechos reservados.

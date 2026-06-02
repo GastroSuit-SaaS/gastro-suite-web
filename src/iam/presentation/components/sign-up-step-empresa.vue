@@ -5,21 +5,21 @@ import { EmpresaRegistration } from '../../domain/models/empresa-registration.vo
 /**
  * SignUpStepEmpresa — Step 1: Datos de la empresa.
  *
- * Expone:
- *   validate() → boolean  — valida y actualiza errores, retorna true si OK
- *   data       → EmpresaRegistration — estado actual del formulario
+ * form — objeto reactivo del padre (misma referencia en inputs y borrador).
  */
+const props = defineProps({
+    form: { type: Object, required: true },
+})
 
-const data   = reactive(new EmpresaRegistration())
 const errors = reactive(Object.fromEntries(Object.keys(new EmpresaRegistration().validate()).map(k => [k, false])))
 
 function validate() {
-    const result = data.validate()
+    const result = new EmpresaRegistration(props.form).validate()
     Object.assign(errors, result)
     return Object.values(result).every(v => !v)
 }
 
-defineExpose({ validate, data })
+defineExpose({ validate })
 </script>
 
 <template>
@@ -35,12 +35,12 @@ defineExpose({ validate, data })
             <div class="flex flex-column gap-1">
                 <label class="font-semibold text-sm text-color">RUC <span class="text-red-500">*</span></label>
                 <pv-input-text
-                    v-model="data.ruc"
+                    v-model="form.ruc"
                     placeholder="20123456789"
                     :invalid="errors.ruc"
                     class="w-full"
                     maxlength="11"
-                    @input="data.ruc = data.ruc.replace(/\D/g, '')"
+                    @input="form.ruc = form.ruc.replace(/\D/g, '')"
                 />
                 <small v-if="errors.ruc" class="text-red-500">El RUC debe tener 11 dígitos</small>
             </div>
@@ -49,7 +49,7 @@ defineExpose({ validate, data })
             <div class="flex flex-column gap-1">
                 <label class="font-semibold text-sm text-color">Razón Social <span class="text-red-500">*</span></label>
                 <pv-input-text
-                    v-model="data.razonSocial"
+                    v-model="form.razonSocial"
                     placeholder="RESTAURANTE EL SABOR PERUANO S.A.C."
                     :invalid="errors.razonSocial"
                     class="w-full"
@@ -61,7 +61,7 @@ defineExpose({ validate, data })
             <div class="flex flex-column gap-1">
                 <label class="font-semibold text-sm text-color">Nombre Comercial <span class="text-red-500">*</span></label>
                 <pv-input-text
-                    v-model="data.nombreComercial"
+                    v-model="form.nombreComercial"
                     placeholder="El Sabor Peruano"
                     :invalid="errors.nombreComercial"
                     class="w-full"
@@ -73,7 +73,7 @@ defineExpose({ validate, data })
             <div class="flex flex-column gap-1">
                 <label class="font-semibold text-sm text-color">Dirección Fiscal <span class="text-red-500">*</span></label>
                 <pv-input-text
-                    v-model="data.direccion"
+                    v-model="form.direccion"
                     placeholder="Av. Javier Prado Este 1234, San Isidro, Lima"
                     :invalid="errors.direccion"
                     class="w-full"

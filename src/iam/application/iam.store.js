@@ -5,7 +5,7 @@ import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
 import { RegistrationAssembler } from '../infrastructure/assemblers/registration.assembler.js';
 import { User } from '../domain/models/user.entity.js';
 import { SESSION_KEYS, clearSessionStorage } from '../../shared/infrustructure/session-storage.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
 
 const api = new IamApi();
 
@@ -266,6 +266,11 @@ export const useIamStore = defineStore('iam', () => {
                 error.value = getApiErrorMessage(err, 'Revisa los datos del formulario.');
             } else if (status === 401) {
                 error.value = 'Registro no autorizado. Verifica que el API esté en perfil dev y reiniciado.';
+            } else if (status === 500) {
+                error.value = getApiErrorMessage(
+                    err,
+                    'No se pudo crear la empresa. Si ya intentaste registrarte, usa otro RUC o razón social, o contacta a soporte.',
+                );
             } else {
                 error.value = getApiErrorMessage(err, 'Error al registrar. Intenta nuevamente.');
             }
