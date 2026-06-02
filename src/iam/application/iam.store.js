@@ -8,6 +8,7 @@ import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructu
 import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
 import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
 import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
+import { resetApplicationStores } from '../../shared/application/reset-application-stores.js';
 
 const api = new IamApi();
 
@@ -83,6 +84,7 @@ export const useIamStore = defineStore('iam', () => {
         _setBranch(null);
         employeeLinkStatus.value  = 'idle';
         employeeLinkMessage.value = null;
+        resetApplicationStores();
         clearAllAppLocalStorage();
         clearSignUpDraft();
     }
