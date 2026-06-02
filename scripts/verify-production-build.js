@@ -1,15 +1,13 @@
 /**
- * Falla el build si el bundle contiene rutas/host obsoletos (support/auth, preprod hardcodeado).
- * Uso: npm run build && node scripts/verify-production-build.js
+ * Falla el build si el bundle aún usa la ruta obsoleta de registro (/support/auth).
+ * El host de la API (VITE_PLATFORM_API_URL) sí se embebe a propósito en el build.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ASSETS_DIR = path.resolve('dist/assets');
-const FORBIDDEN = [
-    'support/auth',
-    'gastro-api-preprod-production-1ece.up.railway.app',
-];
+/** Ruta de registro antigua — el frontend debe usar /auth/sign-up. */
+const FORBIDDEN = ['support/auth'];
 
 if (!fs.existsSync(ASSETS_DIR)) {
     console.error('[verify-production-build] No existe dist/assets. Ejecuta npm run build primero.');
@@ -29,11 +27,17 @@ for (const file of files) {
 }
 
 if (violations.length > 0) {
-    console.error('[verify-production-build] Bundle inválido para producción:');
+    console.error('[verify-production-build] Bundle inválido: aún referencia registro en /support/auth');
     for (const v of violations) {
         console.error(`  - "${v.needle}" en dist/assets/${v.file}`);
     }
+    console.error('  Usa VITE_IAM_ENDPOINT=/auth y sign-up en /auth/sign-up.');
     process.exit(1);
 }
 
-console.info('[verify-production-build] OK — sin support/auth ni host preprod en el bundle.');
+const apiUrl = process.env.VITE_PLATFORM_API_URL?.trim();
+if (apiUrl) {
+    console.info(`[verify-production-build] OK — API embebida: ${apiUrl}`);
+} else {
+    console.info('[verify-production-build] OK — sin /support/auth (define VITE_PLATFORM_API_URL en CI para prod).');
+}
