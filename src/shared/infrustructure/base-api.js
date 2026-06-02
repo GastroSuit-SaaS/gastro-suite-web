@@ -7,9 +7,9 @@ import { getPlatformApiUrl } from './env.js';
 const platformApi = getPlatformApiUrl();
 
 
-/** Rutas que no deben llevar JWT (login/registro). */  
+/** Rutas públicas IAM (login/registro) — no enviar JWT. */
 function isPublicAuthRequest(url = '') {
-    return url.includes('/auth/') || url.includes('/support/auth');
+    return url.includes('/auth/');
 }
 
 /**
