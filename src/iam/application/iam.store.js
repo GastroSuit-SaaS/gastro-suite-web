@@ -260,17 +260,15 @@ export const useIamStore = defineStore('iam', () => {
             const status = err?.response?.status;
             if (err?.message && !err?.response) {
                 error.value = err.message;
-            } else if (status === 409 || getApiErrorCode(err) === 'CMP_ERROR') {
-                error.value = getApiErrorMessage(err, 'El RUC o la razón social ya están registrados.');
+            } else if (status === 409 || status === 500 || getApiErrorCode(err) === 'CMP_ERROR') {
+                error.value = getApiErrorMessage(
+                    err,
+                    'El RUC o la razón social ya están registrados. Si falló un intento anterior, cambia esos datos o contacta a soporte.',
+                );
             } else if (status === 400) {
                 error.value = getApiErrorMessage(err, 'Revisa los datos del formulario.');
             } else if (status === 401) {
                 error.value = 'Registro no autorizado. Verifica que el API esté en perfil dev y reiniciado.';
-            } else if (status === 500) {
-                error.value = getApiErrorMessage(
-                    err,
-                    'No se pudo crear la empresa. Si ya intentaste registrarte, usa otro RUC o razón social, o contacta a soporte.',
-                );
             } else {
                 error.value = getApiErrorMessage(err, 'Error al registrar. Intenta nuevamente.');
             }
