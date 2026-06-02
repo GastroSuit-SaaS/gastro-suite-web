@@ -14,6 +14,7 @@ if (!fs.existsSync(ASSETS_DIR)) {
     process.exit(1);
 }
 
+
 const files = fs.readdirSync(ASSETS_DIR).filter((f) => f.endsWith('.js'));
 const violations = [];
 
