@@ -125,8 +125,11 @@
   --z-tooltip: 1070;
   /** Pestañas de módulo (solo sobre el contenido del tab, no sobre overlays) */
   --z-module-chrome: 8;
-  /** Select, popover sucursal, menús — siempre encima de module-tab-bar */
-  --z-overlay: 1100;
+  /**
+   * Select / menús flotantes — por encima de PrimeVue Dialog (base ~1100)
+   * y de .module-tab-bar (--z-module-chrome).
+   */
+  --z-overlay: 1200;
 
   /* ========================================
      MÓDULOS (área de contenido clara bajo el toolbar)

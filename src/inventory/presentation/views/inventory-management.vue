@@ -40,7 +40,7 @@ const categoryFilterOptions = computed(() => store.categorySelectOptions)
 const canCreateProduct = computed(() => store.categorySelectOptions.length > 0)
 
 /** Overlays al body para quedar sobre tabs sticky */
-const OVERLAY_TARGET = 'body'
+import { OVERLAY_APPEND_TARGET as OVERLAY_TARGET } from '../../../shared/presentation/constants/overlay.constants-ui.js'
 
 function toggleStatus(status) {
     selectedStatus.value = selectedStatus.value === status ? null : status

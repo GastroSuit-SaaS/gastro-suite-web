@@ -51,15 +51,30 @@ watch(() => props.visible, (val) => {
         form.email        = props.branch?.email        ?? ''
         form.encargadoId  = props.branch?.encargadoId  ?? null
         form.isActive     = props.branch?.isActive     ?? true
-        form.posBillableRequiresSent = props.branch?.posBillableRequiresSent ?? null
+        form.posBillableRequiresSent = posBillableToForm(props.branch?.posBillableRequiresSent ?? null)
     }
 }, { immediate: true })
 
+/** PrimeVue Select no compara bien `null` como option-value; usamos sentinela. */
+const POS_BILLABLE_INHERIT = '__inherit__'
+
 const posBillableOptions = [
-    { label: 'Heredar configuración global', value: null },
-    { label: 'Sí — solo cobrar ítems enviados a cocina', value: true },
-    { label: 'No — permitir cobrar sin enviar comanda', value: false },
+    { label: 'Heredar configuración global', value: POS_BILLABLE_INHERIT },
+    { label: 'Sí — solo cobrar ítems enviados a cocina', value: 'true' },
+    { label: 'No — permitir cobrar sin enviar comanda', value: 'false' },
 ]
+
+function posBillableToForm(apiValue) {
+    if (apiValue === true) return 'true'
+    if (apiValue === false) return 'false'
+    return POS_BILLABLE_INHERIT
+}
+
+function posBillableFromForm(formValue) {
+    if (formValue === 'true') return true
+    if (formValue === 'false') return false
+    return null
+}
 
 const canSave = computed(() =>
     form.nombre.trim() && form.codigo.trim()
@@ -78,6 +93,7 @@ async function onSave() {
     if (!canSave.value) return
     const payload = {
         ...form,
+        posBillableRequiresSent: posBillableFromForm(form.posBillableRequiresSent),
         encargadoNombre: resolveEncargadoNombre(),
     }
     if (isEdit.value) {

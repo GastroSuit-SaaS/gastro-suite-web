@@ -63,7 +63,7 @@ import Chips from 'primevue/chips'
 import InputChips from 'primevue/inputchips'
 import Dropdown from 'primevue/dropdown'
 import MultiSelect from 'primevue/multiselect'
-import Select from 'primevue/select'
+import AppSelect from './shared/presentation/components/app-select.vue'
 import SplitButton from 'primevue/splitbutton'
 import AutoComplete from 'primevue/autocomplete'
 import DatePicker from 'primevue/datepicker'
@@ -159,7 +159,7 @@ app
     .component('pv-auto-complete', AutoComplete)
     .component('pv-dropdown', Dropdown)
     .component('pv-multi-select', MultiSelect)
-    .component('pv-select', Select)
+    .component('pv-select', AppSelect)
     .component('pv-progress-bar', ProgressBar)
     .component('pv-calendar', DatePicker)
     .component('pv-datepicker', DatePicker)
