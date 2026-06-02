@@ -6,6 +6,8 @@ import { RegistrationAssembler } from '../infrastructure/assemblers/registration
 import { User } from '../domain/models/user.entity.js';
 import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructure/session-storage.js';
 import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
+import { appLogger } from '../../shared/infrustructure/app-logger.js';
+import { logRegisterFailure, resolveRegisterErrorMessage } from '../infrastructure/register-error.js';
 import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
 import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
 import { resetApplicationStores } from '../../shared/application/reset-application-stores.js';
@@ -202,11 +204,8 @@ export const useIamStore = defineStore('iam', () => {
     }
 
     /**
-     * Onboarding OWNER:
-     * 1. POST /companies
-     * 2. POST /auth/sign-up
-     * 3. POST /auth/sign-in
-     * 4. POST /auth/ensure-employee (vincular usuario ↔ empresa)
+     * Onboarding OWNER atómico: POST /auth/register-owner
+     * (empresa + usuario + empleado + sesión; rollback en servidor si falla un paso).
      * @param {{ empresa: import('../domain/models/empresa-registration.vo.js').EmpresaRegistration, usuario: import('../domain/models/usuario-registration.vo.js').UsuarioRegistration }} payload
      */
     async function register(payload) {
@@ -215,81 +214,41 @@ export const useIamStore = defineStore('iam', () => {
         const empresa = payload?.empresa ?? {};
         const usuario = payload?.usuario ?? {};
 
-        let companyId = null;
-        let userId = null;
-
         try {
-            const companyRes = await api.createCompany(
-                RegistrationAssembler.toCreateCompanyRequest(empresa)
-            );
-            companyId = companyRes.data?.companyId ?? null;
-            if (!companyId) {
-                throw new Error('El servidor no devolvió el ID de la empresa.');
-            }
-
-            const signUpRes = await api.signUp(
-                RegistrationAssembler.toSignUpRequest(usuario)
-            );
-            userId = signUpRes.data?.userId ?? null;
-            if (!userId) {
-                throw new Error('El servidor no devolvió el ID del usuario.');
-            }
-
-            const signedIn = await signIn({
+            appLogger.info('IAM:Register', 'Iniciando registro OWNER', {
+                ruc: empresa.ruc ? `${String(empresa.ruc).slice(0, 4)}***` : undefined,
                 username: usuario.username,
-                password: usuario.password,
             });
-            if (!signedIn) {
-                throw new Error(
-                    'Cuenta creada, pero no se pudo iniciar sesión automáticamente. Usa "Iniciar sesión" con tu usuario.'
-                );
+
+            const response = await api.registerOwner(
+                RegistrationAssembler.toRegisterOwnerRequest(empresa, usuario),
+            );
+            const data = response.data;
+            const jwt = data?.token;
+            if (!jwt) {
+                throw new Error('El servidor no devolvió un token de sesión.');
             }
 
-            const linkRes = await api.ensureEmployeeLink({
-                companyId,
-                branchId: null,
-                nombres: usuario.nombres,
-                apellidos: usuario.apellidos,
-                email: usuario.email,
+            _setToken(jwt);
+            const user = UserAssembler.toEntityFromSignInResponse(data);
+            _setUser(new User({
+                ...user,
+                email: usuario.email || user.email,
+                nombres: usuario.nombres || user.nombres,
+                apellidos: usuario.apellidos || user.apellidos,
+                tipoDocumento: usuario.tipoDocumento || user.tipoDocumento,
+                numeroDocumento: usuario.numeroDocumento || user.numeroDocumento,
+                telefono: usuario.telefono || user.telefono,
+            }));
+
+            appLogger.info('IAM:Register', 'Registro completado', {
+                userId: user.id,
+                companyId: user.empresaId,
             });
-            const linked = linkRes.data;
-            if (linked?.employeeId) {
-                _setUser(UserAssembler.toEntityFromSignInResponse({
-                    ...linked,
-                    token: token.value,
-                }));
-            }
-
-            if (currentUser.value) {
-                _setUser(new User({
-                    ...currentUser.value,
-                    empresaId: companyId,
-                    email: usuario.email,
-                    nombres: usuario.nombres,
-                    apellidos: usuario.apellidos,
-                    tipoDocumento: usuario.tipoDocumento,
-                    numeroDocumento: usuario.numeroDocumento,
-                    telefono: usuario.telefono,
-                }));
-            }
-
             return true;
         } catch (err) {
-            const status = err?.response?.status;
-            if (err?.message && !err?.response) {
-                error.value = err.message;
-            } else if (status === 409 || status === 500 || getApiErrorCode(err) === 'CMP_ERROR') {
-                error.value = getApiErrorMessage(
-                    err,
-                    'El RUC o la razón social ya están registrados. Si falló un intento anterior, cambia esos datos o contacta a soporte.',
-                );
-            } else if (status === 400) {
-                error.value = getApiErrorMessage(err, 'Revisa los datos del formulario.');
-            } else if (status === 401) {
-                error.value = 'Registro no autorizado. Verifica que el API esté en perfil dev y reiniciado.';
-            } else {
-                error.value = getApiErrorMessage(err, 'Error al registrar. Intenta nuevamente.');
-            }
+            logRegisterFailure(err, { username: usuario.username, ruc: empresa.ruc });
+            error.value = resolveRegisterErrorMessage(err);
             return false;
         } finally {
             isLoading.value = false;

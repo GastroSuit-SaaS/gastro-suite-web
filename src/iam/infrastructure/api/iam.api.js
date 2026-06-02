@@ -19,7 +19,12 @@ export class IamApi extends BaseApi {
         return this.#auth.postAt(`${this.#auth.endpointPath}/sign-up`, resource);
     }
 
-    /** POST /companies — público, onboarding paso 1. */
+    /** POST /auth/register-owner — empresa + usuario + empleado atómicos (SAGA). */
+    registerOwner(resource) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/register-owner`, resource);
+    }
+
+    /** POST /companies — público; preferir registerOwner en onboarding. */
     createCompany(resource) {
         return this.http.post(apiEnv.companies, resource);
     }

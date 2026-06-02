@@ -25,4 +25,26 @@ export class RegistrationAssembler {
         };
     }
 
+    static toRegisterOwnerRequest(empresa, usuario) {
+        const company = RegistrationAssembler.toCreateCompanyRequest(empresa);
+        return {
+            company: {
+                companyRuc: company.companyRuc,
+                companyName: company.companyName,
+                companyTradeName: company.companyTradeName,
+                companyAddress: company.companyAddress,
+            },
+            user: {
+                username: usuario.username,
+                password: usuario.password,
+                nombres: usuario.nombres,
+                apellidos: usuario.apellidos,
+                email: usuario.email,
+                tipoDocumento: usuario.tipoDocumento,
+                numeroDocumento: usuario.numeroDocumento,
+                telefono: usuario.telefono ?? '',
+            },
+        };
+    }
+
 }
