@@ -178,7 +178,7 @@ export const useStationsStore = defineStore('stations', () => {
         if (hasActiveTickets) return;
         stations.value = stations.value.filter(s => s.id !== id);
         try {
-            await api.delete(id);
+            await api.deleteStation(id);
         } catch { /* local change kept */ }
     }
 

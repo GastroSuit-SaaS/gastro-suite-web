@@ -17,6 +17,7 @@ export class PaymentsApi extends BaseApi {
     getById(paymentId)      { return this.#crud.getById(paymentId); }
     create(resource)        { return this.#crud.create(resource); }
     update(paymentId, body) { return this.#crud.update(paymentId, body); }
+    delete(paymentId)       { return this.#crud.delete(paymentId); }
 
     createRefund(paymentId, body) {
         return this.#crud.postAt(`${this.#crud.endpointPath}/${paymentId}/refunds`, body);
@@ -27,7 +28,7 @@ export class PaymentsApi extends BaseApi {
     }
 
     listRefunds(paymentId) {
-        return this.#crud.getAt(`${this.#crud.endpointPath}/${paymentId}/refunds`);
+        return this.#crud.listAt(`${this.#crud.endpointPath}/${paymentId}/refunds`);
     }
 }
 
