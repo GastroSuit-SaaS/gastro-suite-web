@@ -3,9 +3,10 @@ import { getActivePinia } from 'pinia';
 import { clearSessionStorage, SESSION_KEYS } from './session-storage.js';
 
 const platformApi =
-    import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api/v1';
+    import.meta.env.VITE_PLATFORM_API_URL || 'https://gastro-api-preprod-production-1ece.up.railway.app/api/v1';
 
-/** Rutas que no deben llevar JWT (login/registro). */
+
+/** Rutas que no deben llevar JWT (login/registro). */  
 function isPublicAuthRequest(url = '') {
     return url.includes('/auth/') || url.includes('/support/auth');
 }
