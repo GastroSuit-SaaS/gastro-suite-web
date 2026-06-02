@@ -9,3 +9,5 @@ export const SESSION_KEYS = Object.freeze({
 export function clearSessionStorage() {
     Object.values(SESSION_KEYS).forEach((key) => localStorage.removeItem(key));
 }
+
+
