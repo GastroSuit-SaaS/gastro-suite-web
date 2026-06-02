@@ -10,6 +10,7 @@ export class UserProfileAssembler {
             : (resource.role ?? '');
         return new UserProfile({
             id:              resource.employeeId ?? resource.id ?? null,
+            userId:          resource.userId ?? resource.user_id ?? null,
             username:        resource.username ?? resource.userName ?? '',
             nombres:         resource.employeeName ?? resource.nombres ?? resource.firstName ?? '',
             apellidos:       resource.employeeSurname ?? resource.apellidos ?? resource.lastName ?? '',

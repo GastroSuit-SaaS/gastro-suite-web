@@ -5,6 +5,7 @@ import { UserProfileAssembler } from '../infrastructure/assemblers/user-profile.
 import { UserProfile } from '../domain/models/user-profile.entity.js';
 import { requireCompanyId } from '../../shared/application/tenant-context.js';
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { useIamStore } from '../../iam/application/iam.store.js';
 
 const api = new UsersApi();
 
@@ -17,13 +18,27 @@ export const useUsersStore = defineStore('users', () => {
 
     const activeUsers = computed(() => users.value.filter((u) => u.isActive));
 
+    /** Excluye al usuario de la sesión actual (el API también lo filtra por userId). */
+    function excludeSessionUser(profiles) {
+        const session = useIamStore().currentUser;
+        if (!session) return profiles;
+        return profiles.filter((profile) => {
+            if (session.employeeId && profile.id === session.employeeId) return false;
+            if (session.id && profile.userId === session.id) return false;
+            if (session.username && profile.username === session.username) return false;
+            return true;
+        });
+    }
+
     async function fetchAll() {
         isLoading.value = true;
         error.value = null;
         try {
             const companyId = requireCompanyId();
             const response = await api.listByCompany(companyId);
-            users.value = UserProfileAssembler.toEntitiesFromResponse(response);
+            users.value = excludeSessionUser(
+                UserProfileAssembler.toEntitiesFromResponse(response),
+            );
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al cargar los usuarios');
             users.value = [];

@@ -10,6 +10,7 @@
 export class UserProfile {
     constructor({
         id              = null,
+        userId          = null,
         username        = '',
         nombres         = '',
         apellidos       = '',
@@ -24,6 +25,7 @@ export class UserProfile {
         createdAt       = null,
     } = {}) {
         this.id              = id
+        this.userId          = userId
         this.username        = username
         this.nombres         = nombres
         this.apellidos       = apellidos
