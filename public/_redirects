@@ -1,3 +1,0 @@
-# No usar "/* /index.html 200" aquí: hace que /assets/chunk-viejo.js devuelva HTML
-# y provoca "Expected a JavaScript module script but got text/html".
-# SPA: usar dist/404.html (generado en npm run build) + quitar redirect SPA del dashboard.

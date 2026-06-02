@@ -1,0 +1,7 @@
+{
+  "name": "gastro-suite-web",
+  "compatibility_date": "2024-01-01",
+  "pages_build_output_dir": "dist",
+  // SPA: 404.html (generado en build). NO usar redirect /* → /index.html 200 en el dashboard.
+  "not_found_handling": "404-page"
+}

@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     vue(),
     visualizer({
-      open: true,
+      open: process.env.CI !== 'true' && process.env.OPEN_STATS !== '0',
       gzipSize: true,
       brotliSize: true,
       filename: 'stats.html'

@@ -1,9 +1,10 @@
-# Cloudflare Pages (_headers no es YAML; si el IDE avisa, desactiva validación YAML en esta ruta)
+# Cloudflare Pages — formato propio (no es YAML)
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
 /404.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+# Sin "immutable": si un chunk devolvió HTML una vez, el navegador no lo guarda 1 año
 /assets/*
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=604800, must-revalidate
