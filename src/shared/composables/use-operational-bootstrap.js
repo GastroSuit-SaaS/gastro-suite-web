@@ -7,6 +7,7 @@ import { useTablesStore } from '../../tables/application/tables.store.js';
 import { useStationsStore } from '../../stations/application/stations.store.js';
 import { requiresBranch } from '../presentation/constants/roles.constants.js';
 import { useRoute } from 'vue-router';
+import { BRANCH_CHANGED_EVENT } from '../application/branch-switch.js';
 
 const REFRESH_MS = 45_000;
 
@@ -68,12 +69,14 @@ export function useOperationalBootstrap() {
         intervalId = window.setInterval(refreshCashRegister, REFRESH_MS);
         document.addEventListener('visibilitychange', onVisibilityChange);
         window.addEventListener('gastro:network-online', onNetworkOnline);
+        window.addEventListener(BRANCH_CHANGED_EVENT, refreshCashRegister);
     });
 
     onUnmounted(() => {
         if (intervalId) window.clearInterval(intervalId);
         document.removeEventListener('visibilitychange', onVisibilityChange);
         window.removeEventListener('gastro:network-online', onNetworkOnline);
+        window.removeEventListener(BRANCH_CHANGED_EVENT, refreshCashRegister);
     });
 
     watch(() => iamStore.activeBranchId, refreshCashRegister);

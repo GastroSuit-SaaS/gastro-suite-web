@@ -173,6 +173,19 @@ export const apiEnv = Object.freeze({
 
     posBillableRequiresSent: import.meta.env.VITE_POS_BILLABLE_REQUIRES_SENT !== 'false',
 
+    platformEnabled: readEnv('VITE_PLATFORM_ENABLED', 'false') === 'true',
+    platformBootstrapEnabled: readEnv('VITE_PLATFORM_BOOTSTRAP_ENABLED', 'false') === 'true',
+    platform: readEnv('VITE_PLATFORM_ENDPOINT', '/platform'),
+    subscriptions: readEnv('VITE_SUBSCRIPTIONS_ENDPOINT', '/subscriptions'),
+
+    firebase: Object.freeze({
+        apiKey: readEnvRaw('VITE_FIREBASE_API_KEY'),
+        authDomain: readEnvRaw('VITE_FIREBASE_AUTH_DOMAIN'),
+        projectId: readEnvRaw('VITE_FIREBASE_PROJECT_ID'),
+        messagingSenderId: readEnvRaw('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+        appId: readEnvRaw('VITE_FIREBASE_APP_ID'),
+        vapidKey: readEnvRaw('VITE_FIREBASE_VAPID_KEY'),
+    }),
 });
 
 

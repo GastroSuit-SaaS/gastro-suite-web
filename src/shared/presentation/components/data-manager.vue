@@ -25,10 +25,15 @@
 // ===========================
 // IMPORTS
 // ===========================
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { FilterMatchMode } from '@primevue/core'
 import { useConfirm } from 'primevue/useconfirm'
 import { exportTableToExcel } from '../../utils/excel-export.js'
+import {
+  readDefaultTablePageSize,
+  TABLE_PAGE_SIZE_OPTIONS,
+  persistTablePageSize,
+} from '../../composables/use-table-pagination.js'
 
 // ===========================
 // PROPS
@@ -65,8 +70,8 @@ const props = defineProps({
   inlineToolbar: { type: Boolean, default: false },
   
   // Configuración de paginación
-  rows: { type: Number, default: 10 },
-  rowsPerPageOptions: { type: Array, default: () => [10, 20, 30, 50] },
+  rows: { type: Number, default: () => readDefaultTablePageSize(10) },
+  rowsPerPageOptions: { type: Array, default: () => TABLE_PAGE_SIZE_OPTIONS },
   
   // Labels de botones principales
   newButtonLabel: { type: String, default: 'Agregar' },
@@ -116,6 +121,11 @@ const selectedItems = ref([]) // Items seleccionados en la tabla
 const filters = ref(null) // Configuración de filtros de PrimeVue
 const internalGlobalFilterValue = ref('') // Valor interno del filtro global
 const dt = ref(null) // Referencia al componente DataTable
+const tableRows = ref(readDefaultTablePageSize(props.rows))
+
+watch(tableRows, (size) => {
+  persistTablePageSize(size)
+})
 
 // ===========================
 // COMPUTED PROPERTIES
@@ -390,14 +400,14 @@ onMounted(() => initFilters())
         :filters="filteredItems ? null : filters"
         :loading="loading"
         :paginator="true"
-        :rows="rows"
+        v-model:rows="tableRows"
         :rows-per-page-options="rowsPerPageOptions"
         scrollable
         scroll-height="flex"
         :global-filter-fields="filteredItems ? [] : columns.map(col => col.field)"
         data-key="id"
         paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-        current-page-report-template="Mostrando {first} - {last} de {totalRecords} órdenes"
+        :current-page-report-template="`Mostrando {first} - {last} de {totalRecords} ${title.plural}`"
         striped-rows
         hover
         @row-select="onRowSelect"

@@ -7,9 +7,18 @@ import { getPlatformApiUrl } from './env.js';
 const platformApi = getPlatformApiUrl();
 
 
-/** Rutas públicas IAM (login/registro) — no enviar JWT. */
+/** Rutas IAM anónimas — no enviar JWT ni cerrar sesión en 401. */
+const PUBLIC_AUTH_PATHS = Object.freeze([
+    '/auth/sign-in',
+    '/auth/sign-up',
+    '/auth/register-owner',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/platform/bootstrap',
+]);
+
 function isPublicAuthRequest(url = '') {
-    return url.includes('/auth/');
+    return PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
 }
 
 /**
@@ -55,7 +64,17 @@ export class BaseApi {
     this.#http.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401 && !isPublicAuthRequest(error.config?.url ?? '')) {
+        const url = error.config?.url ?? '';
+        const skipLogout = error.config?.skipSessionLogout === true;
+        const headers = error.config?.headers ?? {};
+        const sentAuth = Boolean(headers.Authorization ?? headers.authorization);
+
+        if (
+          error.response?.status === 401
+          && !isPublicAuthRequest(url)
+          && !skipLogout
+          && sentAuth
+        ) {
           const pinia = getActivePinia();
           if (pinia) {
             import('../../iam/application/iam.store.js').then(({ useIamStore }) => {

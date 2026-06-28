@@ -5,7 +5,16 @@
  * Usado por: layout (menú dinámico), auth guard, toolbar.
  */
 
+/**
+ * Roles del ecosistema Gastro Suite:
+ *
+ * - SYSTEM: super admin de Metasoft Solutions (creador del producto). Gestiona planes,
+ *   asignación de suscripciones a empresas cliente y otros super admins. Panel /platform.
+ * - OWNER: dueño/administrador de una empresa restaurantera registrada en la app. Opera su
+ *   negocio (sucursales, POS, etc.) y solo consulta su plan; no administra suscripciones SaaS.
+ */
 export const ROLES = Object.freeze({
+    SYSTEM:       'SYSTEM',
     OWNER:        'OWNER',
     BRANCH_ADMIN: 'BRANCH_ADMIN',
     WAITER:       'WAITER',
@@ -20,10 +29,13 @@ export const ROLES = Object.freeze({
  * OWNER ve todo. Los demás ven solo lo asignado.
  */
 export const ROLE_ALLOWED_ROUTES = Object.freeze({
+    [ROLES.SYSTEM]: [
+        '/platform',
+    ],
     [ROLES.OWNER]: [
         '/dashboard', '/tables', '/menu', '/pos', '/stations',
         '/payments', '/cash-register', '/inventory', '/reports',
-        '/users', '/branches', '/select-branch',
+        '/users', '/branches', '/company', '/select-branch',
     ],
     [ROLES.BRANCH_ADMIN]: [
         '/dashboard', '/tables', '/menu', '/pos', '/stations',

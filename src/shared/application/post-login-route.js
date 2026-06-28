@@ -7,6 +7,9 @@ import { ROLES } from '../presentation/constants/roles.constants.js';
  * @returns {string}
  */
 export function resolvePostLoginPath(role, hasBranch) {
+    if (role === ROLES.SYSTEM) {
+        return '/platform';
+    }
     if (role === ROLES.OWNER && !hasBranch) {
         return '/select-branch';
     }

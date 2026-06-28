@@ -8,7 +8,9 @@ import { OVERLAY_APPEND_TARGET } from '../constants/overlay.constants-ui.js'
 
 defineOptions({ inheritAttrs: false })
 
-const props = defineProps({
+const model = defineModel()
+
+defineProps({
     appendTo: {
         type: [String, Object],
         default: OVERLAY_APPEND_TARGET,
@@ -17,7 +19,7 @@ const props = defineProps({
 </script>
 
 <template>
-    <Select v-bind="$attrs" :append-to="appendTo">
+    <Select v-bind="$attrs" v-model="model" :append-to="appendTo">
         <template v-for="(_, name) in $slots" #[name]="slotProps">
             <slot :name="name" v-bind="slotProps ?? {}" />
         </template>
