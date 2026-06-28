@@ -11,6 +11,8 @@ import ModuleTabBar                   from '../../../shared/presentation/compone
 import ModuleTab                      from '../../../shared/presentation/components/module-tab.vue'
 import { useNotification } from '../../../shared/composables/use-notification.js'
 import { INVENTORY_MESSAGES } from '../constants/inventory.constants-ui.js'
+import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
+import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = useInventoryStore()
 const { showSuccess, showError } = useNotification()
@@ -21,19 +23,21 @@ onMounted(() => store.fetchAll())
 // ── Tab ──────────────────────────────────────────────────
 const activeTab = ref('products')
 
-const PAGE_SIZE = 10
-
 // ── Products state ───────────────────────────────────────
 const showDialog   = ref(false)
 const editingItem  = ref(null)
 const selectedStatus = ref(null)
-const productPage  = ref(1)
 
-const productTotalPages = computed(() => Math.max(1, Math.ceil(store.filteredProducts.length / PAGE_SIZE)))
-const paginatedProducts = computed(() => {
-    const start = (productPage.value - 1) * PAGE_SIZE
-    return store.filteredProducts.slice(start, start + PAGE_SIZE)
-})
+const {
+    page: productPage,
+    pageSize: productPageSize,
+    totalPages: productTotalPages,
+    paginatedItems: paginatedProducts,
+    rangeStart: productRangeStart,
+    rangeEnd: productRangeEnd,
+    totalItems: productTotalItems,
+    resetPage: resetProductPage,
+} = useTablePagination(computed(() => store.filteredProducts))
 
 const categoryFilterOptions = computed(() => store.categorySelectOptions)
 
@@ -45,13 +49,13 @@ import { OVERLAY_APPEND_TARGET as OVERLAY_TARGET } from '../../../shared/present
 function toggleStatus(status) {
     selectedStatus.value = selectedStatus.value === status ? null : status
     store.filterStatus = selectedStatus.value
-    productPage.value = 1
+    resetProductPage()
 }
 
 function clearStatus() {
     selectedStatus.value = null
     store.filterStatus = null
-    productPage.value = 1
+    resetProductPage()
 }
 
 function openCreate() {
@@ -138,13 +142,18 @@ async function onCategorySaved(data) {
 
 // ── Movements state ──────────────────────────────────────
 const showMovementDialog = ref(false)
-const movementPage = ref(1)
+const editingMovement    = ref(null)
 
-const movementTotalPages = computed(() => Math.max(1, Math.ceil(store.filteredMovements.length / PAGE_SIZE)))
-const paginatedMovements = computed(() => {
-    const start = (movementPage.value - 1) * PAGE_SIZE
-    return store.filteredMovements.slice(start, start + PAGE_SIZE)
-})
+const {
+    page: movementPage,
+    pageSize: movementPageSize,
+    totalPages: movementTotalPages,
+    paginatedItems: paginatedMovements,
+    rangeStart: movementRangeStart,
+    rangeEnd: movementRangeEnd,
+    totalItems: movementTotalItems,
+    resetPage: resetMovementPage,
+} = useTablePagination(computed(() => store.filteredMovements))
 
 const MOVEMENT_TYPE_LABELS = {
     purchase:   'Compra',
@@ -179,13 +188,37 @@ const movementDirFilterOptions = [
 ]
 
 function openRegisterMovement() {
+    editingMovement.value = null
     showMovementDialog.value = true
 }
 
+function openEditMovement(movement) {
+    editingMovement.value = { ...movement }
+    showMovementDialog.value = true
+}
+
+function isPersistedMovement(movement) {
+    return movement?.id && !String(movement.id).startsWith('opt-')
+}
+
+function onDeleteMovement(movement) {
+    confirmDelete({
+        target: `${movement.productName} (${movement.quantity})`,
+        accept: async () => {
+            const ok = await store.removeMovement(movement.id)
+            if (ok) showSuccess(INVENTORY_MESSAGES.MOVEMENT_DELETED)
+            else if (store.error) showError(store.error)
+        },
+    })
+}
+
 async function onMovementSaved(data) {
-    const ok = await store.registerMovement(data)
+    const ok = editingMovement.value
+        ? await store.updateMovement(editingMovement.value.id, data)
+        : await store.registerMovement(data)
     if (ok) {
-        showSuccess(INVENTORY_MESSAGES.MOVEMENT_REGISTERED)
+        showSuccess(editingMovement.value ? INVENTORY_MESSAGES.MOVEMENT_UPDATED : INVENTORY_MESSAGES.MOVEMENT_REGISTERED)
+        editingMovement.value = null
     } else if (store.error) {
         showError(store.error)
     }
@@ -271,7 +304,7 @@ function formatDate(d) {
                         placeholder="Buscar por nombre o SKU..."
                         class="w-full"
                         size="small"
-                        @input="productPage = 1"
+                        @input="resetProductPage()"
                     />
                 </pv-icon-field>
 
@@ -285,7 +318,7 @@ function formatDate(d) {
                     :append-to="OVERLAY_TARGET"
                     size="small"
                     class="inv-toolbar__select"
-                    @change="productPage = 1"
+                    @change="resetProductPage()"
                 />
 
                 <pv-button
@@ -375,22 +408,16 @@ function formatDate(d) {
                 </table>
             </div>
 
-            <!-- Paginación productos -->
-            <div v-if="store.filteredProducts.length > PAGE_SIZE" class="inv-pagination">
-                <span class="inv-pagination__info">
-                    {{ (productPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(productPage * PAGE_SIZE, store.filteredProducts.length) }}
-                    de {{ store.filteredProducts.length }}
-                </span>
-                <div class="inv-pagination__controls">
-                    <button class="inv-pagination__btn" :disabled="productPage <= 1" @click="productPage--">
-                        <i class="pi pi-chevron-left"></i>
-                    </button>
-                    <span class="inv-pagination__page">{{ productPage }} / {{ productTotalPages }}</span>
-                    <button class="inv-pagination__btn" :disabled="productPage >= productTotalPages" @click="productPage++">
-                        <i class="pi pi-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
+            <table-pagination-bar
+                v-if="store.filteredProducts.length > 0"
+                v-model:page="productPage"
+                v-model:page-size="productPageSize"
+                :total-pages="productTotalPages"
+                :range-start="productRangeStart"
+                :range-end="productRangeEnd"
+                :total-items="productTotalItems"
+                item-label="productos"
+            />
         </div>
         </div>
 
@@ -484,7 +511,7 @@ function formatDate(d) {
                         placeholder="Buscar producto, SKU, registrado por, nota..."
                         class="w-full"
                         size="small"
-                        @input="movementPage = 1"
+                        @input="resetMovementPage()"
                     />
                 </pv-icon-field>
 
@@ -498,7 +525,7 @@ function formatDate(d) {
                     :append-to="OVERLAY_TARGET"
                     size="small"
                     class="inv-toolbar__select"
-                    @change="movementPage = 1"
+                    @change="resetMovementPage()"
                 />
 
                 <pv-select
@@ -511,7 +538,7 @@ function formatDate(d) {
                     :append-to="OVERLAY_TARGET"
                     size="small"
                     class="inv-toolbar__select"
-                    @change="movementPage = 1"
+                    @change="resetMovementPage()"
                 />
 
                 <pv-button label="Registrar movimiento" icon="pi pi-plus" size="small" @click="openRegisterMovement" />
@@ -545,6 +572,7 @@ function formatDate(d) {
                             <th style="text-align:right">Stock nuevo</th>
                             <th>Nota</th>
                             <th>Registrado por</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -578,27 +606,27 @@ function formatDate(d) {
                             <td class="td-user">
                                 <span class="font-medium text-color">{{ m.userName || '—' }}</span>
                             </td>
+                            <td class="td-actions">
+                                <template v-if="isPersistedMovement(m)">
+                                    <pv-button icon="pi pi-pencil" text rounded size="small" severity="info" @click.stop="openEditMovement(m)" />
+                                    <pv-button icon="pi pi-trash" text rounded size="small" severity="danger" @click.stop="onDeleteMovement(m)" />
+                                </template>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Paginación movimientos -->
-            <div v-if="store.filteredMovements.length > PAGE_SIZE" class="inv-pagination">
-                <span class="inv-pagination__info">
-                    {{ (movementPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(movementPage * PAGE_SIZE, store.filteredMovements.length) }}
-                    de {{ store.filteredMovements.length }}
-                </span>
-                <div class="inv-pagination__controls">
-                    <button class="inv-pagination__btn" :disabled="movementPage <= 1" @click="movementPage--">
-                        <i class="pi pi-chevron-left"></i>
-                    </button>
-                    <span class="inv-pagination__page">{{ movementPage }} / {{ movementTotalPages }}</span>
-                    <button class="inv-pagination__btn" :disabled="movementPage >= movementTotalPages" @click="movementPage++">
-                        <i class="pi pi-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
+            <table-pagination-bar
+                v-if="store.filteredMovements.length > 0"
+                v-model:page="movementPage"
+                v-model:page-size="movementPageSize"
+                :total-pages="movementTotalPages"
+                :range-start="movementRangeStart"
+                :range-end="movementRangeEnd"
+                :total-items="movementTotalItems"
+                item-label="movimientos"
+            />
         </div>
         </div>
 
@@ -624,6 +652,8 @@ function formatDate(d) {
 
     <register-stock-movement
         v-model:visible="showMovementDialog"
+        :edit="!!editingMovement"
+        :movement="editingMovement"
         :products="store.products"
         @movement-saved="onMovementSaved"
     />
@@ -926,48 +956,4 @@ function formatDate(d) {
 .td-date  { white-space: nowrap; font-size: 0.78rem; color: #6b7280; }
 .td-notes { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.78rem; color: #6b7280; }
 .td-user  { white-space: nowrap; font-size: 0.78rem; color: #6b7280; }
-
-/* ── Pagination ──────────────────────────────────────────────────────────── */
-.inv-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0.25rem;
-}
-
-.inv-pagination__info {
-    font-size: 0.78rem;
-    color: #6b7280;
-}
-
-.inv-pagination__controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.inv-pagination__page {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #374151;
-    min-width: 3.5rem;
-    text-align: center;
-}
-
-.inv-pagination__btn {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    color: #374151;
-    transition: background 0.12s, border-color 0.12s;
-}
-.inv-pagination__btn:hover:not(:disabled) { background: #f3f4f6; border-color: #d1d5db; }
-.inv-pagination__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

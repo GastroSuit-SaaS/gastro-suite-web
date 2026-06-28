@@ -35,7 +35,9 @@ export class InventoryApi extends BaseApi {
     updateCategory(id, resource)    { return this.#categories.update(id, resource); }
     deleteCategory(id)              { return this.#categories.delete(id); }
 
-    createMovement(resource)        { return this.#movements.create(resource); }
+    createMovement(resource)                { return this.#movements.create(resource); }
+    updateMovement(id, resource)            { return this.#movements.update(id, resource); }
+    deleteMovement(id)                      { return this.#movements.delete(id); }
 }
 
 export const inventoryApi = new InventoryApi();

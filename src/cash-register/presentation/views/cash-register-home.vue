@@ -33,6 +33,8 @@ import {
     buildSessionSummaryRows,
 } from '../utils/cash-register-excel.js'
 import { useNotification } from '../../../shared/composables/use-notification.js'
+import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
+import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = useCashRegisterStore()
 const router = useRouter()
@@ -128,10 +130,6 @@ function methodDotColor(mov) {
     return '#9ca3af'
 }
 
-// ── Paginación movimientos turno actual ───────────────────────────────
-const PAGE_SIZE = 10
-const movPage   = ref(1)
-
 const filterCategory = ref(null)
 const filterType     = ref(null)
 const filterMethod   = ref(null)
@@ -182,15 +180,47 @@ const movementFilterSummary = computed(() => {
     return `${total} movimiento${total !== 1 ? 's' : ''}`
 })
 
-const movTotalPages = computed(() => Math.max(1, Math.ceil(filteredCurrentMovements.value.length / PAGE_SIZE)))
-const paginatedMovements = computed(() => {
-    const start = (movPage.value - 1) * PAGE_SIZE
-    return filteredCurrentMovements.value.slice(start, start + PAGE_SIZE)
-})
+const {
+    page: movPage,
+    pageSize: movPageSize,
+    totalPages: movTotalPages,
+    paginatedItems: paginatedMovements,
+    rangeStart: movRangeStart,
+    rangeEnd: movRangeEnd,
+    totalItems: movTotalItems,
+    resetPage: resetMovPage,
+} = useTablePagination(filteredCurrentMovements)
+
+const {
+    page: histPage,
+    pageSize: histPageSize,
+    totalPages: histTotalPages,
+    paginatedItems: paginatedClosedSessions,
+    rangeStart: histRangeStart,
+    rangeEnd: histRangeEnd,
+    totalItems: histTotalItems,
+    resetPage: resetHistPage,
+} = useTablePagination(computed(() => store.closedSessions))
 
 watch([filterCategory, filterType, filterMethod, filterSearch], () => {
-    movPage.value = 1
+    resetMovPage()
 })
+
+watch(activeTab, () => {
+    resetMovPage()
+    resetHistPage()
+})
+
+const showMovementsPagination = computed(() =>
+    activeTab.value === 'current'
+    && store.hasOpenSession
+    && filteredCurrentMovements.value.length > 0,
+)
+
+const showHistoryPagination = computed(() =>
+    activeTab.value === 'history'
+    && store.closedSessions.length > 0,
+)
 
 function clearMovementFilters() {
     filterCategory.value = null
@@ -294,15 +324,13 @@ const shiftDigitalMethods = computed(() => [
 </script>
 
 <template>
-    <div class="module-page cr-page--fill">
-    <div class="cr-page__shell">
     <module-state-feedback
         :loading="store.isLoading"
         :error="store.error"
         loading-label="Cargando caja..."
         @retry="store.fetchAll()"
     >
-    <div class="module-page-body cr-home">
+    <div class="cr-home">
 
         <!-- Sin ningún turno en la sucursal (primera vez) -->
         <div v-if="!store.isLoading && store.sessions.length === 0" class="cr-empty">
@@ -321,7 +349,7 @@ const shiftDigitalMethods = computed(() => [
             <pv-button :label="L.OPEN_SESSION" icon="pi pi-lock-open" severity="success" size="small" @click="showOpenDialog = true" />
         </div>
 
-        <section class="cr-panel cr-panel--fill">
+        <section class="cr-panel">
             <!-- Franja compacta del turno (no compite con la tabla) -->
             <div v-if="store.hasOpenSession" class="cr-hero" aria-label="Resumen del turno">
                 <div class="cr-hero__top">
@@ -505,7 +533,7 @@ const shiftDigitalMethods = computed(() => [
                            @click="clearMovementFilters" />
             </div>
 
-            <div class="cr-panel__body cr-panel__body--scroll">
+            <div class="cr-panel__body">
         <div v-if="activeTab === 'current' && store.hasOpenSession">
             <div v-if="store.currentSessionMovements.length === 0" class="cr-state-msg">
                 <i class="pi pi-inbox"></i>
@@ -587,23 +615,6 @@ const shiftDigitalMethods = computed(() => [
                     </tbody>
                 </table>
             </div>
-
-            <!-- Paginación movimientos -->
-            <div v-if="filteredCurrentMovements.length > PAGE_SIZE" class="cr-pagination">
-                <span class="cr-pagination__info">
-                    {{ (movPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(movPage * PAGE_SIZE, filteredCurrentMovements.length) }}
-                    de {{ filteredCurrentMovements.length }}
-                </span>
-                <div class="cr-pagination__controls">
-                    <button class="cr-pagination__btn" :disabled="movPage <= 1" @click="movPage--">
-                        <i class="pi pi-chevron-left"></i>
-                    </button>
-                    <span class="cr-pagination__page">{{ movPage }} / {{ movTotalPages }}</span>
-                    <button class="cr-pagination__btn" :disabled="movPage >= movTotalPages" @click="movPage++">
-                        <i class="pi pi-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
         </div>
 
         <div v-else-if="activeTab === 'current' && !store.hasOpenSession" class="cr-state-msg">
@@ -621,7 +632,7 @@ const shiftDigitalMethods = computed(() => [
                 <span class="cr-state-msg__sub">Los turnos cerrados y su rendición aparecerán aquí.</span>
             </div>
             <div v-else class="flex flex-column gap-3">
-                <div v-for="session in store.closedSessions"
+                <div v-for="session in paginatedClosedSessions"
                      :key="session.id"
                      class="surface-card border-1 surface-border border-round-lg p-4 cursor-pointer"
                      @click="toggleSessionDetail(session.id)">
@@ -775,6 +786,30 @@ const shiftDigitalMethods = computed(() => [
             </div>
         </div>
             </div>
+
+            <footer v-if="showMovementsPagination" class="cr-panel__footer">
+                <table-pagination-bar
+                    v-model:page="movPage"
+                    v-model:page-size="movPageSize"
+                    :total-pages="movTotalPages"
+                    :range-start="movRangeStart"
+                    :range-end="movRangeEnd"
+                    :total-items="movTotalItems"
+                    item-label="movimientos"
+                />
+            </footer>
+
+            <footer v-else-if="showHistoryPagination" class="cr-panel__footer">
+                <table-pagination-bar
+                    v-model:page="histPage"
+                    v-model:page-size="histPageSize"
+                    :total-pages="histTotalPages"
+                    :range-start="histRangeStart"
+                    :range-end="histRangeEnd"
+                    :total-items="histTotalItems"
+                    item-label="turnos"
+                />
+            </footer>
         </section>
         </template>
 
@@ -796,35 +831,15 @@ const shiftDigitalMethods = computed(() => [
 
     </div>
     </module-state-feedback>
-    </div>
-    </div>
 </template>
 
 <style scoped>
-.cr-page--fill {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.cr-page__shell {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
 .cr-home {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0.5rem 0.75rem 0.75rem;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem 1.5rem;
+    background: #f3f4f6;
 }
 
 /* ── Resumen del turno (jerarquía visual) ─────────────────────────────── */
@@ -1177,15 +1192,10 @@ const shiftDigitalMethods = computed(() => [
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     display: flex;
     flex-direction: column;
-    min-height: 0;
-}
-
-.cr-panel--fill {
-    flex: 1;
 }
 
 .cr-tabs {
@@ -1206,13 +1216,14 @@ const shiftDigitalMethods = computed(() => [
 .cr-panel__select { min-width: 9.5rem; flex-shrink: 0; }
 
 .cr-panel__body {
-    padding: 0.5rem 0.75rem 0.75rem;
-    flex: 1;
-    min-height: 0;
+    padding: 0.5rem 0.75rem;
 }
 
-.cr-panel__body--scroll {
-    overflow-y: auto;
+.cr-panel__footer {
+    flex-shrink: 0;
+    padding: 0.55rem 0.85rem;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
 }
 
 .cr-state-msg {
@@ -1338,48 +1349,4 @@ const shiftDigitalMethods = computed(() => [
     font-weight: 600;
     white-space: nowrap;
 }
-
-/* ── Pagination ──────────────────────────────────────────────────────────── */
-.cr-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0.25rem;
-}
-
-.cr-pagination__info {
-    font-size: 0.78rem;
-    color: #6b7280;
-}
-
-.cr-pagination__controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.cr-pagination__page {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #374151;
-    min-width: 3.5rem;
-    text-align: center;
-}
-
-.cr-pagination__btn {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    color: #374151;
-    transition: background 0.12s, border-color 0.12s;
-}
-.cr-pagination__btn:hover:not(:disabled) { background: #f3f4f6; border-color: #d1d5db; }
-.cr-pagination__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

@@ -14,6 +14,8 @@ import { formatSaleOrderHash, formatSaleOrderLabel } from '../../../shared/utils
 import { exportPaymentsExcel } from '../utils/payments-excel.js'
 import { useNotification } from '../../../shared/composables/use-notification.js'
 import { paymentNetCollected } from '../../domain/payment-net.js'
+import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
+import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = usePaymentsStore()
 const { showSuccess, showError } = useNotification()
@@ -43,15 +45,16 @@ watch(
     },
 )
 
-// ── Paginación ───────────────────────────────────────────────────────────
-const PAGE_SIZE = 10
-const currentPage = ref(1)
-
-const totalPages = computed(() => Math.max(1, Math.ceil(store.filteredPayments.length / PAGE_SIZE)))
-const paginatedPayments = computed(() => {
-    const start = (currentPage.value - 1) * PAGE_SIZE
-    return store.filteredPayments.slice(start, start + PAGE_SIZE)
-})
+const {
+    page: currentPage,
+    pageSize,
+    totalPages,
+    paginatedItems: paginatedPayments,
+    rangeStart,
+    rangeEnd,
+    totalItems: paymentsTotalItems,
+    resetPage: resetPaymentsPage,
+} = useTablePagination(computed(() => store.filteredPayments))
 
 // ── Detalle en popup ─────────────────────────────────────────────────────
 const detailPayment = ref(null)
@@ -248,7 +251,7 @@ const receiptOptions = [
                 <pv-input-icon class="pi pi-search" />
                 <pv-input-text
                     :modelValue="store.searchQuery"
-                    @update:modelValue="store.setSearchQuery($event); currentPage = 1"
+                    @update:modelValue="store.setSearchQuery($event); resetPaymentsPage()"
                     placeholder="Buscar por mesa, orden, DNI, RUC..."
                     class="w-full"
                     size="small"
@@ -257,7 +260,7 @@ const receiptOptions = [
 
             <pv-select
                 :modelValue="store.filterMethod"
-                @update:modelValue="store.setFilterMethod($event); currentPage = 1"
+                @update:modelValue="store.setFilterMethod($event); resetPaymentsPage()"
                 :options="methodOptions"
                 optionLabel="label"
                 optionValue="value"
@@ -268,7 +271,7 @@ const receiptOptions = [
 
             <pv-select
                 :modelValue="store.filterReceipt"
-                @update:modelValue="store.setFilterReceipt($event); currentPage = 1"
+                @update:modelValue="store.setFilterReceipt($event); resetPaymentsPage()"
                 :options="receiptOptions"
                 optionLabel="label"
                 optionValue="value"
@@ -284,7 +287,7 @@ const receiptOptions = [
                 :outlined="!store.showAll"
                 size="small"
                 severity="secondary"
-                @click="store.setShowAll(!store.showAll); currentPage = 1"
+                @click="store.setShowAll(!store.showAll); resetPaymentsPage()"
             />
 
             <pv-button
@@ -398,21 +401,16 @@ const receiptOptions = [
         </div>
 
         <!-- Paginación -->
-        <div v-if="store.filteredPayments.length > PAGE_SIZE" class="pay-pagination">
-            <span class="pay-pagination__info">
-                {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, store.filteredPayments.length) }}
-                de {{ store.filteredPayments.length }}
-            </span>
-            <div class="pay-pagination__controls">
-                <button class="pay-pagination__btn" :disabled="currentPage <= 1" @click="currentPage--">
-                    <i class="pi pi-chevron-left"></i>
-                </button>
-                <span class="pay-pagination__page">{{ currentPage }} / {{ totalPages }}</span>
-                <button class="pay-pagination__btn" :disabled="currentPage >= totalPages" @click="currentPage++">
-                    <i class="pi pi-chevron-right"></i>
-                </button>
-            </div>
-        </div>
+        <table-pagination-bar
+            v-if="store.filteredPayments.length > 0"
+            v-model:page="currentPage"
+            v-model:page-size="pageSize"
+            :total-pages="totalPages"
+            :range-start="rangeStart"
+            :range-end="rangeEnd"
+            :total-items="paymentsTotalItems"
+            item-label="pagos"
+        />
 
     </div>
     </module-state-feedback>
@@ -728,50 +726,6 @@ const receiptOptions = [
 .td-amount { text-align: right; font-weight: 600; white-space: nowrap; }
 .td-change { color: #059669; }
 .td-expand { width: 2rem; text-align: center; color: #9ca3af; }
-
-/* ── Pagination ──────────────────────────────────────────────────────────── */
-.pay-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0.25rem;
-}
-
-.pay-pagination__info {
-    font-size: 0.78rem;
-    color: #6b7280;
-}
-
-.pay-pagination__controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.pay-pagination__page {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #374151;
-    min-width: 3.5rem;
-    text-align: center;
-}
-
-.pay-pagination__btn {
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    color: #374151;
-    transition: background 0.12s, border-color 0.12s;
-}
-.pay-pagination__btn:hover:not(:disabled) { background: #f3f4f6; border-color: #d1d5db; }
-.pay-pagination__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Badge ───────────────────────────────────────────────────────────────── */
 .badge {

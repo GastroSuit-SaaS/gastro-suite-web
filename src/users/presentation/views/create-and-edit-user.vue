@@ -2,8 +2,10 @@
 import { reactive, watch, computed } from 'vue'
 import { useUsersStore } from '../../application/users.store.js'
 import { useBranchesStore } from '../../../branches/application/branches.store.js'
-import { USER_ROLE_OPTIONS, TIPOS_DOCUMENTO } from '../constants/users.constants-ui.js'
+import { useIamStore } from '../../../iam/application/iam.store.js'
+import { buildUserRoleOptions, TIPOS_DOCUMENTO } from '../constants/users.constants-ui.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
@@ -14,6 +16,16 @@ const emit = defineEmits(['close', 'saved'])
 
 const store       = useUsersStore()
 const branchStore = useBranchesStore()
+const iamStore    = useIamStore()
+const { entitlements } = useSubscriptionEntitlements()
+
+const assignableRolesForPlan = computed(() =>
+    iamStore.assignableRoles.filter(
+        (role) => entitlements.value.hasKitchen || role !== 'COOK',
+    ),
+)
+
+const roleOptions = computed(() => buildUserRoleOptions(assignableRolesForPlan.value))
 
 const isEditing = computed(() => !!props.user?.id)
 
@@ -266,7 +278,7 @@ async function onSave() {
                         </label>
                         <pv-select
                             v-model="form.role"
-                            :options="USER_ROLE_OPTIONS"
+                            :options="roleOptions"
                             option-label="label"
                             option-value="value"
                             placeholder="Seleccionar rol"

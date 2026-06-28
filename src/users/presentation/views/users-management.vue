@@ -4,18 +4,28 @@ import { useUsersStore } from '../../application/users.store.js'
 import { useBranchesStore } from '../../../branches/application/branches.store.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { USER_ROLE_CONFIG } from '../constants/users.constants-ui.js'
+import { USER_ROLE_CONFIG, buildUserRoleOptions } from '../constants/users.constants-ui.js'
 import { ROLE_ALLOWED_ROUTES } from '../../../shared/presentation/constants/roles.constants.js'
 import CreateAndEditUser from './create-and-edit-user.vue'
 import UserDetailDialog from './user-detail-dialog.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab from '../../../shared/presentation/components/module-tab.vue'
+import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
+import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
 
 const store       = useUsersStore()
 const branchStore = useBranchesStore()
 const iamStore    = useIamStore()
 const { confirmDelete } = useConfirmDialog()
+const { entitlements } = useSubscriptionEntitlements()
+
+const assignableRolesForPlan = computed(() =>
+    iamStore.assignableRoles.filter(
+        (role) => entitlements.value.hasKitchen || role !== 'COOK',
+    ),
+)
 
 const activeTab    = ref('users')  // 'users' | 'roles'
 const showDialog   = ref(false)
@@ -28,7 +38,11 @@ const filterBranch = ref('')
 const selectedStatus = ref(null)   // null | 'active' | 'inactive'
 
 onMounted(async () => {
-    await Promise.all([store.fetchAll(), branchStore.fetchAll()])
+    await Promise.all([
+        store.fetchAll(),
+        branchStore.fetchAll(),
+        iamStore.loadRolesCatalog(),
+    ])
 })
 
 // ── Computed ──────────────────────────────────────────────
@@ -66,6 +80,16 @@ const filteredUsers = computed(() => {
     return list
 })
 
+const {
+    page: usersPage,
+    pageSize: usersPageSize,
+    paginatedItems: paginatedUsers,
+    totalPages: usersTotalPages,
+    rangeStart: usersRangeStart,
+    rangeEnd: usersRangeEnd,
+    totalItems: usersTotalItems,
+} = useTablePagination(filteredUsers)
+
 const totalUsers    = computed(() => store.users.length)
 const activeUsers   = computed(() => store.users.filter(u => u.isActive).length)
 const inactiveUsers = computed(() => store.users.filter(u => !u.isActive).length)
@@ -75,7 +99,7 @@ const branchOptions = computed(() =>
 )
 
 const roleOptions = computed(() =>
-    Object.entries(USER_ROLE_CONFIG).map(([value, cfg]) => ({ value, label: cfg.label }))
+    buildUserRoleOptions(assignableRolesForPlan.value).map(({ value, label }) => ({ value, label }))
 )
 
 // ── Roles & Permissions data ──────────────────────────────
@@ -101,8 +125,21 @@ const ROLE_DESCRIPTIONS = {
     COOK:         'Recibe y prepara pedidos desde estaciones de cocina o bar.',
 }
 
+const roleStatChips = computed(() =>
+    assignableRolesForPlan.value.map((key) => ({
+        key,
+        ...(USER_ROLE_CONFIG[key] ?? { label: key, icon: 'pi-user', color: '#6b7280' }),
+    })),
+)
+
 const rolePermissions = computed(() => {
-    return Object.entries(USER_ROLE_CONFIG).map(([key, cfg]) => {
+    return assignableRolesForPlan.value.map((key) => {
+        const cfg = USER_ROLE_CONFIG[key] ?? {
+            label: key,
+            icon: 'pi-user',
+            bg: '#f3f4f6',
+            color: '#6b7280',
+        };
         const routes = ROLE_ALLOWED_ROUTES[key] ?? []
         const modules = routes
             .map(r => ({ route: r, ...(MODULE_LABELS[r] ?? { label: r, icon: 'pi-circle', desc: '' }) }))
@@ -201,10 +238,10 @@ function clearSearch() {
                     <span class="stat-chip__label">Inactivos</span>
                     <span class="stat-chip__value" style="color:#ea580c">{{ inactiveUsers }}</span>
                 </button>
-                <div v-for="(cfg, key) in USER_ROLE_CONFIG" :key="key" class="stat-chip">
-                    <i :class="['pi', cfg.icon]" :style="{ color: cfg.color, fontSize: '0.8rem' }"></i>
-                    <span class="stat-chip__label">{{ cfg.label }}</span>
-                    <span class="stat-chip__value" :style="{ color: cfg.color }">{{ store.users.filter(u => u.role === key).length }}</span>
+                <div v-for="chip in roleStatChips" :key="chip.key" class="stat-chip">
+                    <i :class="['pi', chip.icon]" :style="{ color: chip.color, fontSize: '0.8rem' }"></i>
+                    <span class="stat-chip__label">{{ chip.label }}</span>
+                    <span class="stat-chip__value" :style="{ color: chip.color }">{{ store.users.filter(u => u.role === chip.key).length }}</span>
                 </div>
             </div>
 
@@ -261,7 +298,7 @@ function clearSearch() {
                     </thead>
                     <tbody>
                         <tr
-                            v-for="user in filteredUsers"
+                            v-for="user in paginatedUsers"
                             :key="user.id"
                             :class="['user-row', !user.isActive && 'user-row--inactive']"
                             @click="openDetail(user)"
@@ -306,6 +343,15 @@ function clearSearch() {
                         </tr>
                     </tbody>
                 </table>
+                <table-pagination-bar
+                    v-model:page="usersPage"
+                    v-model:page-size="usersPageSize"
+                    :total-pages="usersTotalPages"
+                    :range-start="usersRangeStart"
+                    :range-end="usersRangeEnd"
+                    :total-items="usersTotalItems"
+                    item-label="usuarios"
+                />
             </div>
 
             <!-- Dialog crear/editar -->

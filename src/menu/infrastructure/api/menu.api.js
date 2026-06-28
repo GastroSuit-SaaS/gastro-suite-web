@@ -25,6 +25,13 @@ export class MenuApi extends BaseApi {
     updateItem(itemId, resource)     { return this.#items.update(itemId, resource); }
     deleteItem(itemId)               { return this.#items.delete(itemId); }
 
+    /** PATCH multipart — campo `image` según MenuItemBffController.uploadImage */
+    uploadItemImage(itemId, imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        return this.http.patch(`${apiEnv.menuItems}/${itemId}/image`, formData);
+    }
+
     createCategory(resource)         { return this.#categories.create(resource); }
     updateCategory(id, resource)     { return this.#categories.update(id, resource); }
     deleteCategory(id)               { return this.#categories.delete(id); }

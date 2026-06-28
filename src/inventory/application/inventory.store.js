@@ -310,6 +310,40 @@ export const useInventoryStore = defineStore('inventory', () => {
         }
     }
 
+    async function updateMovement(id, data) {
+        error.value = null;
+        try {
+            const response = await api.updateMovement(
+                id,
+                StockMovementAssembler.toUpdateResource(data),
+            );
+            const saved = StockMovementAssembler.toEntityFromResponse(response);
+            if (saved?.id) {
+                movements.value = movements.value.map(m => m.id === id ? saved : m);
+            }
+            await fetchAll();
+            return true;
+        } catch (e) {
+            error.value = getApiErrorMessage(e, 'Error al actualizar movimiento');
+            return false;
+        }
+    }
+
+    async function removeMovement(id) {
+        error.value = null;
+        const snapshot = [...movements.value];
+        movements.value = movements.value.filter(m => m.id !== id);
+        try {
+            await api.deleteMovement(id);
+            await fetchAll();
+            return true;
+        } catch (e) {
+            movements.value = snapshot;
+            error.value = getApiErrorMessage(e, 'Error al eliminar movimiento');
+            return false;
+        }
+    }
+
     async function createCategory(data) {
         error.value = null;
         try {
@@ -383,7 +417,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         categories, allCategories, totalCategories, categorySelectOptions,
         filteredProducts, totalStockValue,
         totalMovements, entryMovements, exitMovements, filteredMovements,
-        fetchAll, fetchById, create, update, remove, registerMovement,
+        fetchAll, fetchById, create, update, remove, registerMovement, updateMovement, removeMovement,
         createCategory, updateCategory, removeCategory,
     };
 });

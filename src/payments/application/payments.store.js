@@ -11,6 +11,15 @@ import { useIamStore } from '../../iam/application/iam.store.js';
 
 const api = new PaymentsApi();
 
+function sortPaymentsNewestFirst(list) {
+    return [...list].sort((a, b) => {
+        const ta = new Date(a?.processedAt ?? 0).getTime();
+        const tb = new Date(b?.processedAt ?? 0).getTime();
+        if (tb !== ta) return tb - ta;
+        return String(b?.id ?? '').localeCompare(String(a?.id ?? ''));
+    });
+}
+
 export const usePaymentsStore = defineStore('payments', () => {
 
     // ── State ─────────────────────────────────────────────────────────────
@@ -66,7 +75,7 @@ export const usePaymentsStore = defineStore('payments', () => {
                 (p.receiptData?.ruc?.includes(q))
             );
         }
-        return list;
+        return sortPaymentsNewestFirst(list);
     });
 
     function setFilterMethod(val)  { filterMethod.value  = val; }
@@ -79,7 +88,9 @@ export const usePaymentsStore = defineStore('payments', () => {
         try {
             const branchId = requireActiveBranchId();
             const response = await api.listByBranch(branchId);
-            payments.value = PaymentAssembler.toEntitiesFromResponse(response);
+            payments.value = sortPaymentsNewestFirst(
+                PaymentAssembler.toEntitiesFromResponse(response),
+            );
         } catch { /* mantener estado */ }
     }
 
@@ -89,7 +100,9 @@ export const usePaymentsStore = defineStore('payments', () => {
         try {
             const branchId = requireActiveBranchId();
             const response = await api.listByBranch(branchId);
-            payments.value = PaymentAssembler.toEntitiesFromResponse(response);
+            payments.value = sortPaymentsNewestFirst(
+                PaymentAssembler.toEntitiesFromResponse(response),
+            );
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al cargar los pagos');
         } finally {

@@ -92,4 +92,19 @@ export class StockMovementAssembler {
             movementNotes:      notes,
         };
     }
+
+    /** Payload para PATCH /inventory/movements/{id} (UpdateMovementResource). */
+    static toUpdateResource(data) {
+        const type = data.type ?? MOVEMENT_TYPE.USAGE;
+        const reason = REASON_BY_TYPE[type] ?? null;
+        const notes = [data.reason, data.notes].filter(Boolean).join(' — ').trim() || null;
+
+        return {
+            movementType:       _typeToApi(type),
+            movementDirection:  _directionToApi(data.direction),
+            movementQuantity:   Number(data.quantity) || 0,
+            movementReason:     reason,
+            movementNotes:      notes,
+        };
+    }
 }

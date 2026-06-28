@@ -8,7 +8,9 @@ const iamStore = useIamStore()
 
 const props = defineProps({
     visible:  { type: Boolean, default: false },
-    products: { type: Array,   default: () => [] },
+    edit:     { type: Boolean, default: false },
+    movement: { type: Object,   default: null },
+    products: { type: Array,    default: () => [] },
 })
 
 const emit = defineEmits(['update:visible', 'movement-saved'])
@@ -49,13 +51,21 @@ const selectedProduct = computed(() =>
     props.products.find(p => p.id === form.productId) ?? null
 )
 
-const newStockPreview = computed(() => {
+const stockBeforeMovement = computed(() => {
     if (!selectedProduct.value) return null
+    if (!props.edit || !props.movement) return selectedProduct.value.stock
     const current = selectedProduct.value.stock
+    return props.movement.isEntry
+        ? current - props.movement.quantity
+        : current + props.movement.quantity
+})
+
+const newStockPreview = computed(() => {
+    if (stockBeforeMovement.value == null) return null
     const qty = Number(form.quantity) || 0
     return form.direction === MOVEMENT_DIRECTION.IN
-        ? current + qty
-        : Math.max(0, current - qty)
+        ? stockBeforeMovement.value + qty
+        : Math.max(0, stockBeforeMovement.value - qty)
 })
 
 watch(() => form.direction, () => {
@@ -67,12 +77,21 @@ watch(() => form.direction, () => {
 
 watch(() => props.visible, (val) => {
     if (val) {
-        form.productId = null
-        form.direction = MOVEMENT_DIRECTION.OUT
-        form.type      = MOVEMENT_TYPE.USAGE
-        form.quantity  = 1
-        form.reason    = ''
-        form.notes     = ''
+        if (props.edit && props.movement) {
+            form.productId = props.movement.productId
+            form.direction = props.movement.direction
+            form.type      = props.movement.type
+            form.quantity  = props.movement.quantity
+            form.reason    = ''
+            form.notes     = props.movement.notes ?? ''
+        } else {
+            form.productId = null
+            form.direction = MOVEMENT_DIRECTION.OUT
+            form.type      = MOVEMENT_TYPE.USAGE
+            form.quantity  = 1
+            form.reason    = ''
+            form.notes     = ''
+        }
     }
 })
 
@@ -91,9 +110,10 @@ const registrarLabel = computed(() => {
     return 'Se vinculará tu usuario al guardar'
 })
 
-const canSave = computed(() =>
-    form.productId && form.quantity > 0 && !!iamStore.currentUser
-)
+const canSave = computed(() => {
+    if (!form.productId || form.quantity <= 0) return false
+    return props.edit || !!iamStore.currentUser
+})
 
 const onCancel = () => emit('update:visible', false)
 
@@ -115,16 +135,16 @@ const onSave = () => {
 <template>
     <CreateAndEdit
         :visible="visible"
-        :edit="false"
+        :edit="edit"
         entity-name="Movimiento de Stock"
-        custom-button-label="Registrar Movimiento"
+        :custom-button-label="edit ? 'Guardar cambios' : 'Registrar Movimiento'"
         @canceled-shared="onCancel"
         @saved-shared="onSave"
     >
         <template #content>
             <div class="flex flex-column gap-4 pt-3">
 
-                <div class="registrar-banner" role="status">
+                <div v-if="!edit" class="registrar-banner" role="status">
                     <i class="pi pi-user" aria-hidden="true" />
                     <span>
                         <strong>Registrado por:</strong> {{ registrarLabel }}
@@ -151,6 +171,7 @@ const onSave = () => {
                         Producto <span class="text-red-500">*</span>
                     </label>
                     <pv-select
+                        v-if="!edit"
                         v-model="form.productId"
                         :options="productOptions"
                         optionLabel="label"
@@ -159,13 +180,18 @@ const onSave = () => {
                         filter
                         filter-placeholder="Buscar producto..."
                     />
+                    <pv-input-text
+                        v-else
+                        :model-value="selectedProduct ? `${selectedProduct.name} (${selectedProduct.sku})` : '—'"
+                        disabled
+                    />
                 </div>
 
                 <!-- Stock actual + preview -->
                 <div v-if="selectedProduct" class="stock-preview">
                     <div class="stock-preview__row">
-                        <span class="stock-preview__label">Stock actual</span>
-                        <span class="stock-preview__value">{{ selectedProduct.stock }} {{ selectedProduct.unit }}</span>
+                        <span class="stock-preview__label">{{ edit ? 'Stock antes del movimiento' : 'Stock actual' }}</span>
+                        <span class="stock-preview__value">{{ stockBeforeMovement }} {{ selectedProduct.unit }}</span>
                     </div>
                     <div class="stock-preview__row">
                         <span class="stock-preview__label">Stock resultante</span>

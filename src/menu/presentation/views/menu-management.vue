@@ -10,6 +10,8 @@ import CreateAndEditMenuItem     from './create-and-edit-menu-item.vue'
 import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar              from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab                 from '../../../shared/presentation/components/module-tab.vue'
+import TablePaginationBar        from '../../../shared/presentation/components/table-pagination-bar.vue'
+import { useTablePagination }    from '../../../shared/composables/use-table-pagination.js'
 
 const store = useMenuStore()
 const stationsStore = useStationsStore()
@@ -49,6 +51,16 @@ function toggleAvailability(val) {
     selectedAvailability.value = selectedAvailability.value === val ? null : val
 }
 
+const {
+    page: itemsPage,
+    pageSize: itemsPageSize,
+    paginatedItems: paginatedMenuItems,
+    totalPages: itemsTotalPages,
+    rangeStart: itemsRangeStart,
+    rangeEnd: itemsRangeEnd,
+    totalItems: itemsTotalItems,
+} = useTablePagination(visibleItems)
+
 const showCategoryDialog = ref(false)
 const editingCategory    = ref(null)
 
@@ -84,6 +96,9 @@ async function onItemSaved(data) {
         showItemDialog.value = false
         editingItem.value = null
         showSuccess(isEdit ? 'Producto actualizado' : 'Producto creado')
+        if (result.imageWarning) {
+            showError(result.imageWarning)
+        }
     } else {
         showError(result.message)
     }
@@ -254,7 +269,7 @@ async function onToggleCategoryActive(cat) {
             <!-- Items grid -->
             <div v-if="visibleItems.length > 0" class="menu-grid">
                 <div
-                    v-for="item in visibleItems"
+                    v-for="item in paginatedMenuItems"
                     :key="item.id"
                     class="menu-card"
                 >
@@ -292,6 +307,16 @@ async function onToggleCategoryActive(cat) {
                     </div>
                 </div>
             </div>
+            <table-pagination-bar
+                v-if="visibleItems.length > 0"
+                v-model:page="itemsPage"
+                v-model:page-size="itemsPageSize"
+                :total-pages="itemsTotalPages"
+                :range-start="itemsRangeStart"
+                :range-end="itemsRangeEnd"
+                :total-items="itemsTotalItems"
+                item-label="productos"
+            />
             <div v-else class="flex flex-column align-items-center justify-content-center gap-3 p-6">
                 <i class="pi pi-inbox text-color-secondary" style="font-size: 3rem;"></i>
                 <span class="text-color-secondary">No se encontraron productos</span>
@@ -371,7 +396,7 @@ async function onToggleCategoryActive(cat) {
         v-model:visible="showItemDialog"
         :edit="!!editingItem"
         :item="editingItem"
-        :categories="store.categories"
+        :categories="store.categorySelectOptions"
         @item-saved="onItemSaved"
     />
 

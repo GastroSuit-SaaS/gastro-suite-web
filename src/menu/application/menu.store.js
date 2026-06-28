@@ -9,7 +9,7 @@ import { requireActiveBranchId } from '../../shared/application/tenant-context.j
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 import { isNetworkOnline } from '../../shared/infrustructure/offline/network.js';
 import { loadMenuReadCache, saveMenuReadCache } from '../../shared/infrustructure/offline/read-cache.js';
-import { sortBySortOrder } from '../domain/menu-sort.js';
+import { sortBySortOrder, formatCategoryOptionLabel } from '../domain/menu-sort.js';
 
 const api = new MenuApi();
 
@@ -25,6 +25,24 @@ function isValidCategoryId(id) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
 }
 
+function isPersistedItemId(id) {
+    return isValidCategoryId(id);
+}
+
+async function uploadItemImageIfPresent(apiClient, itemId, imageFile) {
+    if (!imageFile || !isPersistedItemId(itemId)) return { entity: null, warning: null };
+    try {
+        const response = await apiClient.uploadItemImage(itemId, imageFile);
+        const entity = MenuItemAssembler.toEntityFromResponse(response);
+        return { entity, warning: null };
+    } catch (e) {
+        return {
+            entity: null,
+            warning: getApiErrorMessage(e, 'El producto se guardó, pero no se pudo subir la imagen.'),
+        };
+    }
+}
+
 export const useMenuStore = defineStore('menu', () => {
 
     const categoriesData = ref([]);
@@ -35,6 +53,24 @@ export const useMenuStore = defineStore('menu', () => {
     const isLoading    = ref(false);
     const error        = ref(null);
     const selectedItem = ref(null);
+
+    function replaceItemInList(itemId, entity) {
+        if (!entity?.id) return;
+        const idx = items.value.findIndex(i => String(i.id) === String(itemId));
+        if (idx !== -1) {
+            items.value[idx] = entity;
+        }
+    }
+
+    function persistMenuReadCache() {
+        try {
+            const branchId = requireActiveBranchId();
+            saveMenuReadCache(branchId, {
+                categories: categoriesData.value.map(c => ({ ...c })),
+                items: items.value.map(i => ({ ...i })),
+            });
+        } catch { /* sin sucursal activa */ }
+    }
 
     const categories = computed(() =>
         sortBySortOrder(
@@ -64,6 +100,13 @@ export const useMenuStore = defineStore('menu', () => {
     const availableItems   = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId) && i.isAvailable).length);
     const unavailableItems = computed(() => items.value.filter(i => activeCategoryIds.value.has(i.categoryId) && !i.isAvailable).length);
     const totalCategories  = computed(() => categories.value.length);
+
+    const categorySelectOptions = computed(() =>
+        categories.value.map((cat) => ({
+            label: formatCategoryOptionLabel(cat),
+            id: String(cat.id),
+        })),
+    );
 
     const categoryOrderIndex = computed(() => {
         const map = new Map();
@@ -166,7 +209,18 @@ export const useMenuStore = defineStore('menu', () => {
                 const idx = items.value.findIndex(i => i.id === optimisticId);
                 if (idx !== -1) items.value.splice(idx, 1, saved);
             }
-            return { ok: true };
+            const persistedId = saved?.id;
+            let imageWarning = null;
+            if (imageFile && persistedId) {
+                const upload = await uploadItemImageIfPresent(api, persistedId, imageFile);
+                if (upload.entity) {
+                    replaceItemInList(persistedId, upload.entity);
+                    persistMenuReadCache();
+                } else if (upload.warning) {
+                    imageWarning = upload.warning;
+                }
+            }
+            return imageWarning ? { ok: true, imageWarning } : { ok: true };
         } catch (e) {
             return fail(e, 'No se pudo crear el producto', () => { items.value = snapshot; });
         }
@@ -187,7 +241,17 @@ export const useMenuStore = defineStore('menu', () => {
         }
         try {
             await api.updateItem(id, MenuItemAssembler.toUpdateResource(item));
-            return { ok: true };
+            let imageWarning = null;
+            if (imageFile) {
+                const upload = await uploadItemImageIfPresent(api, id, imageFile);
+                if (upload.entity) {
+                    replaceItemInList(id, upload.entity);
+                    persistMenuReadCache();
+                } else if (upload.warning) {
+                    imageWarning = upload.warning;
+                }
+            }
+            return imageWarning ? { ok: true, imageWarning } : { ok: true };
         } catch (e) {
             return fail(e, 'No se pudo actualizar el producto', () => { items.value = snapshot; });
         }
@@ -289,7 +353,7 @@ export const useMenuStore = defineStore('menu', () => {
 
     return {
         items, categoriesData, selectedCategoryId, searchQuery, isLoading, error, selectedItem,
-        totalItems, availableItems, unavailableItems, totalCategories, categories, allCategories, filteredItems,
+        totalItems, availableItems, unavailableItems, totalCategories, categories, categorySelectOptions, allCategories, filteredItems,
         fetchAll, hydrateFromCache, fetchById, create, update, remove,
         setItemAvailability, selectCategory, createCategory, updateCategory, removeCategory,
     };

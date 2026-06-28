@@ -49,6 +49,9 @@ export const INVENTORY_MESSAGES = {
   CATEGORY_UPDATED: 'Categoría actualizada correctamente',
   CATEGORY_DELETED: 'Categoría eliminada correctamente',
   MOVEMENT_REGISTERED: 'Movimiento registrado correctamente',
+  MOVEMENT_UPDATED: 'Movimiento actualizado correctamente',
+  MOVEMENT_DELETED: 'Movimiento eliminado correctamente',
+  LOW_STOCK_BANNER: 'producto(s) con stock bajo o agotado en bodega.',
   EMPLOYEE_LINK_REQUIRED:
     'Tu usuario debe estar vinculado a un empleado para registrar entradas y salidas de inventario.',
   CATEGORY_REQUIRED: 'Selecciona una categoría de inventario.',

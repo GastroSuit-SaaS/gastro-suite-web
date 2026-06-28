@@ -3,7 +3,6 @@ import { reactive, ref, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import FileUploader  from '../../../shared/presentation/components/file-uploader.vue'
 import { useStationsStore } from '../../../stations/application/stations.store.js'
-import { formatCategoryOptionLabel } from '../../domain/menu-sort.js'
 
 // ===========================
 // PROPS & EMITS
@@ -17,13 +16,15 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'item-saved'])
 
+const STATION_NONE = '__none__'
+
 // ===========================
 // STATIONS (from store — fuente de verdad)
 // ===========================
 const stationsStore = useStationsStore()
 
 const stationOptions = computed(() => [
-    { id: null, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
+    { id: STATION_NONE, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
     ...stationsStore.activeStations.map(s => ({
         id: s.id,
         name: s.name,
@@ -43,7 +44,7 @@ const form = reactive({
     price:       0,
     cost:        0,
     prepTime:    null,
-    stationId:   null,
+    stationId:   STATION_NONE,
     isAvailable: true,
 })
 
@@ -62,13 +63,13 @@ watch(() => props.visible, async (val) => {
         const src = props.item
         form.name        = src?.name        ?? ''
         form.description = src?.description ?? ''
-        form.categoryId  = src?.categoryId  ?? null
+        form.categoryId  = src?.categoryId != null ? String(src.categoryId) : null
         form.sku         = src?.sku         ?? ''
         form.price       = src?.price       ?? 0
         form.cost        = src?.cost        ?? 0
         const pt = src?.prepTime
         form.prepTime    = pt != null && pt > 0 ? pt : null
-        form.stationId   = src?.stationId   ?? null
+        form.stationId   = src?.stationId ?? STATION_NONE
         form.isAvailable = src?.isAvailable ?? true
         imageFile.value  = null
         errors.name       = false
@@ -78,17 +79,22 @@ watch(() => props.visible, async (val) => {
     }
 })
 
+watch(() => form.categoryId, (val) => {
+    if (val != null && val !== '') errors.categoryId = false
+})
+
 // ===========================
 // METHODS
 // ===========================
 function onSave() {
     errors.name       = !form.name.trim()
-    errors.categoryId = form.categoryId === null
+    errors.categoryId = !form.categoryId
     errors.sku        = !form.sku.trim()
     errors.price      = form.price <= 0
 
     if (errors.name || errors.categoryId || errors.sku || errors.price) return
 
+    const stationId = form.stationId === STATION_NONE ? null : form.stationId
     const selectedStation = stationOptions.value.find(s => s.id === form.stationId)
 
     emit('item-saved', {
@@ -99,8 +105,8 @@ function onSave() {
         price:       form.price,
         cost:        form.cost,
         prepTime:    form.prepTime != null && form.prepTime > 0 ? form.prepTime : null,
-        stationId:   form.stationId,
-        station:     selectedStation?.id !== null ? selectedStation?.name ?? null : null,
+        stationId,
+        station:     stationId ? selectedStation?.name ?? null : null,
         isAvailable: form.isAvailable,
         imageFile:   imageFile.value,
     })
@@ -155,22 +161,12 @@ function onClose() {
                         <pv-select
                             v-model="form.categoryId"
                             :options="categories"
-                            option-label="name"
+                            option-label="label"
                             option-value="id"
                             placeholder="Seleccionar categoría"
                             :invalid="errors.categoryId"
                             class="w-full"
-                        >
-                            <template #value="{ value }">
-                                <span v-if="value != null">
-                                    {{ formatCategoryOptionLabel(categories.find(c => c.id === value) ?? {}) }}
-                                </span>
-                                <span v-else class="text-color-secondary">Seleccionar categoría</span>
-                            </template>
-                            <template #option="{ option }">
-                                <span>{{ formatCategoryOptionLabel(option) }}</span>
-                            </template>
-                        </pv-select>
+                        />
                         <small v-if="errors.categoryId" class="text-red-500">Seleccione una categoría</small>
                     </div>
                     <div class="flex flex-column gap-1 flex-1">
