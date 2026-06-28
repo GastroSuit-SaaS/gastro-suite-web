@@ -33,6 +33,14 @@ export class IamApi extends BaseApi {
     ensureEmployeeLink(resource) {
         return this.#auth.postAt(`${this.#auth.endpointPath}/ensure-employee`, resource);
     }
+
+    forgotPassword(email) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/forgot-password`, { email });
+    }
+
+    resetPassword(token, password) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/reset-password`, { token, password });
+    }
 }
 
 export const iamApi = new IamApi();

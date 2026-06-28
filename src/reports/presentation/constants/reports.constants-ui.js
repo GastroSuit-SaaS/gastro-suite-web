@@ -16,6 +16,7 @@ export const REPORT_TYPE_LABELS = {
   FINANCIAL: 'Resumen financiero',
   PRODUCT_MIX: 'Mix de productos',
   COLLECTOR_SALES: 'Cobros por empleado',
+  SALES_BY_PAYMENT_METHOD: 'Ventas por método de pago',
 };
 
 export const EXPORT_FORMAT_LABELS = {
@@ -26,5 +27,6 @@ export const REPORTS_MESSAGES = {
   GENERATE_SUCCESS: 'Reporte generado correctamente',
   GENERATE_ERROR: 'Error al generar el reporte',
   EXPORT_SUCCESS: 'Reporte exportado correctamente',
-  EMPLOYEE_LINK_REQUIRED: 'Debes estar vinculado como empleado para generar reportes.',
+  EMPLOYEE_LINK_REQUIRED:
+    'Debes estar vinculado como empleado para generar reportes. Si eres administrador, el sistema intentará vincularte al entrar; contacta al administrador si persiste.',
 };

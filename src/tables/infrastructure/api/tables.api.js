@@ -34,7 +34,6 @@ export class TablesApi extends BaseApi {
         return this.#tables.update(id, TableAssembler.toStatusPatch({
             status: 'occupied',
             seatedGuests,
-            occupiedSince: new Date().toISOString(),
         }));
     }
 

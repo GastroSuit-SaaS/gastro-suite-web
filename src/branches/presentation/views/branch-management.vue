@@ -5,6 +5,7 @@ import { useBranchesStore } from '../../application/branches.store.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useUsersStore } from '../../../users/application/users.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
 import CreateAndEditBranch from './create-and-edit-branch.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 
@@ -13,6 +14,7 @@ const iamStore   = useIamStore()
 const usersStore = useUsersStore()
 const router     = useRouter()
 const { confirmDelete } = useConfirmDialog()
+const { switchToBranch } = useBranchSwitch()
 
 const showDialog    = ref(false)
 const editingBranch = ref(null)
@@ -75,9 +77,9 @@ function onDialogSaved() {
     editingBranch.value = null
 }
 
-function selectBranch(branch) {
-    iamStore.selectBranch(branch.id, branch.nombre)
-    router.push('/dashboard')
+async function selectBranch(branch) {
+    const ok = await switchToBranch(branch, { redirectTo: '/dashboard' })
+    if (!ok) return
 }
 
 function onToggleActive(branch) {

@@ -12,6 +12,7 @@ export const REPORT_TYPE = Object.freeze({
     FINANCIAL:        'financial',
     PRODUCT_MIX:      'product_mix',
     COLLECTOR_SALES:  'collector_sales',
+    SALES_BY_PAYMENT_METHOD: 'sales_by_payment_method',
 });
 
 export const REPORT_STATUS = Object.freeze({

@@ -1,29 +1,59 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useReportsStore } from '../../application/reports.store.js'
+import { useIamStore } from '../../../iam/application/iam.store.js'
+import { REPORTS_MESSAGES } from '../constants/reports.constants-ui.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { REPORT_TYPE_LABELS, EXPORT_FORMAT_LABELS } from '../constants/reports.constants-ui.js'
 import { REPORT_TYPE, REPORT_STATUS, EXPORT_FORMAT } from '../../domain/models/report.entity.js'
-import { exportCollectorSalesReportExcel } from '../utils/reports-excel.js'
+import { exportCollectorSalesReportExcel, exportSalesByPaymentMethodReportCsv, exportSalesByPaymentMethodReportExcel } from '../utils/reports-excel.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { isReportTypeAllowed } from '../../../shared/presentation/constants/subscription-entitlements.constants.js'
 
 const store = useReportsStore()
+const iamStore = useIamStore()
 const { confirmDelete } = useConfirmDialog()
+const { entitlements } = useSubscriptionEntitlements()
 
-onMounted(() => store.fetchAll())
+const canGenerateReports = computed(() =>
+    iamStore.hasEmployeeLink && entitlements.value.canAccessReports,
+)
+
+const allowedReportTypes = computed(() =>
+    Object.entries(REPORT_TYPE)
+        .filter(([, value]) => isReportTypeAllowed(value, entitlements.value))
+        .map(([key, value]) => ({ key, value })),
+)
+
+const hasAnyReportType = computed(() => allowedReportTypes.value.length > 0)
+
+const canExportExcel = computed(() => entitlements.value.hasExcelExport)
+
+const generateDisabledTitle = computed(() => {
+    if (!iamStore.hasEmployeeLink) return REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED
+    if (!entitlements.value.canAccessReports) return 'Tu plan no incluye reportes.'
+    if (!hasAnyReportType.value) return 'No hay tipos de reporte disponibles en tu plan.'
+    return ''
+})
+
+onMounted(() => {
+    store.fetchAll()
+    iamStore.ensureEmployeeLink()
+})
 
 const showGenerate = ref(false)
 const showDetail = ref(false)
 const detailReport = ref(null)
 
 /** Opciones para filtro por tipo (desplegable). */
-const reportTypeFilterOptions = [
+const reportTypeFilterOptions = computed(() => [
     { label: 'Todos los tipos', value: null },
-    ...Object.entries(REPORT_TYPE).map(([key, value]) => ({
+    ...allowedReportTypes.value.map(({ key, value }) => ({
         label: REPORT_TYPE_LABELS[key] ?? key,
         value,
     })),
-]
+])
 
 function todayInputValue() {
     return new Date().toISOString().slice(0, 10)
@@ -47,8 +77,10 @@ const newReport = ref({
 })
 
 function openGenerate() {
+    if (!canGenerateReports.value || !hasAnyReportType.value) return
+    const defaultType = allowedReportTypes.value[0]?.value ?? REPORT_TYPE.DAILY_SALES
     newReport.value = {
-        type: REPORT_TYPE.COLLECTOR_SALES,
+        type: defaultType,
         exportFormat: EXPORT_FORMAT.EXCEL,
         title: '',
         dateFrom: todayInputValue(),
@@ -124,8 +156,16 @@ const isCollectorReport = computed(() =>
     detailReport.value?.type === REPORT_TYPE.COLLECTOR_SALES,
 )
 
+const isPaymentMethodReport = computed(() =>
+    detailReport.value?.type === REPORT_TYPE.SALES_BY_PAYMENT_METHOD,
+)
+
 const collectorRows = computed(() =>
     detailReport.value?.data?.collectors ?? [],
+)
+
+const paymentMethodRows = computed(() =>
+    detailReport.value?.data?.methods ?? [],
 )
 
 const collectorTotals = computed(() => ({
@@ -133,9 +173,25 @@ const collectorTotals = computed(() => ({
     amount: detailReport.value?.data?.totalAmount ?? 0,
 }))
 
+const paymentMethodTotals = computed(() => ({
+    payments: detailReport.value?.data?.totalPayments ?? 0,
+    amount: detailReport.value?.data?.totalAmount ?? 0,
+    methods: paymentMethodRows.value.length,
+}))
+
 function exportDetailExcel() {
-    if (!detailReport.value || !isCollectorReport.value) return
+    if (!canExportExcel.value || !detailReport.value || !isCollectorReport.value) return
     exportCollectorSalesReportExcel(detailReport.value)
+}
+
+function exportPaymentMethodExcel() {
+    if (!canExportExcel.value || !detailReport.value || !isPaymentMethodReport.value) return
+    exportSalesByPaymentMethodReportExcel(detailReport.value)
+}
+
+function exportPaymentMethodCsv() {
+    if (!detailReport.value || !isPaymentMethodReport.value) return
+    exportSalesByPaymentMethodReportCsv(detailReport.value)
 }
 
 function clearSearch() {
@@ -222,7 +278,13 @@ function clearSearch() {
                 class="rpt-type-select"
             />
 
-            <button class="rpt-btn rpt-btn--primary" @click="openGenerate">
+            <button
+                class="rpt-btn rpt-btn--primary"
+                :class="{ 'rpt-btn--disabled': !canGenerateReports || !hasAnyReportType }"
+                :disabled="!canGenerateReports || !hasAnyReportType"
+                :title="canGenerateReports && hasAnyReportType ? undefined : generateDisabledTitle"
+                @click="openGenerate"
+            >
                 <i class="pi pi-plus"></i> Generar reporte
             </button>
         </div>
@@ -282,8 +344,12 @@ function clearSearch() {
                         <label class="rpt-field">
                             <span class="rpt-field__label">Tipo de reporte</span>
                             <select v-model="newReport.type" class="rpt-field__input">
-                                <option v-for="(label, key) in REPORT_TYPE_LABELS" :key="key" :value="REPORT_TYPE[key] ?? key.toLowerCase()">
-                                    {{ label }}
+                                <option
+                                    v-for="{ key, value } in allowedReportTypes"
+                                    :key="key"
+                                    :value="value"
+                                >
+                                    {{ REPORT_TYPE_LABELS[key] ?? key }}
                                 </option>
                             </select>
                         </label>
@@ -299,12 +365,23 @@ function clearSearch() {
                         </div>
                         <label class="rpt-field">
                             <span class="rpt-field__label">Formato de exportación</span>
-                            <input type="text" class="rpt-field__input" value="Excel (.xlsx)" disabled />
+                            <input
+                                type="text"
+                                class="rpt-field__input"
+                                :value="canExportExcel ? 'Excel (.xlsx)' : 'Solo visualización en pantalla'"
+                                disabled
+                            />
                         </label>
                     </div>
                     <div class="rpt-dialog__footer">
                         <button class="rpt-btn" @click="showGenerate = false">Cancelar</button>
-                        <button class="rpt-btn rpt-btn--primary" @click="onGenerate">
+                        <button
+                            class="rpt-btn rpt-btn--primary"
+                            :class="{ 'rpt-btn--disabled': !canGenerateReports || !hasAnyReportType }"
+                            :disabled="!canGenerateReports || !hasAnyReportType"
+                            :title="canGenerateReports && hasAnyReportType ? undefined : generateDisabledTitle"
+                            @click="onGenerate"
+                        >
                             <i class="pi pi-chart-bar"></i> Generar
                         </button>
                     </div>
@@ -363,12 +440,55 @@ function clearSearch() {
                                 </tbody>
                             </table>
                         </template>
+                        <template v-else-if="isPaymentMethodReport">
+                            <div class="rpt-summary-row">
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Pagos</span>
+                                    <span class="rpt-summary-card__value">{{ paymentMethodTotals.payments }}</span>
+                                </div>
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Total cobrado</span>
+                                    <span class="rpt-summary-card__value">S/ {{ formatMoney(paymentMethodTotals.amount) }}</span>
+                                </div>
+                                <div class="rpt-summary-card">
+                                    <span class="rpt-summary-card__label">Métodos</span>
+                                    <span class="rpt-summary-card__value">{{ paymentMethodTotals.methods }}</span>
+                                </div>
+                            </div>
+                            <div v-if="paymentMethodRows.length === 0" class="rpt-empty rpt-empty--compact">
+                                <p>Sin cobros en el periodo seleccionado.</p>
+                            </div>
+                            <table v-else class="rpt-table">
+                                <thead>
+                                    <tr>
+                                        <th>Método de pago</th>
+                                        <th>Pagos</th>
+                                        <th>Total (S/)</th>
+                                        <th>%</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, idx) in paymentMethodRows" :key="idx">
+                                        <td>{{ row.displayName ?? '—' }}</td>
+                                        <td>{{ row.paymentCount ?? 0 }}</td>
+                                        <td>{{ formatMoney(row.totalAmount) }}</td>
+                                        <td>{{ Number(row.percentage ?? 0).toFixed(1) }}%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </template>
                         <div v-else class="rpt-empty rpt-empty--compact">
                             <p>Vista detallada no disponible para este tipo de reporte.</p>
                         </div>
                     </div>
                     <div class="rpt-dialog__footer">
-                        <button v-if="isCollectorReport && collectorRows.length" class="rpt-btn" @click="exportDetailExcel">
+                        <button v-if="canExportExcel && isCollectorReport && collectorRows.length" class="rpt-btn" @click="exportDetailExcel">
+                            <i class="pi pi-download"></i> Exportar Excel
+                        </button>
+                        <button v-if="isPaymentMethodReport && paymentMethodRows.length" class="rpt-btn" @click="exportPaymentMethodCsv">
+                            <i class="pi pi-download"></i> Exportar CSV
+                        </button>
+                        <button v-if="canExportExcel && isPaymentMethodReport && paymentMethodRows.length" class="rpt-btn" @click="exportPaymentMethodExcel">
                             <i class="pi pi-download"></i> Exportar Excel
                         </button>
                         <button class="rpt-btn rpt-btn--primary" @click="showDetail = false">Cerrar</button>
@@ -417,6 +537,10 @@ function clearSearch() {
 .rpt-btn:hover { background: #f9fafb; }
 .rpt-btn--primary { background: #6366f1; color: #fff; border-color: #6366f1; }
 .rpt-btn--primary:hover { background: #4f46e5; }
+.rpt-btn--disabled,
+.rpt-btn--disabled:hover {
+    opacity: 0.55; cursor: not-allowed; background: #6366f1; color: #fff; border-color: #6366f1;
+}
 
 /* ── Empty state ────────────────────────────────────────── */
 .rpt-empty {

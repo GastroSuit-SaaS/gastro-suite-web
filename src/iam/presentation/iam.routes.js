@@ -1,6 +1,7 @@
 const signInForm          = () => import('./views/sign-in.vue');
 const signUpForm          = () => import('./views/sign-up.vue');
 const forgotPasswordForm  = () => import('./views/forgot-password.vue');
+const resetPasswordForm   = () => import('./views/reset-password.vue');
 
 export const IAM_ROUTES = {
     SIGN_IN:         '/sign-in',
@@ -34,6 +35,15 @@ const iamRoutes = [
         component: forgotPasswordForm,
         meta: {
             title: 'Recuperar Contraseña',
+            requiresAuth: false,
+        },
+    },
+    {
+        path: IAM_ROUTES.RESET_PASSWORD,
+        name: 'reset-password',
+        component: resetPasswordForm,
+        meta: {
+            title: 'Restablecer Contraseña',
             requiresAuth: false,
         },
     },

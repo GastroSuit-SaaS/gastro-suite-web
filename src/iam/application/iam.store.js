@@ -1,9 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { IamApi } from '../infrastructure/api/iam.api.js';
+import { RolesApi } from '../infrastructure/api/roles.api.js';
 import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
+import { RoleAssembler } from '../infrastructure/assemblers/role.assembler.js';
 import { RegistrationAssembler } from '../infrastructure/assemblers/registration.assembler.js';
 import { User } from '../domain/models/user.entity.js';
+import { ROLES } from '../../shared/presentation/constants/roles.constants.js';
 import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructure/session-storage.js';
 import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
 import { appLogger } from '../../shared/infrustructure/app-logger.js';
@@ -11,8 +14,12 @@ import { logRegisterFailure, resolveRegisterErrorMessage } from '../infrastructu
 import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
 import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
 import { resetApplicationStores } from '../../shared/application/reset-application-stores.js';
+import { resetBranchOperationalContext } from '../../shared/application/branch-switch.js';
 
 const api = new IamApi();
+const rolesApi = new RolesApi();
+
+const ASSIGNABLE_ROLES_FALLBACK = Object.values(ROLES).filter((r) => r !== ROLES.OWNER && r !== ROLES.SYSTEM);
 
 export const useIamStore = defineStore('iam', () => {
 
@@ -25,6 +32,10 @@ export const useIamStore = defineStore('iam', () => {
     /** linked | missing_company | error | idle */
     const employeeLinkStatus  = ref('idle');
     const employeeLinkMessage = ref(null);
+    /** Nombres de rol asignables (sin OWNER); fallback a constantes si GET /roles falla. */
+    const rolesCatalog        = ref([]);
+    /** api | fallback */
+    const rolesCatalogSource  = ref('fallback');
 
     _rehydrateUser();
 
@@ -32,8 +43,13 @@ export const useIamStore = defineStore('iam', () => {
     const isAuthenticated = computed(() => !!token.value && !!currentUser.value);
     const userRole        = computed(() => currentUser.value?.primaryRole ?? '');
     const isOwner         = computed(() => currentUser.value?.isOwner ?? false);
+    const isSystem        = computed(() => currentUser.value?.isSystem ?? false);
     const hasBranchSelected = computed(() => !!activeBranchId.value);
+    const hasEmployeeLink   = computed(() => !!currentUser.value?.employeeId);
     const companyId       = computed(() => currentUser.value?.empresaId ?? null);
+    const assignableRoles = computed(() =>
+        rolesCatalog.value.length ? rolesCatalog.value : ASSIGNABLE_ROLES_FALLBACK,
+    );
 
     function _setToken(jwt) {
         token.value = jwt;
@@ -86,6 +102,8 @@ export const useIamStore = defineStore('iam', () => {
         _setBranch(null);
         employeeLinkStatus.value  = 'idle';
         employeeLinkMessage.value = null;
+        rolesCatalog.value        = [];
+        rolesCatalogSource.value  = 'fallback';
         resetApplicationStores();
         clearAllAppLocalStorage();
         clearSignUpDraft();
@@ -110,6 +128,7 @@ export const useIamStore = defineStore('iam', () => {
                 _setBranch(user.sucursalId, user.sucursalNombre);
             }
             await ensureEmployeeLink();
+            loadRolesCatalog().catch(() => {});
             return true;
         } catch (err) {
             const status = err?.response?.status;
@@ -140,14 +159,25 @@ export const useIamStore = defineStore('iam', () => {
     }
 
     async function selectBranch(branchId, branchName = '') {
+        if (branchId === activeBranchId.value) return { changed: false };
+
+        const previousBranchId = activeBranchId.value;
+        resetBranchOperationalContext(previousBranchId, branchId);
         _setBranch(branchId, branchName);
+
         if (token.value && currentUser.value) {
             await ensureEmployeeLink();
         }
+        return { changed: true };
     }
 
     function clearBranch() {
+        if (!activeBranchId.value) return { changed: false };
+
+        const previousBranchId = activeBranchId.value;
+        resetBranchOperationalContext(previousBranchId, null);
         _setBranch(null);
+        return { changed: true };
     }
 
     /**
@@ -255,17 +285,66 @@ export const useIamStore = defineStore('iam', () => {
         }
     }
 
-    async function forgotPassword() {
-        error.value = 'Recuperación de contraseña aún no está disponible en el API.';
-        return false;
+    async function forgotPassword(email) {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            await iamApi.forgotPassword(String(email ?? '').trim());
+            return true;
+        } catch (err) {
+            error.value = getApiErrorMessage(err, 'No se pudo enviar el enlace de recuperación.');
+            return false;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function resetPassword(token, password) {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            await iamApi.resetPassword(String(token ?? '').trim(), password);
+            return true;
+        } catch (err) {
+            error.value = getApiErrorMessage(err, 'No se pudo restablecer la contraseña.');
+            return false;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    /**
+     * Carga catálogo de roles desde GET /roles; fallback a ROLES locales si falla (p. ej. prod sin support).
+     */
+    async function loadRolesCatalog() {
+        if (!token.value) {
+            rolesCatalog.value = [];
+            rolesCatalogSource.value = 'fallback';
+            return;
+        }
+        try {
+            const response = await rolesApi.list();
+            const names = RoleAssembler.toRoleNames(response.data)
+                .filter((name) => name !== ROLES.OWNER);
+            if (names.length) {
+                rolesCatalog.value = names;
+                rolesCatalogSource.value = 'api';
+                return;
+            }
+        } catch {
+            /* fallback documentado en KNOWLEDGE-BASE / INTEGRATION */
+        }
+        rolesCatalog.value = [...ASSIGNABLE_ROLES_FALLBACK];
+        rolesCatalogSource.value = 'fallback';
     }
 
     return {
         currentUser, token, isLoading, error,
-        isAuthenticated, userRole, isOwner, hasBranchSelected, companyId,
+        isAuthenticated, userRole, isOwner, isSystem, hasBranchSelected, hasEmployeeLink, companyId,
         activeBranchId, activeBranchName,
-        signIn, logout, clearAuthError, register, forgotPassword,
-        selectBranch, clearBranch, ensureEmployeeLink,
+        signIn, logout, clearAuthError, register, forgotPassword, resetPassword,
+        selectBranch, clearBranch, ensureEmployeeLink, loadRolesCatalog,
         employeeLinkStatus, employeeLinkMessage,
+        rolesCatalog, rolesCatalogSource, assignableRoles,
     };
 });

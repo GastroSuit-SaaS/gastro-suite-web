@@ -12,7 +12,7 @@ const email   = ref('');
 const success = ref(false);
 
 async function handleSubmit() {
-    const ok = await iamStore.forgotPassword();
+    const ok = await iamStore.forgotPassword(email.value);
     if (ok) success.value = true;
 }
 </script>
@@ -32,7 +32,7 @@ async function handleSubmit() {
         <div class="mb-4 text-center">
           <h2 class="text-3xl md:text-4xl font-bold mb-2 text-color">Recuperar Contrasena</h2>
           <p class="text-sm m-0 text-color-secondary">
-            Ingresa tu correo y te enviaremos un enlace para restablecer tu contrasena
+            Ingresa tu usuario o correo y te enviaremos un enlace para restablecer tu contraseña
           </p>
         </div>
 
@@ -64,14 +64,14 @@ async function handleSubmit() {
 
           <!-- Email -->
           <div class="flex flex-column gap-2">
-            <label for="email" class="font-semibold text-sm text-color">Correo electronico</label>
+            <label for="email" class="font-semibold text-sm text-color">Usuario o correo</label>
             <pv-icon-field>
               <pv-input-icon class="pi pi-envelope" />
               <pv-input-text
                 id="email"
                 v-model="email"
                 type="email"
-                placeholder="correo@empresa.pe"
+                placeholder="admin o correo@empresa.pe"
                 class="w-full"
                 size="large"
               />

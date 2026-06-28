@@ -11,9 +11,16 @@
  */
 
 export const TABLES_ROUTES = {
-  LAYOUT: '/tables/layout',
+  MANAGEMENT: '/tables',
   RESERVATIONS: '/tables/reservations',
 };
+
+/** Evita duplicar prefijo "Mesa" cuando number ya lo incluye. */
+export function formatTableLabel(number) {
+    if (number == null || number === '') return '—';
+    const value = String(number).trim();
+    return /^mesa\b/i.test(value) ? value : `Mesa ${value}`;
+}
 
 // Re-exportado desde shared para mantener compatibilidad y consistencia entre módulos
 export { TABLE_STATUS_CONFIG } from '../../../shared/presentation/constants/table-status.constants.js';

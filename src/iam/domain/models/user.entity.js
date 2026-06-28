@@ -52,6 +52,11 @@ export class User {
         return this.roles[0] ?? '';
     }
 
+    /** @returns {boolean} true si el usuario es SYSTEM (super admin platform) */
+    get isSystem() {
+        return this.roles.includes('SYSTEM');
+    }
+
     /** @returns {boolean} true si el usuario es OWNER */
     get isOwner() {
         return this.roles.includes('OWNER');

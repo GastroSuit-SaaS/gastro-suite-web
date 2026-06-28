@@ -36,6 +36,15 @@ export class TableAssembler {
         return String(shape).toUpperCase();
     }
 
+    /** LocalDateTime sin zona (compatible con Jackson → LocalDateTime en API). */
+    static _toLocalDateTime(value) {
+        if (value == null) return null;
+        const d = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(d.getTime())) return null;
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     static toEntityFromResource(r) {
         return new Table({
             id:            r.tableId ?? r.id ?? null,
@@ -82,7 +91,9 @@ export class TableAssembler {
             tableShape: table.shape != null ? TableAssembler._toApiShape(table.shape) : null,
             tableStatus: table.status != null ? TableAssembler._toApiStatus(table.status) : null,
             tableSeatedGuests: table.seatedGuests ?? null,
-            occupiedSince: table.occupiedSince ?? null,
+            occupiedSince: table.occupiedSince != null
+                ? TableAssembler._toLocalDateTime(table.occupiedSince)
+                : null,
             tableIsActive: table.isActive ?? null,
         };
     }
@@ -92,7 +103,11 @@ export class TableAssembler {
         const body = {};
         if (status != null) body.tableStatus = TableAssembler._toApiStatus(status);
         if (seatedGuests != null) body.tableSeatedGuests = seatedGuests;
-        if (occupiedSince !== undefined) body.occupiedSince = occupiedSince;
+        if (occupiedSince !== undefined) {
+            body.occupiedSince = occupiedSince == null
+                ? null
+                : TableAssembler._toLocalDateTime(occupiedSince);
+        }
         return body;
     }
 }

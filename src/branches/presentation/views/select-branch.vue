@@ -3,11 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useBranchesStore } from '../../../branches/application/branches.store.js'
+import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
 
 const router   = useRouter()
 const route    = useRoute()
 const iamStore = useIamStore()
 const branchesStore = useBranchesStore()
+const { switchToBranch } = useBranchSwitch()
 
 const selectedBranch = ref(null)
 
@@ -17,9 +19,8 @@ onMounted(async () => {
 
 async function handleSelect() {
     if (!selectedBranch.value) return
-    await iamStore.selectBranch(selectedBranch.value.id, selectedBranch.value.nombre)
     const redirect = route.query.redirect ?? '/dashboard'
-    router.push(redirect)
+    await switchToBranch(selectedBranch.value, { redirectTo: redirect })
 }
 
 function handleGoToDashboard() {

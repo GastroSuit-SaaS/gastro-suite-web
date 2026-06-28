@@ -1,11 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
 import { usePosStore }    from '../../../pos/application/pos.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { useDateFormatter }  from '../../../shared/composables/use-date-formatter.js'
-import { TABLE_STATUS_CONFIG } from '../constants/tables.constants-ui.js'
 import { TABLE_STATUS } from '../../domain/models/table.entity.js'
 import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
 import CreateAndEditZone       from './create-and-edit-zone.vue'
@@ -15,71 +13,35 @@ import ReservationsManagement  from './reservations-management.vue'
 import ModuleStateFeedback     from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar            from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab               from '../../../shared/presentation/components/module-tab.vue'
+import TableFloorPanel         from '../components/table-floor-panel.vue'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
 
 const store    = useTablesStore()
 const posStore = usePosStore()
 const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
-const { elapsedTime }   = useDateFormatter()
+const { entitlements } = useSubscriptionEntitlements()
 
 onMounted(() => {
     store.fetchAll()
-    _clockInterval = setInterval(() => { now.value = Date.now() }, 30_000)
 })
-onUnmounted(() => { clearInterval(_clockInterval) })
 
-// ── Reactive clock for urgency/elapsed updates ────────────────────────────
-const now = ref(Date.now())
-let _clockInterval = null
+watch(
+    () => entitlements.value.hasReservations,
+    (allowed) => {
+        if (!allowed && activeTab.value === 'reservations') {
+            activeTab.value = 'floor'
+        }
+    },
+)
 
-const activeTab        = ref('floor')   // 'floor' | 'manage' | 'reservations'
+const activeTab        = ref('floor')
 const showZoneDialog   = ref(false)
 const showTableDialog  = ref(false)
 const showAssignDialog = ref(false)
 const editingZone      = ref(null)
 const editingTable     = ref(null)
 const assigningTable   = ref(null)
-
-// Mapa rápido zoneId → { color, name } para las tarjetas de mesas (todas las zonas, activas e inactivas)
-const zoneColorMap = computed(() => {
-    const map = {}
-    store.allZones.forEach(z => { map[z.id] = { color: z.color, name: z.name } })
-    return map
-})
-
-const tableSearch       = ref('')
-const selectedStatus    = ref(null)   // null | 'available' | 'occupied' | 'cleaning' | 'reserved'
-const activeConsumption = computed(() => posStore.totalInProcess)
-const occupancyRate = computed(() => store.occupancyRate)
-
-// ── Zona dropdown filter ──────────────────────────────────────────────────
-const zoneFilterOptions = computed(() => [
-    { label: `Todas las Zonas (${store.totalTables})`, value: '__all__', color: null },
-    ...store.zones.map(z => ({ label: `${z.name} (${z.tableCount})`, value: z.id, color: z.color })),
-])
-const selectedZoneFilter = computed({
-    get: () => store.selectedZoneId ?? '__all__',
-    set: (val) => store.selectZone(val === '__all__' ? null : val),
-})
-
-const filteredAndSearched = computed(() => {
-    let base = store.filteredTables
-    if (selectedStatus.value) base = base.filter(t => t.status === selectedStatus.value)
-    if (!tableSearch.value.trim()) return base
-    const q = tableSearch.value.trim().toLowerCase()
-    return base.filter(t => String(t.number).includes(q))
-})
-
-function toggleStatus(status) {
-    selectedStatus.value = selectedStatus.value === status ? null : status
-}
-
-function urgencyClass(table) {
-    const _ = now.value // ensure reactive tracking
-    const level = table.urgencyLevel
-    return level !== 'ok' ? `table-card--${level}` : ''
-}
-
 
 function openCreateZone() {
     editingZone.value = null
@@ -150,11 +112,21 @@ function onTableSaved(table) {
     } else {
         store.create(table)
     }
-    editingTable.value   = null
+    editingTable.value    = null
     showTableDialog.value = false
 }
 
+watch(showTableDialog, (visible) => {
+    if (!visible) editingTable.value = null
+})
 
+function markTableAvailable(tableId) {
+    store.setTableStatus(tableId, TABLE_STATUS.AVAILABLE)
+}
+
+function clearTableReservation(tableId) {
+    store.clearReservation(tableId)
+}
 
 </script>
 
@@ -169,177 +141,27 @@ function onTableSaved(table) {
             <module-tab value="manage" icon="pi-map-marker">
                 Zonas
             </module-tab>
-            <module-tab value="reservations" icon="pi-calendar">
+            <module-tab v-if="entitlements.hasReservations" value="reservations" icon="pi-calendar">
                 Reservas
             </module-tab>
         </module-tab-bar>
 
         <!-- ══════════════════ TAB: PLANO DEL SALÓN ══════════════════════ -->
         <div v-if="activeTab === 'floor'" class="p-4 flex flex-column gap-4 floor-tab">
-
-            <!-- ── Loading / Error / Contenido ───────────────────────────── -->
             <module-state-feedback
                 :loading="store.isLoading"
                 :error="store.error"
                 loading-label="Cargando mesas…"
                 @retry="store.fetchAll()"
             >
-
-            <!-- Stat chips (los de estado actúan como filtro toggle) -->
-            <div class="stat-row">
-                <div class="stat-chip">
-                    <span class="stat-chip__label">Total Mesas</span>
-                    <span class="stat-chip__value">{{ store.totalTables }}</span>
-                </div>
-                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'available' && 'stat-chip--active-green']" @click="toggleStatus('available')">
-                    <span class="stat-chip__dot" style="background:#22c55e"></span>
-                    <span class="stat-chip__label">Disponibles</span>
-                    <span class="stat-chip__value stat-chip__value--success">{{ store.availableTables.length }}</span>
-                </button>
-                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'reserved' && 'stat-chip--active-purple']" @click="toggleStatus('reserved')">
-                    <span class="stat-chip__dot" style="background:#7c3aed"></span>
-                    <span class="stat-chip__label">Reservadas</span>
-                    <span class="stat-chip__value stat-chip__value--purple">{{ store.reservedTables.length }}</span>
-                </button>
-                <button :class="['stat-chip', 'stat-chip--btn', 'stat-chip--bar', selectedStatus === 'occupied' && 'stat-chip--active-red']" @click="toggleStatus('occupied')">
-                    <span class="stat-chip__dot" style="background:#ef4444"></span>
-                    <span class="stat-chip__label">Ocupadas</span>
-                    <span class="stat-chip__value stat-chip__value--danger">{{ store.occupiedTables.length }}<span class="stat-chip__sub">/{{ store.totalTables }}</span></span>
-                    <div class="occupancy-bar">
-                        <div class="occupancy-bar__fill" :style="{ width: occupancyRate + '%' }"></div>
-                    </div>
-                    <span class="stat-chip__pct">{{ occupancyRate }}%</span>
-                </button>
-                <button :class="['stat-chip', 'stat-chip--btn', selectedStatus === 'cleaning' && 'stat-chip--active-blue']" @click="toggleStatus('cleaning')">
-                    <span class="stat-chip__dot" style="background:#3b82f6"></span>
-                    <span class="stat-chip__label">En Limpieza</span>
-                    <span class="stat-chip__value stat-chip__value--info">{{ store.cleaningTables.length }}</span>
-                </button>
-                <div class="stat-chip">
-                    <span class="stat-chip__dot" style="background:#059669"></span>
-                    <span class="stat-chip__label">Consumo activo</span>
-                    <span class="stat-chip__value stat-chip__value--money">S/ {{ activeConsumption.toFixed(2) }}</span>
-                </div>
-            </div>
-
-            <!-- Toolbar: búsqueda + zona + nueva mesa -->
-            <div class="flex align-items-center gap-2">
-                <div class="search-wrapper flex-1">
-                    <i class="pi pi-search search-wrapper__icon"></i>
-                    <pv-input-text
-                        v-model="tableSearch"
-                        placeholder="Buscar mesa por número..."
-                        class="w-full search-wrapper__input"
-                    />
-                </div>
-                <pv-select
-                    v-model="selectedZoneFilter"
-                    :options="zoneFilterOptions"
-                    option-label="label"
-                    option-value="value"
-                    placeholder="Selecciona una zona"
-                    filter
-                    filter-placeholder="Buscar zona..."
-                    class="zone-filter-select"
-                >
-                    <template #value="slotProps">
-                        <div class="flex align-items-center gap-2">
-                            <span
-                                v-if="zoneFilterOptions.find(o => o.value === slotProps.value)?.color"
-                                class="zone-filter-dot"
-                                :style="{ background: zoneFilterOptions.find(o => o.value === slotProps.value)?.color }"
-                            ></span>
-                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
-                            {{ zoneFilterOptions.find(o => o.value === slotProps.value)?.label ?? 'Todas las Zonas' }}
-                        </div>
-                    </template>
-                    <template #option="slotProps">
-                        <div class="flex align-items-center gap-2">
-                            <span
-                                v-if="slotProps.option.color"
-                                class="zone-filter-dot"
-                                :style="{ background: slotProps.option.color }"
-                            ></span>
-                            <i v-else class="pi pi-th-large" style="font-size:0.7rem;color:#6b7280"></i>
-                            {{ slotProps.option.label }}
-                        </div>
-                    </template>
-                </pv-select>
-                <pv-button label="Nueva Mesa" icon="pi pi-plus" size="small" severity="success" @click="openCreateTable" />
-            </div>
-
-            <!-- Grilla de mesas -->
-            <div v-if="filteredAndSearched.length > 0" class="tables-grid">
-                <div
-                    v-for="table in filteredAndSearched"
-                    :key="table.id"
-                    :class="['table-card', urgencyClass(table)]"
-                    :style="{
-                        '--zone-color':   zoneColorMap[table.zoneId]?.color ?? '#6b7280',
-                        '--status-color': TABLE_STATUS_CONFIG[table.status]?.color ?? '#6b7280',
-                        '--status-bg':    TABLE_STATUS_CONFIG[table.status]?.bg    ?? 'transparent',
-                        '--card-border':  TABLE_STATUS_CONFIG[table.status]?.border ?? zoneColorMap[table.zoneId]?.color ?? '#6b7280',
-                    }"
-                >
-                    <div class="table-card__header">
-                        <div>
-                            <div class="table-card__name">Mesa {{ table.number }}</div>
-                            <div class="table-card__zone-name">{{ zoneColorMap[table.zoneId]?.name ?? 'Sin zona' }}</div>
-                        </div>
-                        <i :class="['pi table-card__status-icon', TABLE_STATUS_CONFIG[table.status]?.icon ?? 'pi-circle']"></i>
-                    </div>
-                    <div class="table-card__capacity">
-                        <i class="pi pi-users"></i>
-                        <span v-if="table.status === 'occupied'">{{ table.seatedGuests }}/{{ table.capacity }} personas</span>
-                        <span v-else>{{ table.capacity }} personas</span>
-                    </div>
-                    <div class="table-card__divider"></div>
-                    <div class="table-card__footer">
-                        <span class="table-card__status-label">{{ TABLE_STATUS_CONFIG[table.status]?.label ?? table.status }}</span>
-                        <template v-if="table.status === 'occupied' && posStore.saleByTableId(table.id)">
-                            <div class="table-card__order-info">
-                                <div class="table-card__order-row">
-                                    <span class="table-card__order-time">{{ elapsedTime(table.occupiedSince) }}</span>
-                                    <span class="table-card__order-amount">S/ {{ (posStore.saleByTableId(table.id)?.total ?? 0).toFixed(2) }}</span>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                    <button
-                        v-if="table.status === 'occupied'"
-                        class="table-card__cta table-card__cta--cobrar"
-                        @click.stop="openOrderForTable(table)"
-                    >
-                        <i class="pi pi-eye"></i> Ver Orden
-                    </button>
-                    <button
-                        v-else-if="table.status === 'available'"
-                        class="table-card__cta table-card__cta--asignar"
-                        @click.stop="openAssignTable(table)"
-                    >
-                        <i class="pi pi-user-plus"></i> Asignar Mesa
-                    </button>
-                    <button
-                        v-else-if="table.status === 'cleaning'"
-                        class="table-card__cta table-card__cta--limpiar"
-                        @click.stop="store.setTableStatus(table.id, TABLE_STATUS.AVAILABLE)"
-                    >
-                        <i class="pi pi-check"></i> Lista
-                    </button>
-                    <button
-                        v-else-if="table.status === 'reserved'"
-                        class="table-card__cta table-card__cta--reservada"
-                        @click.stop="store.clearReservation(table.id)"
-                    >
-                        <i class="pi pi-calendar-times"></i> Cancelar Reserva
-                    </button>
-                </div>
-            </div>
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-6">
-                <i class="pi pi-table text-4xl text-color-secondary"></i>
-                <span class="text-color-secondary">No hay mesas en esta zona</span>
-            </div>
-
+                <table-floor-panel
+                    show-admin-actions
+                    @assign="openAssignTable"
+                    @open-order="openOrderForTable"
+                    @mark-available="markTableAvailable"
+                    @clear-reservation="clearTableReservation"
+                    @create-table="openCreateTable"
+                />
             </module-state-feedback>
         </div>
 
@@ -423,18 +245,11 @@ function onTableSaved(table) {
         :existing-tables="store.tables"
         :edit="!!editingTable"
         @table-saved="onTableSaved"
-        @update:visible="v => { if (!v) { editingTable.value = null } }"
     />
 
 </template>
 
 <style scoped>
-/* ── Zone filter dropdown ─────────────────────────────────────────────── */
-.zone-filter-select { width: 280px; }
-.zone-filter-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-}
-
 .tables-layout {
     display: flex;
     flex-direction: column;
@@ -442,250 +257,11 @@ function onTableSaved(table) {
     min-height: 0;
 }
 
-/* ── Floor tab scrollable ─────────────────────────────────────────────── */
 .floor-tab {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
 }
-
-/* ── Stat row (compact chips) ────────────────────────────────────────── */
-.stat-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-}
-
-.stat-chip {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.85rem;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    white-space: nowrap;
-    flex: 1;
-    justify-content: center;
-}
-.stat-chip--bar {
-    border-radius: 10px;
-    gap: 0.45rem;
-}
-.stat-chip__dot {
-    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-}
-.stat-chip--btn {
-    cursor: pointer;
-    border: none;
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-.stat-chip--btn:hover { background: #f3f4f6; }
-.stat-chip--active-green {
-    background: #dcfce7 !important;
-    border-color: #22c55e !important;
-    box-shadow: 0 0 0 2px #bbf7d0;
-}
-.stat-chip--active-red {
-    background: #fee2e2 !important;
-    border-color: #ef4444 !important;
-    box-shadow: 0 0 0 2px #fecaca;
-}
-.stat-chip--active-blue {
-    background: #dbeafe !important;
-    border-color: #3b82f6 !important;
-    box-shadow: 0 0 0 2px #bfdbfe;
-}
-
-.stat-chip__label {
-    font-size: 0.78rem;
-    color: #6b7280;
-    font-weight: 500;
-}
-.stat-chip__value {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #111827;
-}
-.stat-chip__sub {
-    font-size: 0.72rem;
-    font-weight: 400;
-    color: #9ca3af;
-}
-.stat-chip__pct {
-    font-size: 0.7rem;
-    color: #9ca3af;
-}
-.stat-card { min-width: 130px; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-
-.occupancy-bar {
-    height: 6px;
-    background: #fee2e2;
-    border-radius: 999px;
-    overflow: hidden;
-    margin-top: 0.1rem;
-}
-.occupancy-bar__fill {
-    height: 100%;
-    background: #ef4444;
-    border-radius: 999px;
-    transition: width 0.4s ease;
-}
-
-/* ── Search bar ───────────────────────────────────────────────────────── */
-.search-wrapper {
-    position: relative;
-}
-
-.search-wrapper__icon {
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-secondary, #9ca3af);
-    font-size: 0.9rem;
-    z-index: 1;
-    pointer-events: none;
-}
-
-.search-wrapper__input {
-    padding-left: 2.25rem !important;
-}
-
-/* ── Urgency borders ─────────────────────────────────────────────────── */
-.table-card--warning  { border-color: #f59e0b !important; }
-.table-card--critical {
-    border-color: #ef4444 !important;
-    animation: pulse-urgent 2s infinite;
-}
-@keyframes pulse-urgent {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25); }
-    50%       { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-}
-
-/* Zone filter pills → uses global .filter-pill from utilities.css */
-
-/* ── Grilla de mesas (floor) ─────────────────────────────────────────── */
-.tables-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.table-card {
-    position: relative;
-    background: var(--status-bg);
-    border: 1.5px solid var(--card-border);
-    border-radius: 12px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    cursor: default;
-    transition: box-shadow 0.15s, transform 0.15s;
-}
-.table-card:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    transform: translateY(-2px);
-}
-
-.table-card__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-.table-card__name {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #111827;
-    line-height: 1.2;
-}
-.table-card__zone-name {
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-top: 1px;
-}
-.table-card__status-icon {
-    font-size: 1.1rem;
-    color: var(--status-color);
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-.table-card__capacity {
-    font-size: 0.8rem;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-.table-card__capacity .pi { font-size: 0.8rem; }
-.table-card__divider {
-    height: 1px;
-    background: var(--card-border);
-    opacity: 0.4;
-    margin: 0.1rem 0;
-}
-.table-card__footer {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-}
-.table-card__status-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--status-color);
-}
-.table-card__order-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    margin-top: 0.1rem;
-}
-.table-card__order-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.table-card__order-time {
-    font-size: 0.72rem;
-    color: #6b7280;
-}
-.table-card__order-amount {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #111827;
-}
-
-/* Botón CTA (hover) */
-.table-card__cta {
-    display: none;
-    width: 100%;
-    padding: 0.55rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 0.25rem;
-    transition: filter 0.15s;
-}
-.table-card__cta .pi { font-size: 0.82rem; }
-.table-card:hover .table-card__cta { display: flex; }
-.table-card__cta--cobrar  { background: #059669; color: #fff; }
-.table-card__cta--cobrar:hover  { filter: brightness(1.1); }
-.table-card__cta--asignar { background: #2563eb; color: #fff; }
-.table-card__cta--asignar:hover { filter: brightness(1.1); }
-.table-card__cta--limpiar { background: #d97706; color: #fff; }
-.table-card__cta--limpiar:hover { filter: brightness(1.1); }
-.table-card__cta--reservada { background: #7c3aed; color: #fff; }
-.table-card__cta--reservada:hover { filter: brightness(1.1); }
-
-/* Loading/Error states handled by shared ModuleStateFeedback component */
 
 /* ── Zone cards (manage tab) ─────────────────────────────────────────── */
 .zones-grid {

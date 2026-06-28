@@ -83,9 +83,13 @@ export const useReportsStore = defineStore('reports', () => {
         try {
             const branchId = requireActiveBranchId();
             const iamStore = useIamStore();
-            const employeeId = iamStore.currentUser?.employeeId;
+            let employeeId = iamStore.currentUser?.employeeId;
             if (!employeeId) {
-                error.value = REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED;
+                await iamStore.ensureEmployeeLink();
+                employeeId = iamStore.currentUser?.employeeId;
+            }
+            if (!employeeId) {
+                error.value = iamStore.employeeLinkMessage ?? REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED;
                 return false;
             }
 

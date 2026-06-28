@@ -1,6 +1,9 @@
 import { useIamStore } from '../application/iam.store.js';
 import { IAM_ROUTES } from '../presentation/iam.routes.js';
-import { hasRouteAccess, requiresBranch } from '../../shared/presentation/constants/roles.constants.js';
+import { PLATFORM_ROUTES } from '../../platform/presentation/platform.routes.js';
+import { hasRouteAccess, requiresBranch, ROLES } from '../../shared/presentation/constants/roles.constants.js';
+import { isRouteAllowedByPlan, resolvePlanEntitlements } from '../../shared/presentation/constants/subscription-entitlements.constants.js';
+import { useCompanyStore } from '../../company/application/company.store.js';
 import { SESSION_KEYS } from '../../shared/infrustructure/session-storage.js';
 
 /** Rutas que no requieren autenticación */
@@ -9,6 +12,7 @@ const PUBLIC_PATHS = [
     IAM_ROUTES.SIGN_UP,
     IAM_ROUTES.FORGOT_PASSWORD,
     IAM_ROUTES.RESET_PASSWORD,
+    PLATFORM_ROUTES.BOOTSTRAP,
 ];
 
 /**
@@ -34,7 +38,7 @@ export function authenticationGuard(to, from, next) {
                 iamStore.logout();
             }
             if (iamStore.isAuthenticated) {
-                return next('/dashboard');
+                return next(iamStore.isSystem ? '/platform' : '/dashboard');
             }
         }
         return next();
@@ -61,8 +65,26 @@ export function authenticationGuard(to, from, next) {
 
     // Verificar acceso por rol (solo si el usuario está cargado)
     const role = iamStore.userRole;
+
+    // SYSTEM no usa flujo operativo de sucursal
+    if (role === ROLES.SYSTEM && !to.path.startsWith('/platform')) {
+        return next('/platform');
+    }
+
     if (role && !hasRouteAccess(role, to.path)) {
         return next('/dashboard');
+    }
+
+    // Plan SaaS — bloquear rutas no incluidas en el plan activo
+    if (role && role !== ROLES.SYSTEM) {
+        const companyStore = useCompanyStore();
+        const entitlements = resolvePlanEntitlements(
+            companyStore.subscriptionSummary,
+            companyStore.features,
+        );
+        if (!isRouteAllowedByPlan(to.path, entitlements)) {
+            return next('/dashboard');
+        }
     }
 
     // Verificar si la ruta requiere sucursal activa
