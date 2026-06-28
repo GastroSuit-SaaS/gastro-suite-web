@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && node scripts/verify-production-build.js && node scripts/verify-dist-assets.js && node scripts/copy-spa-fallback.js",
+    "dev": "npm run sync:firebase-sw && vite",
+    "build": "npm run sync:firebase-sw && vite build && node scripts/verify-production-build.js && node scripts/verify-dist-assets.js && node scripts/copy-spa-fallback.js",
+    "sync:firebase-sw": "node scripts/sync-firebase-sw.mjs",
     "deploy:pages": "npm run build && npx wrangler pages deploy dist --project-name=gastro-suite-web",
     "build:only": "vite build",
     "preview": "vite preview"
@@ -14,6 +15,7 @@
     "@primeuix/themes": "^2.0.3",
     "@stomp/stompjs": "^7.3.0",
     "axios": "^1.13.6",
+    "firebase": "^11.10.0",
     "pinia": "^3.0.4",
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",

@@ -55,7 +55,9 @@ export function useNotificationsBootstrap() {
     watch(
         () => iamStore.isAuthenticated,
         (authenticated) => {
-            if (!authenticated) notificationsStore.$reset();
+            if (!authenticated) {
+                notificationsStore.stopPolling();
+            }
         },
     );
 }

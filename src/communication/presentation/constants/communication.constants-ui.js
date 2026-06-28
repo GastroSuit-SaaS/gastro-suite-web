@@ -7,6 +7,11 @@ export const COMMUNICATION_MESSAGES = Object.freeze({
     PANEL_TITLE: 'Notificaciones',
     EMPTY: 'No tienes notificaciones.',
     MARK_ALL: 'Marcar todas como leídas',
+    MARK_READ: 'Marcar como leída',
+    MARK_UNREAD: 'Marcar como no leída',
+    DELETE: 'Eliminar',
+    DELETE_CONFIRM_HEADER: 'Eliminar notificación',
+    DELETE_CONFIRM_MESSAGE: '¿Eliminar esta notificación? Esta acción no se puede deshacer.',
     LOADING: 'Cargando…',
     ERROR: 'No se pudieron cargar las notificaciones.',
 });

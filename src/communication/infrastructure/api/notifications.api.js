@@ -13,6 +13,14 @@ export class NotificationsApi extends BaseApi {
         return this.http.patch(`/me/notifications/${notificationId}/read`);
     }
 
+    markAsUnread(notificationId) {
+        return this.http.patch(`/me/notifications/${notificationId}/unread`);
+    }
+
+    deleteNotification(notificationId) {
+        return this.http.delete(`/me/notifications/${notificationId}`);
+    }
+
     markAllAsRead() {
         return this.http.patch('/me/notifications/read-all');
     }
