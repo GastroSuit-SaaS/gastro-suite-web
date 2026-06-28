@@ -12,19 +12,9 @@
 
 export const POS_ROUTES = {
     TERMINAL:    '/pos',
-    SELECT_ZONE: '/pos/select-zone',
     ORDER:       '/pos/order',
     PAYMENT:     '/pos/payment',
 };
-
-/**
- * Helper para construir la ruta de selección de mesa por zona.
- * @param {number} zoneId
- * @returns {string}
- */
-export function posSelectTableRoute(zoneId) {
-    return `/pos/select-zone/${zoneId}`;
-}
 
 /**
  * Helper para construir la ruta de la orden de una venta.
@@ -38,6 +28,17 @@ export function posOrderRoute(saleId) {
 export function posPaymentRoute(saleId) {
     return `/pos/payment/${saleId}`;
 }
+
+/** Plano de mesas dentro del flujo POS (`/pos/tables`). */
+export function posTablesRoute({ zoneId = null } = {}) {
+    const query = {};
+    if (zoneId != null && zoneId !== '' && zoneId !== '__all__') {
+        query.zone = String(zoneId);
+    }
+    return { name: 'pos-tables', query };
+}
+
+export { formatTableLabel } from '../../../tables/presentation/constants/tables.constants-ui.js';
 
 export const PAYMENT_METHODS = [
     { key: 'cash', label: 'Efectivo', icon: 'pi-money-bill',  color: '#059669' },

@@ -7,15 +7,24 @@
 import { SaleItem } from './sale-item.entity.js';
 
 export const SALE_STATUS = Object.freeze({
-    ACTIVE:    'active',
-    PAID:      'paid',
-    CANCELLED: 'cancelled',
-    PENDING:   'pending',
+    ACTIVE:          'active',
+    PARTIALLY_PAID:  'partially_paid',
+    PAID:            'paid',
+    CANCELLED:       'cancelled',
+    PENDING:         'pending',
 });
 
 export const SALE_TYPE = Object.freeze({
     DINE_IN:   'dine_in',
     TAKEAWAY:  'takeaway',
+    DELIVERY:  'delivery',
+});
+
+export const DELIVERY_STATUS = Object.freeze({
+    PENDING:    'pending',
+    DISPATCHED: 'dispatched',
+    DELIVERED:  'delivered',
+    CANCELLED:  'cancelled',
 });
 
 /** IGV rate (18%) — single source of truth for all tax calculations. */
@@ -28,6 +37,9 @@ export class Sale {
         zoneId    = null,
         saleType  = SALE_TYPE.DINE_IN,
         customerName = '',
+        customerPhone = '',
+        deliveryAddress = '',
+        deliveryStatus = null,
         ticketNumber = null,
         saleDisplayNumber = null,
         items     = [],
@@ -37,6 +49,8 @@ export class Sale {
         orderDiscountType  = 'none',
         orderDiscountValue = 0,
         total     = 0,
+        amountPaid = 0,
+        balanceDue = null,
         status    = SALE_STATUS.ACTIVE,
         cashierId = null,
         sucursalId = null,
@@ -47,6 +61,9 @@ export class Sale {
         this.zoneId    = zoneId;
         this.saleType  = saleType;
         this.customerName = customerName;
+        this.customerPhone = customerPhone;
+        this.deliveryAddress = deliveryAddress;
+        this.deliveryStatus = deliveryStatus;
         this.saleDisplayNumber = saleDisplayNumber ?? ticketNumber ?? null;
         this.ticketNumber = ticketNumber ?? saleDisplayNumber ?? null;
         this.items     = items;
@@ -56,6 +73,8 @@ export class Sale {
         this.orderDiscountType  = orderDiscountType;
         this.orderDiscountValue = orderDiscountValue;
         this.total     = total;
+        this.amountPaid = amountPaid;
+        this.balanceDue = balanceDue ?? Math.max(0, total - amountPaid);
         this.status    = status;
         this.cashierId = cashierId;
         this.sucursalId = sucursalId;
@@ -66,6 +85,18 @@ export class Sale {
 
     get isTakeaway() {
         return this.saleType === SALE_TYPE.TAKEAWAY;
+    }
+
+    get isDelivery() {
+        return this.saleType === SALE_TYPE.DELIVERY;
+    }
+
+    get isOffPremise() {
+        return this.isTakeaway || this.isDelivery;
+    }
+
+    get isOpenForPayment() {
+        return this.status === SALE_STATUS.ACTIVE || this.status === SALE_STATUS.PARTIALLY_PAID;
     }
 
     get totalItems() {

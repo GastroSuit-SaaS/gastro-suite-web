@@ -7,11 +7,15 @@ import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
 import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import TransferTableDialog from '../components/transfer-table-dialog.vue'
 import { TICKET_STATUS_CONFIG } from '../../../stations/presentation/constants/stations.constants-ui.js'
+import { DELIVERY_STATUS } from '../../domain/models/sale.entity.js'
+import { deliveryStatusLabel } from '../helpers/pos-hub-orders-filter.helpers.js'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
 
 const route         = useRoute()
 const router        = useRouter()
 const toast         = useToast()
 const posStore      = usePosStore()
+const { entitlements } = useSubscriptionEntitlements()
 
 const saleId  = computed(() => {
     const raw = route.params.saleId
@@ -22,9 +26,15 @@ const sale    = computed(() => posStore.currentSale)
 const table   = computed(() => sale.value?.tableId ? posStore.tableById(sale.value.tableId) : null)
 const zone    = computed(() => table.value?.zoneId ? posStore.zoneById(table.value.zoneId) : null)
 const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
+const isDelivery = computed(() => sale.value?.isDelivery ?? false)
+const isOffPremise = computed(() => sale.value?.isOffPremise ?? false)
+const deliveryBusy = ref(false)
 
-// Ítems pendientes de enviar a cocina
+// Ítems pendientes de enviar a cocina / confirmar para cobro
 const pendingItems = computed(() => sale.value?.items.filter(i => !i.isSent) ?? [])
+const dispatchActionLabel = computed(() =>
+    entitlements.value.hasKitchen ? 'Enviar a Estaciones' : 'Confirmar para cobro',
+)
 
 // ── Nota editable por ítem ───────────────────────────────────────────────────────────────
 const editingNoteId     = ref(null)
@@ -95,6 +105,7 @@ function stopKitchenSync() {
 }
 
 async function startKitchenSync() {
+    if (!entitlements.value.hasKitchen) return;
     stopKitchenSync()
     await posStore.refreshKitchenTickets()
     _kitchenPoll = setInterval(() => posStore.refreshKitchenTickets(), 60_000)
@@ -118,6 +129,7 @@ watch(() => route.params.saleId, async (id) => {
 const KITCHEN_SENT_FALLBACK = { label: 'Enviado', color: '#3b82f6', bg: '#dbeafe', icon: 'pi-send' };
 
 function itemKitchenBadge(item) {
+    if (!entitlements.value.hasKitchen) return null;
     const key = posStore.getItemKitchenStatusKey(item);
     if (key === 'pending') return null;
     if (key === 'sent') return KITCHEN_SENT_FALLBACK;
@@ -137,6 +149,7 @@ function isItemCancelledInKitchen(item) {
 }
 
 const kitchenOrderBadge = computed(() => {
+    if (!entitlements.value.hasKitchen) return null;
     const key = posStore.kitchenOrderStatus;
     if (!key || !sale.value?.items?.some(i => i.isSent)) return null;
     return TICKET_STATUS_CONFIG[key] ?? null;
@@ -242,27 +255,55 @@ async function enviarEstaciones() {
         } else if (result?.items > 0) {
             toast.add({
                 severity: 'success',
-                summary:  'Comanda actualizada',
-                detail:   `${result.items} producto${result.items !== 1 ? 's' : ''} listo${result.items !== 1 ? 's' : ''} (cocina y/o entrega directa).`,
+                summary:  entitlements.value.hasKitchen ? 'Comanda actualizada' : 'Ítems confirmados',
+                detail:   entitlements.value.hasKitchen
+                    ? `${result.items} producto${result.items !== 1 ? 's' : ''} listo${result.items !== 1 ? 's' : ''} (cocina y/o entrega directa).`
+                    : `${result.items} producto${result.items !== 1 ? 's' : ''} listo${result.items !== 1 ? 's' : ''} para cobro.`,
                 life:     3000,
             })
         } else {
             toast.add({
                 severity: 'info',
                 summary:  'Sin cambios pendientes',
-                detail:   'Todos los ítems ya fueron enviados a cocina.',
+                detail:   entitlements.value.hasKitchen
+                    ? 'Todos los ítems ya fueron enviados a cocina.'
+                    : 'Todos los ítems ya están confirmados para cobro.',
                 life:     3000,
             })
         }
     } catch (e) {
         toast.add({
             severity: 'error',
-            summary:  'No se pudo enviar a cocina',
+            summary:  entitlements.value.hasKitchen ? 'No se pudo enviar a cocina' : 'No se pudo confirmar',
             detail:   e?.message ?? posStore.error ?? 'Revisa la orden e intenta de nuevo.',
             life:     5000,
         })
     }
 }
+
+async function advanceDelivery(nextStatus) {
+    if (!sale.value?.isDelivery) return
+    deliveryBusy.value = true
+    try {
+        await posStore.advanceDeliveryStatus(nextStatus, sale.value.id)
+        toast.add({
+            severity: 'success',
+            summary: 'Estado actualizado',
+            detail: deliveryStatusLabel(nextStatus),
+            life: 3000,
+        })
+    } catch (e) {
+        toast.add({
+            severity: 'error',
+            summary: 'No se pudo actualizar',
+            detail: e?.message ?? 'Intenta de nuevo.',
+            life: 5000,
+        })
+    } finally {
+        deliveryBusy.value = false
+    }
+}
+
 function procederPago()     { router.push(posPaymentRoute(sale.value.id)) }
 
 function onTransferred(newTableId) {
@@ -282,6 +323,19 @@ const itemCount  = computed(() => sale.value?.items?.length ?? 0)
 const orderDisplayNumber = computed(() =>
     sale.value?.saleDisplayNumber ?? sale.value?.ticketNumber ?? null,
 )
+
+const deliveryCustomerLine = computed(() => {
+    const parts = [sale.value?.customerName, sale.value?.customerPhone].filter(Boolean)
+    return parts.join(' · ')
+})
+
+const orderPanelMeta = computed(() => {
+    const parts = []
+    if (orderDisplayNumber.value) parts.push(`Orden #${orderDisplayNumber.value}`)
+    const count = sale.value?.totalItems ?? 0
+    if (count > 0) parts.push(`${count} producto${count !== 1 ? 's' : ''}`)
+    return parts.length ? parts.join(' · ') : 'Sin productos'
+})
 
 function goBackFromOrder() {
     router.push({ name: 'pos-terminal' })
@@ -311,19 +365,36 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
 
                 <!-- Badges de contexto (izquierda) -->
                 <div class="context-badges">
-                    <template v-if="isTakeaway">
-                        <div class="context-badge" style="background:#fef3c722;border-color:#f59e0b">
-                            <span class="context-badge__label" style="color:#f59e0b">Tipo</span>
-                            <div style="display:flex;align-items:center;gap:0.35rem">
-                                <strong class="context-badge__value" style="color:#f59e0b">
-                                    <i class="pi pi-shopping-bag" style="font-size:0.7rem"></i> Para Llevar #{{ orderDisplayNumber ?? '—' }}
+                    <template v-if="isDelivery">
+                        <div class="context-badge context-badge--delivery">
+                            <span class="context-badge__label">Delivery</span>
+                            <div class="context-badge__row">
+                                <strong class="context-badge__value context-badge__order-num">
+                                    <i class="pi pi-truck" style="font-size:0.7rem"></i>
+                                    #{{ orderDisplayNumber ?? '—' }}
                                 </strong>
-                                <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
+                                <template v-if="deliveryCustomerLine">
+                                    <span class="context-badge__sep">·</span>
+                                    <span class="context-badge__value context-badge__value--muted">{{ deliveryCustomerLine }}</span>
+                                </template>
+                                <span class="delivery-status-pill">{{ deliveryStatusLabel(sale?.deliveryStatus) }}</span>
                             </div>
                         </div>
-                        <div v-if="sale?.customerName" class="context-badge context-badge--blue">
-                            <span class="context-badge__label">Cliente</span>
-                            <strong class="context-badge__value">{{ sale.customerName }}</strong>
+                    </template>
+                    <template v-else-if="isTakeaway">
+                        <div class="context-badge context-badge--takeaway">
+                            <span class="context-badge__label">Para llevar</span>
+                            <div class="context-badge__row">
+                                <strong class="context-badge__value">
+                                    <i class="pi pi-shopping-bag" style="font-size:0.7rem"></i>
+                                    #{{ orderDisplayNumber ?? '—' }}
+                                </strong>
+                                <template v-if="sale?.customerName">
+                                    <span class="context-badge__sep">·</span>
+                                    <span class="context-badge__value context-badge__value--muted">{{ sale.customerName }}</span>
+                                </template>
+                                <span v-if="posStore.currentSaleIsRecovered" class="pending-chip">PENDIENTE</span>
+                            </div>
                         </div>
                     </template>
                     <template v-else>
@@ -451,11 +522,7 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
                     <i class="pi pi-shopping-cart pos-panel__title-icon" aria-hidden="true"></i>
                     <div class="pos-panel__title-block">
                         <h2 class="pos-panel__title">Orden actual</h2>
-                        <p class="pos-panel__meta">
-                            <template v-if="orderDisplayNumber">Orden #{{ orderDisplayNumber }}</template>
-                            <span v-if="orderDisplayNumber && (sale?.totalItems ?? 0) > 0"> · </span>
-                            <span>{{ sale?.totalItems ?? 0 }} producto{{ (sale?.totalItems ?? 0) !== 1 ? 's' : '' }}</span>
-                        </p>
+                        <p class="pos-panel__meta">{{ orderPanelMeta }}</p>
                     </div>
                 </div>
                 <span
@@ -466,6 +533,12 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
                     <i :class="['pi', kitchenOrderBadge.icon]"></i>
                     Cocina: {{ kitchenOrderBadge.label }}
                 </span>
+                <div v-if="isDelivery && sale?.deliveryAddress" class="delivery-details">
+                    <div class="delivery-details__row">
+                        <i class="pi pi-map-marker" aria-hidden="true"></i>
+                        <span>{{ sale.deliveryAddress }}</span>
+                    </div>
+                </div>
             </header>
 
             <!-- Lista de ítems (scroll independiente) -->
@@ -692,16 +765,33 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
                 <!-- Botones -->
                 <div class="action-btns">
                     <button
+                        v-if="entitlements.hasKitchen"
                         class="action-btn action-btn--stations"
                         :disabled="pendingItems.length === 0"
                         @click="enviarEstaciones"
                     >
                         <i class="pi pi-send"></i>
-                        Enviar a Estaciones
+                        {{ dispatchActionLabel }}
                         <span v-if="pendingItems.length > 0" class="pending-count">{{ pendingItems.length }}</span>
                     </button>
-                    <button v-if="!isTakeaway" class="action-btn action-btn--transfer" @click="showTransferDialog = true">
+                    <button v-if="!isOffPremise" class="action-btn action-btn--transfer" @click="showTransferDialog = true">
                         <i class="pi pi-arrow-right-arrow-left"></i> Cambiar Mesa
+                    </button>
+                    <button
+                        v-if="isDelivery && sale?.deliveryStatus === DELIVERY_STATUS.PENDING"
+                        class="action-btn action-btn--stations"
+                        :disabled="deliveryBusy"
+                        @click="advanceDelivery(DELIVERY_STATUS.DISPATCHED)"
+                    >
+                        <i class="pi pi-truck"></i> Despachar reparto
+                    </button>
+                    <button
+                        v-if="isDelivery && sale?.deliveryStatus === DELIVERY_STATUS.DISPATCHED"
+                        class="action-btn action-btn--stations"
+                        :disabled="deliveryBusy"
+                        @click="advanceDelivery(DELIVERY_STATUS.DELIVERED)"
+                    >
+                        <i class="pi pi-check"></i> Marcar entregado
                     </button>
                     <button class="action-btn action-btn--pay" @click="procederPago">
                         Proceder al Pago
@@ -776,7 +866,8 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
 .context-badges {
     display: flex;
     gap: 0.5rem;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
 }
 .context-badge {
     display: flex;
@@ -785,8 +876,51 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
     border-radius: 8px;
     padding: 0.28rem 0.7rem;
     line-height: 1.25;
+    min-width: 0;
 }
 .context-badge--blue { background: #dbeafe; border-color: #93c5fd; }
+.context-badge--delivery {
+    background: #6366f122;
+    border-color: #6366f1;
+    max-width: 360px;
+}
+.context-badge--delivery .context-badge__label { color: #6366f1; }
+.context-badge--delivery .context-badge__value { color: #4338ca; }
+.context-badge--takeaway {
+    background: #fef3c722;
+    border-color: #f59e0b;
+    max-width: 320px;
+}
+.context-badge--takeaway .context-badge__label { color: #b45309; }
+.context-badge--takeaway .context-badge__value { color: #92400e; }
+.context-badge__row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+.context-badge__sep {
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+.context-badge__value--muted {
+    font-weight: 500;
+    color: #4b5563;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.delivery-status-pill {
+    display: inline-flex;
+    padding: 0.08rem 0.45rem;
+    border-radius: 999px;
+    background: #ede9fe;
+    color: #5b21b6;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
 .context-badge__label {
     font-size: 0.62rem;
     font-weight: 500;
@@ -795,12 +929,38 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
     letter-spacing: 0.03em;
 }
 .context-badge__value { font-size: 0.82rem; color: #1e3a8a; }
+.context-badge__order-num {
+    flex-shrink: 0;
+    margin-right: 0.1rem;
+}
+
+.delivery-details {
+    margin-top: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    background: #f5f3ff;
+    border: 1px solid #ddd6fe;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: #374151;
+    line-height: 1.35;
+}
+.delivery-details__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+.delivery-details__row .pi {
+    color: #6366f1;
+    font-size: 0.75rem;
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+}
 
 /* ── Search ─────────────────────────────────────────────────────────────── */
 .search-wrapper {
     position: relative;
-    flex: 1;
-    max-width: 440px;
+    flex: 1 1 200px;
+    min-width: 160px;
 }
 .search-wrapper__icon {
     position: absolute;

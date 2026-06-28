@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { PosApi } from '../infrastructure/api/pos.api.js';
 import { SaleAssembler, isPersistedSaleId } from '../infrastructure/assemblers/sale.assembler.js';
-import { Sale, SALE_STATUS, SALE_TYPE, SALE_TAX_RATE } from '../domain/models/sale.entity.js';
+import { Sale, SALE_STATUS, SALE_TYPE, DELIVERY_STATUS, SALE_TAX_RATE } from '../domain/models/sale.entity.js';
 import { SaleItem }          from '../domain/models/sale-item.entity.js';
 import { useTablesStore }    from '../../tables/application/tables.store.js';
 import { useMenuStore }      from '../../menu/application/menu.store.js';
@@ -10,6 +10,8 @@ import { useStationsStore }  from '../../stations/application/stations.store.js'
 import { usePaymentsStore }  from '../../payments/application/payments.store.js';
 import { useIamStore }       from '../../iam/application/iam.store.js';
 import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
+import { useCompanyStore } from '../../company/application/company.store.js';
+import { resolvePlanEntitlements } from '../../shared/presentation/constants/subscription-entitlements.constants.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 import { debounce } from '../../shared/utils/debounce.js';
@@ -46,6 +48,35 @@ function computeTipAmount(consumptionTotal, tipType, tipValue) {
     return 0;
 }
 
+/** Descompone consumo en subtotal + IGV garantizando que sumen exactamente el consumo. */
+function splitConsumptionTax(consumptionAmount) {
+    const consumption = parseFloat(Number(consumptionAmount).toFixed(2));
+    const subtotal = parseFloat((consumption / (1 + SALE_TAX_RATE)).toFixed(2));
+    const tax = parseFloat((consumption - subtotal).toFixed(2));
+    return { consumption, subtotal, tax };
+}
+
+function offPremiseSaleLabel(sale) {
+    const num = sale.saleDisplayNumber ?? sale.ticketNumber ?? '';
+    const who = sale.customerName ? ` (${sale.customerName})` : '';
+    if (sale.isDelivery) return `Delivery #${num}${who}`;
+    if (sale.isTakeaway) return `Para Llevar #${num}${who}`;
+    return null;
+}
+
+function offPremiseZoneName(sale) {
+    if (sale.isDelivery) return 'Delivery';
+    if (sale.isTakeaway) return 'Para Llevar';
+    return null;
+}
+
+function canSyncSaleItems(sale) {
+    if (!sale) return false;
+    if (sale.status !== SALE_STATUS.ACTIVE) return false;
+    if ((sale.amountPaid ?? 0) > 0.009) return false;
+    return true;
+}
+
 export const usePosStore = defineStore('pos', () => {
 
     // ── Stores externos ───────────────────────────────────────────────────
@@ -68,8 +99,28 @@ export const usePosStore = defineStore('pos', () => {
     /** Alineado con gastro-suite.pos.billable-requires-sent (API). */
     const billableRequiresSent    = ref(apiEnv.posBillableRequiresSent);
 
+    function planHasKitchen() {
+        try {
+            const companyStore = useCompanyStore();
+            return resolvePlanEntitlements(
+                companyStore.subscriptionSummary,
+                companyStore.features,
+            ).hasKitchen;
+        } catch {
+            return true;
+        }
+    }
+
+    /** Sin cocina en el plan → todo lo agregado es cobrable al instante. */
+    function effectiveBillableRequiresSent() {
+        if (!planHasKitchen()) return false;
+        return billableRequiresSent.value;
+    }
+
     // ── Getters ───────────────────────────────────────────────────────────
-    const activeOrders   = computed(() => sales.value.filter(s => s.status === SALE_STATUS.ACTIVE));
+    const activeOrders   = computed(() =>
+        sales.value.filter(s => s.isOpenForPayment),
+    );
     const totalInProcess = computed(() => activeOrders.value.reduce((sum, s) => sum + s.total, 0));
     const currentTotal   = computed(() => currentOrderTotals.value.total);
 
@@ -78,7 +129,7 @@ export const usePosStore = defineStore('pos', () => {
         if (!item) return false;
         if (item.billable === false) return false;
         if (item.billable === true) return true;
-        if (billableRequiresSent.value && !item.isSent) return false;
+        if (effectiveBillableRequiresSent() && !item.isSent) return false;
         if (!item.isSent) return true;
         const ticket = getKitchenTicketForItem(item);
         return !ticket || ticket.status !== TICKET_STATUS.CANCELLED;
@@ -290,7 +341,7 @@ export const usePosStore = defineStore('pos', () => {
     }
     function saleByTableId(tableId) {
         return sales.value.find(
-            s => s.tableId === tableId && s.status === SALE_STATUS.ACTIVE
+            s => s.tableId === tableId && s.isOpenForPayment
         ) ?? null;
     }
 
@@ -360,7 +411,7 @@ export const usePosStore = defineStore('pos', () => {
         const idx = sales.value.findIndex(s =>
             s.id === prev
             || s.id === saved.id
-            || (saved.tableId && s.tableId === saved.tableId && s.status === SALE_STATUS.ACTIVE),
+            || (saved.tableId && s.tableId === saved.tableId && s.isOpenForPayment),
         );
         if (idx !== -1) sales.value.splice(idx, 1, saved);
         else sales.value.push(saved);
@@ -378,12 +429,12 @@ export const usePosStore = defineStore('pos', () => {
         if (!tableId) return null;
         try {
             const branchId = requireActiveBranchId();
-            const response = await api.listByBranch(branchId, {
-                tableId,
-                saleStatus: 'ACTIVE',
-            });
-            const list = SaleAssembler.toEntitiesFromResponse(response);
-            return list[0] ?? null;
+            for (const saleStatus of ['ACTIVE', 'PARTIALLY_PAID']) {
+                const response = await api.listByBranch(branchId, { tableId, saleStatus });
+                const list = SaleAssembler.toEntitiesFromResponse(response);
+                if (list[0]) return list[0];
+            }
+            return null;
         } catch {
             return null;
         }
@@ -471,6 +522,13 @@ export const usePosStore = defineStore('pos', () => {
                 } else {
                     return null;
                 }
+            } else if (isNetworkOnline()) {
+                const fresh = await fetchById(local.id);
+                if (fresh) {
+                    currentSaleIsRecovered.value = true;
+                    await refreshKitchenTickets();
+                    return fresh;
+                }
             }
             currentSaleIsRecovered.value = true;
             return currentSale.value;
@@ -483,6 +541,14 @@ export const usePosStore = defineStore('pos', () => {
                 || (cs.tableId != null && String(cs.tableId) === raw);
             if (matchesRoute) {
                 if (isPersistedSaleId(cs.id)) {
+                    if (isNetworkOnline()) {
+                        const fresh = await fetchById(cs.id);
+                        if (fresh) {
+                            currentSaleIsRecovered.value = true;
+                            await refreshKitchenTickets();
+                            return fresh;
+                        }
+                    }
                     currentSaleIsRecovered.value = true;
                     return cs;
                 }
@@ -585,7 +651,7 @@ export const usePosStore = defineStore('pos', () => {
     async function openSaleForTable(tableId, zoneId, seatedGuests = 0) {
         const tableKey = String(tableId);
         let existing = sales.value.find(
-            s => String(s.tableId) === tableKey && s.status === SALE_STATUS.ACTIVE,
+            s => String(s.tableId) === tableKey && s.isOpenForPayment,
         );
         if (!existing || !isPersistedSaleId(existing.id)) {
             const fromApi = await fetchActiveSaleByTable(tableId);
@@ -677,11 +743,79 @@ export const usePosStore = defineStore('pos', () => {
         return currentSale.value;
     }
 
+    /**
+     * Crea una nueva venta delivery (sin mesa; requiere datos de entrega).
+     */
+    async function openDeliverySale({ customerName = '', customerPhone = '', deliveryAddress = '' } = {}) {
+        const address = String(deliveryAddress ?? '').trim();
+        if (!address) {
+            throw new Error('La dirección de entrega es obligatoria.');
+        }
+        const tempId = -(Date.now());
+        const newSale = new Sale({
+            id:              tempId,
+            tableId:         null,
+            zoneId:          null,
+            saleType:        SALE_TYPE.DELIVERY,
+            customerName:    String(customerName ?? '').trim(),
+            customerPhone:   String(customerPhone ?? '').trim(),
+            deliveryAddress: address,
+            deliveryStatus:  DELIVERY_STATUS.PENDING,
+            ticketNumber:    null,
+            status:          SALE_STATUS.ACTIVE,
+            cashierId:       iamStore.currentUser?.id ?? null,
+            sucursalId:      iamStore.activeBranchId ?? null,
+        });
+        sales.value.push(newSale);
+        currentSale.value = newSale;
+        currentSaleIsRecovered.value = false;
+        try {
+            const created = await create(newSale);
+            currentSale.value = created ?? newSale;
+        } catch {
+            if (!isNetworkOnline()) {
+                return currentSale.value;
+            }
+            sales.value = sales.value.filter(s => s.id !== tempId);
+            currentSale.value = null;
+            currentSaleIsRecovered.value = false;
+            throw new Error('No se pudo crear la orden delivery. Por favor intenta de nuevo.');
+        }
+        return currentSale.value;
+    }
+
+    /**
+     * Avanza el estado de reparto de la orden delivery activa o indicada.
+     * @param {'dispatched'|'delivered'|'cancelled'} nextStatus
+     * @param {string|number|null} [saleId]
+     */
+    async function advanceDeliveryStatus(nextStatus, saleId = null) {
+        const sale = saleId != null
+            ? sales.value.find(s => String(s.id) === String(saleId)) ?? currentSale.value
+            : currentSale.value;
+        if (!sale?.isDelivery) {
+            throw new Error('La orden no es delivery.');
+        }
+        if (!isPersistedSaleId(sale.id)) {
+            throw new Error('La orden delivery aún no está sincronizada.');
+        }
+        const apiStatus = String(nextStatus).toUpperCase();
+        const response = await api.updateDeliveryStatus(sale.id, apiStatus);
+        const updated = SaleAssembler.toEntityFromResponse(response);
+        const idx = sales.value.findIndex(s => String(s.id) === String(sale.id));
+        if (idx !== -1) sales.value[idx] = updated;
+        if (currentSale.value && String(currentSale.value.id) === String(sale.id)) {
+            currentSale.value = updated;
+        }
+        return updated;
+    }
+
     // ── Orden actual — persistencia con debounce ─────────────────────────
 
     async function flushSyncCurrentSaleItems() {
         const sale = currentSale.value;
         if (!sale || _itemSyncInFlight) return;
+        if (!canSyncSaleItems(sale)) return;
         if (!isNetworkOnline()) {
             queueUpdateSale(sale);
             return;
@@ -725,6 +859,7 @@ export const usePosStore = defineStore('pos', () => {
 
     function _touchCurrentSaleItems() {
         if (!currentSale.value || !isPersistedSaleId(currentSale.value.id)) return;
+        if (!canSyncSaleItems(currentSale.value)) return;
         scheduleSyncCurrentSaleItems();
     }
 
@@ -862,7 +997,7 @@ export const usePosStore = defineStore('pos', () => {
         const saleId  = currentSale.value.id;
         const tableId = currentSale.value.tableId;
         currentSale.value.status = SALE_STATUS.CANCELLED;
-        if (!currentSale.value.isTakeaway && tableId) {
+        if (!currentSale.value.isOffPremise && tableId) {
             tablesStore.freeTable(tableId);
         }
         sales.value = sales.value.filter(s => s.id !== saleId);
@@ -896,7 +1031,7 @@ export const usePosStore = defineStore('pos', () => {
 
         // Verificar que la mesa destino no tenga una orden activa
         const existingSale = sales.value.find(
-            s => s.tableId === newTableId && s.status === SALE_STATUS.ACTIVE
+            s => s.tableId === newTableId && s.isOpenForPayment
         );
         if (existingSale) {
             error.value = 'La mesa destino ya tiene una orden activa.';
@@ -946,10 +1081,10 @@ export const usePosStore = defineStore('pos', () => {
      * Valida que exista un turno de caja abierto antes de procesar.
      * Si el pago es en efectivo, registra el ingreso en caja.
      *
-     * @param {{ method: string, amountReceived: number, receiptType: string, receiptData: object }} paymentData
-     * @returns {boolean}
+     * @param {{ method: string, amountReceived: number, receiptType: string, receiptData: object, tip: object, partialAmount?: number }} paymentData
+     * @returns {boolean|'partial'}
      */
-    async function confirmPayment({ method, amountReceived, receiptType, receiptData, tip }) {
+    async function confirmPayment({ method, amountReceived, receiptType, receiptData, tip, partialAmount }) {
         if (!currentSale.value) return false;
 
         if (!isNetworkOnline()) {
@@ -976,6 +1111,10 @@ export const usePosStore = defineStore('pos', () => {
         let sale;
         try {
             sale = await ensureCurrentSalePersisted();
+            if (isNetworkOnline() && isPersistedSaleId(sale.id)) {
+                const fresh = await fetchById(sale.id);
+                if (fresh) sale = fresh;
+            }
         } catch (e) {
             error.value = getApiErrorMessage(e, 'La orden no está guardada en el servidor.');
             return false;
@@ -984,22 +1123,31 @@ export const usePosStore = defineStore('pos', () => {
         const totals        = currentOrderTotals.value;
         const billableItems = sale.items.filter(isItemBillable);
         if (billableItems.length === 0) {
-            error.value = billableRequiresSent.value
+            error.value = effectiveBillableRequiresSent()
                 ? 'No hay ítems enviados a cocina para cobrar. Envía la comanda primero.'
                 : 'No hay ítems cobrables en esta orden.';
             return false;
         }
         const consumption   = totals.total;
-        const tipAmount     = computeTipAmount(consumption, tip?.type, tip?.value);
-        const paymentTotal  = parseFloat((consumption + tipAmount).toFixed(2));
+        const balanceDue    = sale.balanceDue ?? Math.max(0, consumption - (sale.amountPaid ?? 0));
+        const isPartialPay  = partialAmount != null && partialAmount > 0
+            && partialAmount < balanceDue - 0.009;
+        const payConsumption = isPartialPay
+            ? parseFloat(Number(partialAmount).toFixed(2))
+            : balanceDue;
+        const tipAmount     = isPartialPay
+            ? 0
+            : computeTipAmount(consumption, tip?.type, tip?.value);
+        const paymentTotal  = parseFloat((payConsumption + tipAmount).toFixed(2));
+        const ratio         = consumption > 0 ? payConsumption / consumption : 1;
+        const { subtotal: paySubtotal, tax: payTax } = splitConsumptionTax(payConsumption);
 
         const saleId  = sale.id;
         const tableId = sale.tableId;
-        const table   = sale.isTakeaway ? null : tablesStore.tables.find(t => t.id === tableId);
-        const zone    = sale.isTakeaway ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
-        const saleLabel = sale.isTakeaway
-            ? `Para Llevar #${sale.saleDisplayNumber ?? sale.ticketNumber}${sale.customerName ? ` (${sale.customerName})` : ''}`
-            : `Mesa ${table?.number ?? '?'}`;
+        const table   = sale.isOffPremise ? null : tablesStore.tables.find(t => t.id === tableId);
+        const zone    = sale.isOffPremise ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
+        const offLabel = offPremiseSaleLabel(sale);
+        const saleLabel = offLabel ?? `Mesa ${table?.number ?? '?'}`;
 
         const paymentsStore = usePaymentsStore();
         const sessionId = cashRegisterStore.currentSession?.id ?? null;
@@ -1007,15 +1155,15 @@ export const usePosStore = defineStore('pos', () => {
             saleId,
             sessionId,
             tableNumber:    table?.number ?? null,
-            zoneName:       sale.isTakeaway ? 'Para Llevar' : (zone?.name ?? null),
+            zoneName:       offPremiseZoneName(sale) ?? (zone?.name ?? null),
             items:          billableItems.map(i => ({
                 name:     i.menuItemName,
                 qty:      i.quantity,
                 subtotal: i.subtotal,
             })),
-            subtotal:       totals.subtotal,
-            tax:            totals.tax,
-            discount:       totals.discount,
+            subtotal:       paySubtotal,
+            tax:            payTax,
+            discount:       parseFloat((totals.discount * ratio).toFixed(2)),
             total:          paymentTotal,
             tipType:        tip?.type ?? 'none',
             tipValue:       tip?.value ?? 0,
@@ -1026,31 +1174,49 @@ export const usePosStore = defineStore('pos', () => {
             receiptType,
             receiptData,
             status:         PAYMENT_STATUS.COMPLETED,
-            note:           sale.isTakeaway ? `Para Llevar #${sale.saleDisplayNumber ?? sale.ticketNumber}` : '',
+            note:           offLabel ?? '',
             cashierId:      iamStore.currentUser?.id ?? null,
             sucursalId:     iamStore.activeBranchId ?? null,
         });
 
         let payment = null;
-        // 1. Sincronizar ítems y checkout atómico (pago + PAID)
+        let updatedSale = sale;
+        // 1. Sincronizar ítems (solo venta ACTIVE sin cobros previos) y checkout atómico
         {
             try {
-                await flushSyncCurrentSaleItems();
+                if (canSyncSaleItems(sale)) {
+                    await flushSyncCurrentSaleItems();
+                }
                 const response = await api.checkout(
                     saleId,
                     PaymentAssembler.toCreateBffResource(paymentDraft),
                 );
                 const checkout = SaleAssembler.fromCheckoutResponse(response);
                 payment = checkout.payment;
+                if (checkout.sale) {
+                    applySaleToStore(checkout.sale);
+                    updatedSale = checkout.sale;
+                }
             } catch (e) {
                 error.value = getApiErrorMessage(e, 'Error al confirmar el pago');
                 return false;
             }
         }
 
-        // 2. Backend confirmó — actualizar estado local
-        sale.status = SALE_STATUS.PAID;
-        if (!sale.isTakeaway && tableId) {
+        if (updatedSale.status === SALE_STATUS.PARTIALLY_PAID) {
+            currentSale.value = updatedSale;
+            currentSaleIsRecovered.value = true;
+            if (payment) {
+                paymentsStore.addCompletedPayment(payment);
+            }
+            await cashRegisterStore.refreshOpenSession();
+            error.value = null;
+            return 'partial';
+        }
+
+        // 2. Backend confirmó pago total — actualizar estado local
+        updatedSale.status = SALE_STATUS.PAID;
+        if (!updatedSale.isOffPremise && tableId) {
             try {
                 tablesStore.freeTable(tableId);
             } catch {
@@ -1117,11 +1283,10 @@ export const usePosStore = defineStore('pos', () => {
 
         const saleId  = sale.id;
         const tableId = sale.tableId;
-        const table   = sale.isTakeaway ? null : tablesStore.tables.find(t => t.id === tableId);
-        const zone    = sale.isTakeaway ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
-        const saleLabel = sale.isTakeaway
-            ? `Para Llevar #${sale.saleDisplayNumber ?? sale.ticketNumber}${sale.customerName ? ` (${sale.customerName})` : ''}`
-            : `Mesa ${table?.number ?? '?'}`;
+        const table   = sale.isOffPremise ? null : tablesStore.tables.find(t => t.id === tableId);
+        const zone    = sale.isOffPremise ? null : tablesStore.zones.find(z => z.id === sale.zoneId);
+        const offLabel = offPremiseSaleLabel(sale);
+        const saleLabel = offLabel ?? `Mesa ${table?.number ?? '?'}`;
 
         const paymentsStore = usePaymentsStore();
         const sessionId = cashRegisterStore.currentSession?.id ?? null;
@@ -1137,8 +1302,7 @@ export const usePosStore = defineStore('pos', () => {
                 : 1 / splits.length;
             const splitDiscount = parseFloat((orderTotals.discount * ratio).toFixed(2));
             const splitTip      = parseFloat((orderTipAmount * ratio).toFixed(2));
-            const splitSubtotal = parseFloat((splitConsumption / (1 + SALE_TAX_RATE)).toFixed(2));
-            const splitTax      = parseFloat((splitConsumption - splitSubtotal).toFixed(2));
+            const { subtotal: splitSubtotal, tax: splitTax } = splitConsumptionTax(splitConsumption);
             const splitPaymentTotal = parseFloat((splitConsumption + splitTip).toFixed(2));
 
             const splitItems = (split.items && split.items.length > 0)
@@ -1153,7 +1317,7 @@ export const usePosStore = defineStore('pos', () => {
                 saleId,
                 sessionId,
                 tableNumber:    table?.number ?? null,
-                zoneName:       sale.isTakeaway ? 'Para Llevar' : (zone?.name ?? null),
+                zoneName:       offPremiseZoneName(sale) ?? (zone?.name ?? null),
                 items:          splitItems,
                 subtotal:       splitSubtotal,
                 tax:            splitTax,
@@ -1183,7 +1347,9 @@ export const usePosStore = defineStore('pos', () => {
         // 1. Sync + checkout dividido atómico
         {
             try {
-                await flushSyncCurrentSaleItems();
+                if (canSyncSaleItems(sale)) {
+                    await flushSyncCurrentSaleItems();
+                }
                 const response = await api.checkoutSplit(saleId, {
                     payments: paymentPayloads.map(p =>
                         PaymentAssembler.toCreateBffResource(p.draft),
@@ -1199,7 +1365,7 @@ export const usePosStore = defineStore('pos', () => {
 
         // 2. Actualizar estado local
         sale.status = SALE_STATUS.PAID;
-        if (!sale.isTakeaway && tableId) {
+        if (!sale.isOffPremise && tableId) {
             try { tablesStore.freeTable(tableId); } catch { /* non-critical */ }
         }
         currentSale.value = null;
@@ -1226,7 +1392,7 @@ export const usePosStore = defineStore('pos', () => {
         fetchAll, loadOperationsConfig, fetchById, fetchActiveSaleByTable, loadSaleContext, ensureCurrentSalePersisted,
         create, update, remove,
         // Orden
-        openSaleForTable, openTakeawaySale,
+        openSaleForTable, openTakeawaySale, openDeliverySale, advanceDeliveryStatus,
         addItemToCurrentSale, removeItemFromCurrentSale,
         updateItemQuantity, updateItemNote, updateItemDiscount, updateOrderDiscount, clearOrderDiscount, duplicateItemInCurrentSale,
         flushSyncCurrentSaleItems,

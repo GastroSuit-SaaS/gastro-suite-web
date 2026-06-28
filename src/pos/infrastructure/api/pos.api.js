@@ -39,12 +39,18 @@ export class PosApi extends BaseApi {
     }
 
     transfer(saleId, { tableId, zoneId }) {
-        return this.#sales.update(saleId, { tableId, zoneId });
+        return this.#sales.postSub(saleId, 'transfer-table', { tableId, zoneId });
     }
 
     /** Despacho atómico a cocina (tickets + marcar isSent). */
     dispatchToStations(saleId) {
         return this.#sales.postSub(saleId, 'dispatch-to-stations');
+    }
+
+    updateDeliveryStatus(saleId, deliveryStatus) {
+        return this.#sales.patchSub(saleId, 'delivery-status', {
+            deliveryStatus: String(deliveryStatus).toUpperCase(),
+        });
     }
 
     /** Tickets de cocina de una venta (estado RECEIVED → PREPARING → READY…). */

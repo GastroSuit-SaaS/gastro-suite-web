@@ -11,11 +11,13 @@ import {
 } from '../constants/pos.constants-ui.js'
 import SplitBillDialog from '../components/split-bill-dialog.vue'
 import { useCentralCashSession } from '../../../shared/composables/use-central-cash-session.js'
+import { useMenuStore } from '../../../menu/application/menu.store.js'
 
 const route    = useRoute()
 const router   = useRouter()
 const toast    = useToast()
 const posStore = usePosStore()
+const menuStore = useMenuStore()
 const centralCash = useCentralCashSession()
 
 const tableId = computed(() => sale.value?.tableId ?? null)
@@ -26,6 +28,57 @@ const orderTotals = computed(() => posStore.currentOrderTotals)
 const billableItems = computed(() =>
     (sale.value?.items ?? []).filter(i => posStore.isItemBillable(i)),
 )
+const excludedItems = computed(() =>
+    (sale.value?.items ?? []).filter(i => !posStore.isItemBillable(i)),
+)
+const billableUnits = computed(() =>
+    billableItems.value.reduce((n, i) => n + (i.quantity ?? 0), 0),
+)
+
+function itemLineLabel(item) {
+    const name = item?.menuItemName?.trim()
+    if (name) return name
+    const fromMenu = menuStore.items.find(m => m.id === item?.menuItemId)?.name
+    if (fromMenu) return fromMenu
+    return item?.menuItemId ? 'Producto' : 'Ítem sin nombre'
+}
+
+function lineSubtotal(item) {
+    const sub = Number(item?.subtotal)
+    if (Number.isFinite(sub)) return sub.toFixed(2)
+    const qty = Number(item?.quantity) || 0
+    const unit = Number(item?.unitPrice) || 0
+    return (qty * unit).toFixed(2)
+}
+const summaryTitle = computed(() =>
+    orderDisplayNumber.value ? `Orden #${orderDisplayNumber.value}` : 'Resumen de orden',
+)
+const summaryContext = computed(() => {
+    const s = sale.value
+    if (!s) return ''
+    if (s.isTakeaway) {
+        const name = s.customerName?.trim()
+        return name ? `Para llevar · ${name}` : 'Para llevar'
+    }
+    if (s.isDelivery) {
+        const parts = [s.customerName?.trim(), s.customerPhone?.trim()].filter(Boolean)
+        return parts.length ? `Delivery · ${parts.join(' · ')}` : 'Delivery'
+    }
+    if (table.value) {
+        const zoneName = zone.value?.name
+        return zoneName
+            ? `Mesa ${table.value.number} · ${zone.value.name}`
+            : `Mesa ${table.value.number}`
+    }
+    return 'Salón'
+})
+const hasPriorPayment = computed(() =>
+    isPartiallyPaid.value || amountPaidSoFar.value > 0.009,
+)
+const showConsumoRow = computed(() =>
+    tipAmount.value > 0 || partialMode.value || hasPriorPayment.value,
+)
+const amountPaidSoFar = computed(() => sale.value?.amountPaid ?? 0)
 const saleForSplit = computed(() => {
     if (!sale.value) return null
     return {
@@ -38,6 +91,23 @@ const orderDisplayNumber = computed(() =>
     sale.value?.saleDisplayNumber ?? sale.value?.ticketNumber ?? null,
 )
 const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
+const isPartiallyPaid = computed(() => sale.value?.status === 'partially_paid')
+
+const balanceDue = computed(() => {
+    if (!sale.value) return 0
+    const due = sale.value.balanceDue
+    if (due != null && due >= 0) return due
+    const paid = sale.value.amountPaid ?? 0
+    return Math.max(0, parseFloat((orderTotals.value.total - paid).toFixed(2)))
+})
+
+const partialMode = ref(false)
+const partialAmountInput = ref(null)
+
+const partialAmountParsed = computed(() => {
+    const v = parseFloat(partialAmountInput.value)
+    return Number.isNaN(v) || v <= 0 ? null : parseFloat(v.toFixed(2))
+})
 
 async function ensurePaymentContext() {
     const loaded = await posStore.loadSaleContext(route.params.saleId)
@@ -79,11 +149,16 @@ const tipValueParsed = computed(() => {
     return Number.isNaN(v) || v < 0 ? 0 : v
 })
 
-const consumptionTotal = computed(() => orderTotals.value.total)
+const consumptionTotal = computed(() => {
+    if (partialMode.value || hasPriorPayment.value) return balanceDue.value
+    return orderTotals.value.total
+})
 
 const tipAmount = computed(() => {
+    if (partialMode.value) return 0
+    const tipBase = orderTotals.value.total
     if (tipMode.value === 'percent') {
-        return parseFloat((consumptionTotal.value * tipValueParsed.value / 100).toFixed(2))
+        return parseFloat((tipBase * tipValueParsed.value / 100).toFixed(2))
     }
     if (tipMode.value === 'fixed') {
         return parseFloat(tipValueParsed.value.toFixed(2))
@@ -146,7 +221,20 @@ const customerData = reactive({
 
 // ── Validación global ──────────────────────────────────────────────────────
 const canConfirm = computed(() => {
+    if (!centralCash.isOpen.value) return false
     if (!sale.value || sale.value.items.length === 0) return false
+    if (partialMode.value) {
+        if (partialAmountParsed.value == null) return false
+        if (partialAmountParsed.value > balanceDue.value + 0.009) return false
+        if (selectedMethod.value === 'cash') {
+            if (cashParsed.value === null || cashParsed.value < partialAmountParsed.value) return false
+        }
+        if (receiptType.value === 'boleta'  && !customerData.dni.trim())           return false
+        if (receiptType.value === 'factura' && (
+            !customerData.ruc.trim() || !customerData.razonSocial.trim()
+        )) return false
+        return true
+    }
     if (selectedMethod.value === 'cash') {
         if (cashParsed.value === null || cashParsed.value < amountToPay.value) return false
     }
@@ -194,12 +282,12 @@ function dividirCuenta() {
     showSplitDialog.value = true
 }
 
-async function onSplitConfirmed({ splits }) {
+async function onSplitConfirmed({ splits, tip }) {
     const ok = await posStore.confirmSplitPayment({
         splits,
         receiptType: receiptType.value,
         receiptData: { ...customerData },
-        tip:         tipPayload.value,
+        tip:         tip ?? tipPayload.value,
     })
     if (!ok) {
         toast.add({
@@ -280,10 +368,11 @@ async function confirmPayment() {
     if (!canConfirm.value) return
     const ok = await posStore.confirmPayment({
         method:         selectedMethod.value,
-        amountReceived: cashParsed.value ?? amountToPay.value,
+        amountReceived: cashParsed.value ?? (partialMode.value ? partialAmountParsed.value : amountToPay.value),
         receiptType:    receiptType.value,
         receiptData:    { ...customerData },
-        tip:            tipPayload.value,
+        tip:            partialMode.value ? { type: 'none', value: 0 } : tipPayload.value,
+        partialAmount:  partialMode.value ? partialAmountParsed.value : undefined,
     })
     if (!ok) {
         toast.add({
@@ -291,6 +380,19 @@ async function confirmPayment() {
             summary:  'Error al procesar pago',
             detail:   posStore.error || 'No se pudo confirmar el pago. Verifica que haya un turno de caja abierto.',
             life:     5000,
+        })
+        return
+    }
+    if (ok === 'partial') {
+        partialMode.value = false
+        partialAmountInput.value = null
+        cashReceived.value = ''
+        await ensurePaymentContext()
+        toast.add({
+            severity: 'success',
+            summary:  'Cobro parcial registrado',
+            detail:   `Saldo pendiente: S/ ${balanceDue.value.toFixed(2)}`,
+            life:     4000,
         })
         return
     }
@@ -322,6 +424,34 @@ async function confirmPayment() {
                     <i v-if="chip.icon" :class="['pi', chip.icon]"></i>
                     {{ chip.label }}
                 </span>
+            </div>
+
+            <div v-if="sale && (sale.amountPaid > 0 || isPartiallyPaid)" class="payment-balance-banner">
+                <span>Cobrado: <strong>S/ {{ (sale.amountPaid ?? 0).toFixed(2) }}</strong></span>
+                <span>Saldo: <strong>S/ {{ balanceDue.toFixed(2) }}</strong></span>
+            </div>
+
+            <div class="form-section">
+                <div class="flex align-items-center justify-content-between gap-2 mb-2">
+                    <h3 class="form-section__title m-0">
+                        <i class="pi pi-percentage"></i>
+                        Cobro parcial
+                    </h3>
+                    <pv-input-switch v-model="partialMode" />
+                </div>
+                <div v-if="partialMode" class="flex flex-column gap-2">
+                    <label class="text-sm">Monto a cobrar ahora (máx. S/ {{ balanceDue.toFixed(2) }})</label>
+                    <pv-input-number
+                        v-model="partialAmountInput"
+                        mode="currency"
+                        currency="PEN"
+                        locale="es-PE"
+                        :min="0.01"
+                        :max="balanceDue"
+                        placeholder="0.00"
+                    />
+                    <small class="text-color-secondary">La propina se registra en el cobro final.</small>
+                </div>
             </div>
 
             <!-- ─── Sección 1: Método de pago ──────────────────────────── -->
@@ -416,7 +546,7 @@ async function confirmPayment() {
             </div>
 
             <!-- ─── Sección: Propina ───────────────────────────────────── -->
-            <div class="form-section">
+            <div v-if="!partialMode" class="form-section">
                 <h3 class="form-section__title">
                     <i class="pi pi-heart"></i>
                     Propina
@@ -576,30 +706,40 @@ async function confirmPayment() {
 
             <!-- Cabecera del panel -->
             <div class="payment-panel__header">
-                <div class="flex align-items-center gap-2">
-                    <i class="pi pi-receipt text-primary" style="font-size:1.1rem"></i>
-                    <span class="font-bold text-color" style="font-size:1rem">Resumen de Orden</span>
+                <div class="payment-panel__heading">
+                    <div class="flex align-items-center gap-2">
+                        <i class="pi pi-receipt text-primary" style="font-size:1.1rem"></i>
+                        <span class="payment-panel__title">{{ summaryTitle }}</span>
+                    </div>
+                    <p v-if="summaryContext" class="payment-panel__context">{{ summaryContext }}</p>
+                    <p v-if="billableItems.length" class="payment-panel__meta">
+                        {{ billableUnits }} producto{{ billableUnits !== 1 ? 's' : '' }} a cobrar
+                        <span v-if="excludedItems.length" class="payment-panel__meta-muted">
+                            · {{ excludedItems.length }} no cobrable{{ excludedItems.length !== 1 ? 's' : '' }}
+                        </span>
+                    </p>
                 </div>
-                <span class="panel-order-id">#{{ sale?.id ?? '—' }}</span>
             </div>
 
             <!-- Lista de ítems -->
             <div class="payment-panel__items">
-                <div v-if="!sale || sale.items.length === 0" class="panel-empty">
+                <p v-if="billableItems.length" class="payment-panel__items-title">Productos a cobrar</p>
+                <div v-if="!sale || billableItems.length === 0" class="panel-empty">
                     <i class="pi pi-inbox text-4xl text-color-secondary"></i>
-                    <span class="text-sm text-color-secondary">Sin productos en la orden</span>
+                    <span class="text-sm text-color-secondary">
+                        {{ sale?.items?.length ? 'No hay ítems cobrables en esta orden' : 'Sin productos en la orden' }}
+                    </span>
                 </div>
 
                 <div v-else class="summary-items">
                     <div
-                        v-for="item in sale.items"
+                        v-for="item in billableItems"
                         :key="item.id"
                         class="summary-item"
-                        :class="{ 'summary-item--excluded': !posStore.isItemBillable(item) }"
                     >
                         <span class="summary-item__qty">{{ item.quantity }}×</span>
                         <div class="summary-item__info">
-                            <span class="summary-item__name">{{ item.menuItemName }}</span>
+                            <span class="summary-item__name">{{ itemLineLabel(item) }}</span>
                             <span v-if="item.note" class="summary-item__note">
                                 <i class="pi pi-align-left" style="font-size:0.65rem"></i>
                                 {{ item.note }}
@@ -609,12 +749,20 @@ async function confirmPayment() {
                                 {{ item.discountType === 'pct' ? item.discountValue + '%' : 'S/ ' + item.discountValue.toFixed(2) }} dto.
                             </span>
                         </div>
-                        <span class="summary-item__price">
-                            <template v-if="posStore.isItemBillable(item)">
-                                S/ {{ item.subtotal.toFixed(2) }}
-                            </template>
-                            <template v-else>No cobrado</template>
-                        </span>
+                        <span class="summary-item__price">S/ {{ lineSubtotal(item) }}</span>
+                    </div>
+                </div>
+
+                <div v-if="excludedItems.length" class="summary-excluded">
+                    <p class="summary-excluded__title">No incluidos en el cobro</p>
+                    <div
+                        v-for="item in excludedItems"
+                        :key="'ex-' + item.id"
+                        class="summary-item summary-item--excluded"
+                    >
+                        <span class="summary-item__qty">{{ item.quantity }}×</span>
+                        <span class="summary-item__name">{{ itemLineLabel(item) }}</span>
+                        <span class="summary-item__excluded-tag">No cobrado</span>
                     </div>
                 </div>
             </div>
@@ -631,10 +779,14 @@ async function confirmPayment() {
                 </div>
                 <div v-if="orderTotals.discount > 0" class="total-row total-row--discount">
                     <span>Descuento</span>
-                    <span>- S/ {{ orderTotals.discount.toFixed(2) }}</span>
+                    <span>− S/ {{ orderTotals.discount.toFixed(2) }}</span>
                 </div>
-                <div class="total-row">
-                    <span>Consumo</span>
+                <div v-if="hasPriorPayment" class="total-row total-row--paid">
+                    <span>Ya pagado</span>
+                    <span>− S/ {{ amountPaidSoFar.toFixed(2) }}</span>
+                </div>
+                <div v-if="showConsumoRow" class="total-row">
+                    <span>{{ partialMode || hasPriorPayment ? 'Saldo a cobrar' : 'Consumo' }}</span>
                     <span>S/ {{ consumptionTotal.toFixed(2) }}</span>
                 </div>
                 <div v-if="tipAmount > 0" class="total-row">
@@ -715,6 +867,9 @@ async function confirmPayment() {
     <SplitBillDialog
         v-model:visible="showSplitDialog"
         :sale="saleForSplit"
+        :consumption-total="orderTotals.total"
+        :initial-tip="tipPayload"
+        :allow-tip="!partialMode"
         @confirmed="onSplitConfirmed"
     />
 </template>
@@ -871,6 +1026,17 @@ async function confirmPayment() {
     margin: 0.5rem 0 0;
     font-size: 0.85rem;
     color: var(--text-color-secondary);
+}
+
+.payment-balance-banner {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: var(--orange-50, #fff7ed);
+    border: 1px solid var(--orange-200, #fed7aa);
+    font-size: 0.875rem;
 }
 
 .form-section__title {
@@ -1215,16 +1381,46 @@ async function confirmPayment() {
 
 .payment-panel__header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.9rem 1.1rem;
-    border-bottom: 1px solid #f3f4f6;
-    background: #fafafa;
+    padding: 0.95rem 1.1rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
     flex-shrink: 0;
 }
 
-/* ── Order id chip ───────────────────────────────────────────────────────── */
+.payment-panel__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.payment-panel__title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.payment-panel__context {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.payment-panel__meta {
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.payment-panel__meta-muted {
+    color: #9ca3af;
+}
+
+/* ── Order id chip (legacy) ─────────────────────────────────────────────── */
 .panel-order-id {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1237,12 +1433,23 @@ async function confirmPayment() {
 
 /* ── Items list ──────────────────────────────────────────────────────────── */
 .payment-panel__items {
-    flex: 1;
+    flex: 0 1 auto;
+    max-height: min(38vh, 280px);
     overflow-y: auto;
     padding: 0.75rem 1.1rem;
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 0.35rem;
+}
+
+.payment-panel__items-title {
+    margin: 0 0 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+    flex-shrink: 0;
 }
 
 .panel-empty {
@@ -1260,16 +1467,51 @@ async function confirmPayment() {
     display: flex;
     flex-direction: column;
     gap: 0;
+    flex-shrink: 0;
+    background: #f9fafb;
+    border: 1px solid #eef0f3;
+    border-radius: 8px;
+    padding: 0 0.65rem;
+}
+
+.summary-excluded {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e5e7eb;
+}
+
+.summary-excluded__title {
+    margin: 0 0 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9ca3af;
 }
 
 .summary-item {
     display: flex;
     align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.55rem 0;
+    gap: 0.6rem;
+    padding: 0.65rem 0;
     border-bottom: 1px solid #f3f4f6;
+    flex-shrink: 0;
+    min-height: 2.75rem;
 }
 .summary-item:last-child { border-bottom: none; }
+
+.summary-item--excluded {
+    opacity: 0.72;
+    padding: 0.4rem 0;
+}
+
+.summary-item__excluded-tag {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #9ca3af;
+    white-space: nowrap;
+}
 
 .summary-item__qty {
     font-size: 0.78rem;
@@ -1288,9 +1530,10 @@ async function confirmPayment() {
 }
 
 .summary-item__name {
-    font-size: 0.82rem;
-    font-weight: 500;
+    font-size: 0.875rem;
+    font-weight: 600;
     color: #111827;
+    line-height: 1.35;
 }
 
 .summary-item__note {
@@ -1312,10 +1555,11 @@ async function confirmPayment() {
 }
 
 .summary-item__price {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #1f2937;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #111827;
     flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
 }
 
 /* ── Totales ─────────────────────────────────────────────────────────────── */
@@ -1340,15 +1584,19 @@ async function confirmPayment() {
 
 .total-row--discount { color: #059669; }
 
+.total-row--paid { color: #6366f1; }
+
 .total-row--grand {
     display: flex;
     justify-content: space-between;
-    padding: 0.6rem 0;
-    font-size: 1rem;
+    align-items: baseline;
+    margin-top: 0.35rem;
+    padding: 0.75rem 0 0.35rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: #111827;
     border-top: 2px solid #e5e7eb;
-    margin-top: 0.25rem;
+    border-bottom: none;
 }
 
 /* ── Payment summary ─────────────────────────────────────────────────────── */
@@ -1521,6 +1769,12 @@ async function confirmPayment() {
         border-left: none;
         border-top: 1px solid #e5e7eb;
         overflow: visible;
+    }
+
+    .payment-panel__items {
+        flex: 0 0 auto;
+        max-height: none;
+        overflow-y: visible;
     }
 
     /* Header: stack title and chips */

@@ -1,4 +1,4 @@
-import { Sale, SALE_STATUS, SALE_TYPE } from '../../domain/models/sale.entity.js';
+import { Sale, SALE_STATUS, SALE_TYPE, DELIVERY_STATUS } from '../../domain/models/sale.entity.js';
 import { SaleItem } from '../../domain/models/sale-item.entity.js';
 import { entitiesFromResponse, entityFromResponse, extractResource } from '../../../shared/infrustructure/api-response.js';
 import { requireActiveBranchId } from '../../../shared/application/tenant-context.js';
@@ -6,6 +6,7 @@ import { PaymentAssembler } from '../../../payments/infrastructure/assemblers/pa
 
 const API_STATUS = Object.freeze({
     [SALE_STATUS.ACTIVE]:    'ACTIVE',
+    [SALE_STATUS.PARTIALLY_PAID]: 'PARTIALLY_PAID',
     [SALE_STATUS.PAID]:      'PAID',
     [SALE_STATUS.CANCELLED]: 'CANCELLED',
     [SALE_STATUS.PENDING]:   'PENDING',
@@ -13,6 +14,7 @@ const API_STATUS = Object.freeze({
 
 const DOMAIN_STATUS = Object.freeze({
     ACTIVE:    SALE_STATUS.ACTIVE,
+    PARTIALLY_PAID: SALE_STATUS.PARTIALLY_PAID,
     PAID:      SALE_STATUS.PAID,
     CANCELLED: SALE_STATUS.CANCELLED,
     PENDING:   SALE_STATUS.PENDING,
@@ -61,6 +63,34 @@ export class SaleAssembler {
         return 'NONE';
     }
 
+    static _saleChannelToApi(saleType) {
+        if (saleType === SALE_TYPE.TAKEAWAY) return 'TAKEAWAY';
+        if (saleType === SALE_TYPE.DELIVERY) return 'DELIVERY';
+        return 'DINE_IN';
+    }
+
+    static _saleChannelFromApi(channel, tableId = null) {
+        if (!channel) {
+            return tableId ? SALE_TYPE.DINE_IN : SALE_TYPE.TAKEAWAY;
+        }
+        const key = String(channel).toUpperCase();
+        if (key === 'TAKEAWAY') return SALE_TYPE.TAKEAWAY;
+        if (key === 'DELIVERY') return SALE_TYPE.DELIVERY;
+        return SALE_TYPE.DINE_IN;
+    }
+
+    static _deliveryStatusFromApi(value) {
+        if (!value) return null;
+        const key = String(value).toLowerCase();
+        if (Object.values(DELIVERY_STATUS).includes(key)) return key;
+        return null;
+    }
+
+    static _deliveryStatusToApi(value) {
+        if (!value) return null;
+        return String(value).toUpperCase();
+    }
+
     static toEntityFromResource(r) {
         const items = (r.items ?? []).map(i => new SaleItem({
             id:           i.saleItemId    ?? i.sale_item_id   ?? i.id ?? null,
@@ -87,8 +117,16 @@ export class SaleAssembler {
             id:        r.saleId     ?? r.sale_id    ?? r.id ?? null,
             tableId:   r.tableId    ?? r.table_id   ?? null,
             zoneId:    r.zoneId     ?? r.zone_id    ?? null,
-            saleType:  r.saleType   ?? r.sale_type  ?? SALE_TYPE.DINE_IN,
+            saleType:  SaleAssembler._saleChannelFromApi(
+                r.saleChannel ?? r.sale_channel ?? r.saleType ?? r.sale_type,
+                r.tableId ?? r.table_id ?? null,
+            ),
             customerName: r.customerName ?? r.customer_name ?? '',
+            customerPhone: r.customerPhone ?? r.customer_phone ?? '',
+            deliveryAddress: r.deliveryAddress ?? r.delivery_address ?? '',
+            deliveryStatus: SaleAssembler._deliveryStatusFromApi(
+                r.deliveryStatus ?? r.delivery_status,
+            ),
             saleDisplayNumber: r.saleDisplayNumber ?? r.sale_display_number ?? null,
             ticketNumber: r.saleDisplayNumber ?? r.sale_display_number ?? r.ticketNumber ?? r.ticket_number ?? null,
             items,
@@ -98,6 +136,8 @@ export class SaleAssembler {
             orderDiscountType,
             orderDiscountValue: Number(r.orderDiscountValue ?? r.order_discount_value ?? 0),
             total:     r.total      ?? 0,
+            amountPaid: r.amountPaid ?? r.amount_paid ?? 0,
+            balanceDue: r.balanceDue ?? r.balance_due ?? null,
             status:    SaleAssembler._fromApiStatus(r.saleStatus ?? r.sale_status ?? r.status),
             cashierId: r.cashierId  ?? r.cashier_id  ?? null,
             sucursalId: r.branchId  ?? r.branch_id   ?? r.sucursalId ?? r.sucursal_id ?? null,
@@ -144,6 +184,10 @@ export class SaleAssembler {
             branchId: requireActiveBranchId(),
             zoneId:   sale.zoneId,
             tableId:  sale.tableId,
+            saleChannel: SaleAssembler._saleChannelToApi(sale.saleType),
+            customerName: sale.customerName || null,
+            customerPhone: sale.customerPhone || null,
+            deliveryAddress: sale.deliveryAddress || null,
             items:    SaleAssembler._itemsToApi(sale.items),
         };
     }

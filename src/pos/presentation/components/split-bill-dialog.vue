@@ -5,19 +5,64 @@ import { PAYMENT_METHODS } from '../constants/pos.constants-ui.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 
 const props = defineProps({
-    visible: Boolean,
+    visible: { type: Boolean, default: false },
     sale:    { type: Object, default: null },
+    /** Consumo cobrable (sin propina), alineado con orderTotals.total */
+    consumptionTotal: { type: Number, default: 0 },
+    /** { type: 'none'|'percent'|'fixed', value: number } desde pantalla de pago */
+    initialTip: { type: Object, default: () => ({ type: 'none', value: 0 }) },
+    allowTip: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:visible', 'confirmed'])
+
+function computeTipAmount(consumptionTotal, tipType, tipValue) {
+    const consumption = Number(consumptionTotal) || 0
+    const value       = Number(tipValue) || 0
+    if (!tipType || tipType === 'none' || value <= 0) return 0
+    if (tipType === 'percent') {
+        return parseFloat((consumption * value / 100).toFixed(2))
+    }
+    if (tipType === 'fixed') {
+        return parseFloat(value.toFixed(2))
+    }
+    return 0
+}
 
 // ── State ──────────────────────────────────────────────
 const mode       = ref(SPLIT_MODE.EQUAL)
 const splitCount = ref(2)
 const splits     = ref([])
 const step       = ref(1) // 1 = config, 2 = assign methods
+const tipMode    = ref('none')
+const tipInput   = ref('')
+
+const tipValueParsed = computed(() => {
+    const v = parseFloat(tipInput.value)
+    return Number.isNaN(v) || v < 0 ? 0 : v
+})
 
 // ── Computed ───────────────────────────────────────────
-const saleTotal = computed(() => props.sale?.total ?? 0)
+const saleTotal = computed(() => props.sale?.total ?? props.consumptionTotal ?? 0)
+
+const orderTipAmount = computed(() => {
+    if (!props.allowTip) return 0
+    const base = props.consumptionTotal > 0 ? props.consumptionTotal : saleTotal.value
+    return computeTipAmount(base, tipMode.value, tipValueParsed.value)
+})
+
+const grandTotal = computed(() =>
+    parseFloat((saleTotal.value + orderTipAmount.value).toFixed(2)),
+)
+
+function tipShareForSplit(splitConsumption) {
+    if (orderTipAmount.value <= 0 || saleTotal.value <= 0) return 0
+    return parseFloat((orderTipAmount.value * (splitConsumption / saleTotal.value)).toFixed(2))
+}
+
+function amountDueForSplit(split) {
+    return parseFloat((split.total + tipShareForSplit(split.total)).toFixed(2))
+}
+
 const saleItems = computed(() => props.sale?.items ?? [])
 
 const allPaid = computed(() => splits.value.length > 0 && splits.value.every(s => s.isPaid))
@@ -62,6 +107,12 @@ watch(() => props.visible, (v) => {
         splitCount.value = 2
         splits.value     = []
         step.value       = 1
+        tipMode.value    = props.initialTip?.type ?? 'none'
+        tipInput.value   = props.initialTip?.value > 0 ? String(props.initialTip.value) : ''
+        if (!props.allowTip) {
+            tipMode.value  = 'none'
+            tipInput.value = ''
+        }
     }
 })
 
@@ -145,6 +196,10 @@ function onSave() {
     if (!allPaid.value) return
     emit('confirmed', {
         mode: mode.value,
+        tip: {
+            type:  props.allowTip ? tipMode.value : 'none',
+            value: props.allowTip ? tipValueParsed.value : 0,
+        },
         splits: splits.value.map(s => ({
             id:     s.id,
             label:  s.label,
@@ -180,8 +235,53 @@ function methodMeta(key) {
 
                     <!-- Total reference -->
                     <div class="split-total-ref">
-                        <span class="split-total-ref__label">Total de la orden</span>
-                        <span class="split-total-ref__amount">S/ {{ saleTotal.toFixed(2) }}</span>
+                        <div class="split-total-ref__row">
+                            <span class="split-total-ref__label">Consumo</span>
+                            <span class="split-total-ref__amount">S/ {{ saleTotal.toFixed(2) }}</span>
+                        </div>
+                        <div v-if="orderTipAmount > 0" class="split-total-ref__row split-total-ref__row--tip">
+                            <span class="split-total-ref__label">Propina</span>
+                            <span class="split-total-ref__amount">S/ {{ orderTipAmount.toFixed(2) }}</span>
+                        </div>
+                        <div class="split-total-ref__row split-total-ref__row--grand">
+                            <span class="split-total-ref__label">Total a cobrar</span>
+                            <span class="split-total-ref__amount">S/ {{ grandTotal.toFixed(2) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Propina (repuesta proporcionalmente en cada cuenta) -->
+                    <div v-if="allowTip" class="split-tip-section">
+                        <label class="split-tip-section__label">
+                            <i class="pi pi-heart"></i> Propina (se reparte entre las cuentas)
+                        </label>
+                        <div class="split-tip-modes">
+                            <button
+                                type="button"
+                                :class="['split-tip-btn', tipMode === 'none' ? 'split-tip-btn--active' : '']"
+                                @click="tipMode = 'none'; tipInput = ''"
+                            >Sin propina</button>
+                            <button
+                                type="button"
+                                :class="['split-tip-btn', tipMode === 'percent' ? 'split-tip-btn--active' : '']"
+                                @click="tipMode = 'percent'"
+                            >%</button>
+                            <button
+                                type="button"
+                                :class="['split-tip-btn', tipMode === 'fixed' ? 'split-tip-btn--active' : '']"
+                                @click="tipMode = 'fixed'"
+                            >S/ fijo</button>
+                        </div>
+                        <div v-if="tipMode !== 'none'" class="split-tip-input-row">
+                            <span class="split-tip-input-prefix">{{ tipMode === 'percent' ? '%' : 'S/' }}</span>
+                            <input
+                                v-model="tipInput"
+                                type="number"
+                                min="0"
+                                :step="tipMode === 'percent' ? '1' : '0.10'"
+                                class="split-tip-input"
+                                placeholder="0"
+                            />
+                        </div>
                     </div>
 
                     <!-- Mode selector -->
@@ -229,7 +329,10 @@ function methodMeta(key) {
                         <div v-for="s in splits" :key="s.id" class="split-preview__card">
                             <i class="pi pi-user"></i>
                             <span class="split-preview__label">{{ s.label }}</span>
-                            <span class="split-preview__amount">S/ {{ s.total.toFixed(2) }}</span>
+                            <span class="split-preview__amount">S/ {{ amountDueForSplit(s).toFixed(2) }}</span>
+                            <span v-if="orderTipAmount > 0" class="split-preview__detail">
+                                consumo S/ {{ s.total.toFixed(2) }} + propina S/ {{ tipShareForSplit(s.total).toFixed(2) }}
+                            </span>
                         </div>
                     </div>
 
@@ -310,8 +413,8 @@ function methodMeta(key) {
                             ></div>
                         </div>
                         <div class="split-progress__labels">
-                            <span>Pagado: <strong>S/ {{ paidTotal.toFixed(2) }}</strong></span>
-                            <span>Restante: <strong>S/ {{ remainingTotal.toFixed(2) }}</strong></span>
+                            <span>Cuentas listas: <strong>{{ splits.filter(s => s.isPaid).length }}/{{ splits.length }}</strong></span>
+                            <span>Total: <strong>S/ {{ grandTotal.toFixed(2) }}</strong></span>
                         </div>
                     </div>
 
@@ -324,7 +427,11 @@ function methodMeta(key) {
                         >
                             <div class="split-pay-card__header">
                                 <span class="split-pay-card__label">{{ s.label }}</span>
-                                <span class="split-pay-card__amount">S/ {{ s.total.toFixed(2) }}</span>
+                                <span class="split-pay-card__amount">S/ {{ amountDueForSplit(s).toFixed(2) }}</span>
+                            </div>
+                            <div v-if="orderTipAmount > 0" class="split-pay-card__breakdown">
+                                <span>Consumo S/ {{ s.total.toFixed(2) }}</span>
+                                <span>+ Propina S/ {{ tipShareForSplit(s.total).toFixed(2) }}</span>
                             </div>
 
                             <!-- Items preview (by_items mode) -->
@@ -373,12 +480,52 @@ function methodMeta(key) {
 
 /* ── Total reference ──────────────────────────────────── */
 .split-total-ref {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; flex-direction: column; gap: 0.35rem;
     padding: 0.65rem 1rem; border-radius: 10px;
     background: #f0fdf4; border: 1px solid #bbf7d0;
 }
+.split-total-ref__row {
+    display: flex; align-items: center; justify-content: space-between;
+}
+.split-total-ref__row--tip { color: #166534; font-size: 0.85rem; }
+.split-total-ref__row--grand {
+    padding-top: 0.35rem; margin-top: 0.15rem;
+    border-top: 1px solid #bbf7d0;
+}
 .split-total-ref__label { font-size: 0.8rem; font-weight: 600; color: #166534; }
-.split-total-ref__amount { font-size: 1.1rem; font-weight: 800; color: #15803d; }
+.split-total-ref__row--grand .split-total-ref__label { color: #14532d; }
+.split-total-ref__amount { font-size: 0.95rem; font-weight: 800; color: #15803d; }
+.split-total-ref__row--grand .split-total-ref__amount { font-size: 1.1rem; }
+
+/* ── Tip in split ─────────────────────────────────────── */
+.split-tip-section {
+    padding: 0.65rem 0.75rem; border-radius: 10px;
+    border: 1px solid #e5e7eb; background: #fafafa;
+}
+.split-tip-section__label {
+    display: flex; align-items: center; gap: 0.35rem;
+    font-size: 0.78rem; font-weight: 600; color: #374151;
+    margin-bottom: 0.5rem;
+}
+.split-tip-modes { display: flex; gap: 0.35rem; }
+.split-tip-btn {
+    flex: 1; padding: 0.4rem 0.5rem; border-radius: 8px;
+    border: 1.5px solid #e5e7eb; background: #fff;
+    font-size: 0.72rem; font-weight: 600; color: #374151;
+    cursor: pointer; transition: all 0.12s;
+}
+.split-tip-btn--active {
+    border-color: #6366f1; background: #eef2ff; color: #4338ca;
+}
+.split-tip-input-row {
+    display: flex; align-items: center; gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+.split-tip-input-prefix { font-size: 0.8rem; font-weight: 700; color: #6b7280; }
+.split-tip-input {
+    flex: 1; padding: 0.4rem 0.55rem; border-radius: 8px;
+    border: 1px solid #d1d5db; font-size: 0.85rem;
+}
 
 /* ── Mode selector ────────────────────────────────────── */
 .split-mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
@@ -432,6 +579,9 @@ function methodMeta(key) {
 .split-preview__card .pi { font-size: 1rem; color: #6366f1; }
 .split-preview__label { font-size: 0.75rem; font-weight: 600; color: #6b7280; }
 .split-preview__amount { font-size: 1rem; font-weight: 800; color: #111827; }
+.split-preview__detail {
+    font-size: 0.62rem; color: #6b7280; text-align: center; line-height: 1.3;
+}
 
 /* ── BY_ITEMS layout ──────────────────────────────────── */
 .split-items-layout {
@@ -552,6 +702,12 @@ function methodMeta(key) {
 }
 .split-pay-card__label { font-size: 0.82rem; font-weight: 700; color: #111827; }
 .split-pay-card__amount { font-size: 1rem; font-weight: 800; color: #111827; }
+
+.split-pay-card__breakdown {
+    display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem;
+    margin: -0.15rem 0 0.45rem;
+    font-size: 0.68rem; color: #6b7280;
+}
 
 .split-pay-card__items {
     display: flex; flex-wrap: wrap; gap: 0.25rem;
