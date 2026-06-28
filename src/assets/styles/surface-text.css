@@ -1,0 +1,76 @@
+/**
+ * ==========================================================================
+ * SURFACE TEXT — Contraste legible por contexto de superficie
+ * ==========================================================================
+ * El tema corporativo mezcla shell oscuro con área operativa clara y diálogos
+ * blancos (.ce-dialog). Los tokens --text-primary están pensados para fondo
+ * oscuro; aquí se corrige el texto en superficies claras de forma global.
+ */
+
+/* ── Clases semánticas (usadas en módulos e IAM) ─────────────────────────── */
+.text-color {
+  color: var(--text-on-light);
+}
+
+.text-color-secondary {
+  color: var(--text-on-light-secondary);
+}
+
+.text-color-muted {
+  color: var(--text-on-light-muted);
+}
+
+/* ── Superficie clara: área operativa del layout ───────────────────────── */
+.content-area {
+  color: var(--text-on-light);
+}
+
+.content-area label,
+.content-area p,
+.content-area li,
+.content-area h1,
+.content-area h2,
+.content-area h3,
+.content-area h4,
+.content-area h5,
+.content-area h6,
+.content-area small {
+  color: var(--text-on-light);
+}
+
+.content-area .text-color-secondary,
+.content-area small {
+  color: var(--text-on-light-secondary);
+}
+
+/* ── Diálogos de formulario (teleport al body, fondo blanco) ───────────── */
+.ce-dialog label,
+.ce-dialog p,
+.ce-dialog li,
+.ce-dialog h1,
+.ce-dialog h2,
+.ce-dialog h3,
+.ce-dialog h4,
+.ce-dialog h5,
+.ce-dialog h6,
+.ce-dialog small {
+  color: var(--text-on-light);
+}
+
+.ce-dialog .text-color-secondary,
+.ce-dialog small {
+  color: var(--text-on-light-secondary);
+}
+
+/* ── Componentes PrimeVue con fondo oscuro ───────────────────────────────── */
+.p-dialog:not(.ce-dialog) label,
+.p-card label,
+.p-panel label {
+  color: var(--text-on-dark);
+}
+
+.p-dialog:not(.ce-dialog) .text-color-secondary,
+.p-card .text-color-secondary,
+.p-panel .text-color-secondary {
+  color: var(--text-on-dark-secondary);
+}

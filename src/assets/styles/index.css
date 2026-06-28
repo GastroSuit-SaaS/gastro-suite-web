@@ -28,6 +28,7 @@
    3. TYPOGRAPHY
    ======================================== */
 @import './typography.css';
+@import './surface-text.css';
 
 /* ========================================
    4. LAYOUT SYSTEM

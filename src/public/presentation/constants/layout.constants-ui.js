@@ -1,4 +1,5 @@
 import { ROLE_ALLOWED_ROUTES, BRANCH_REQUIRED_ROUTES } from '../../../shared/presentation/constants/roles.constants.js';
+import { isRouteAllowedByPlan, resolvePlanEntitlements } from '../../../shared/presentation/constants/subscription-entitlements.constants.js';
 
 /**
  * Todos los items de menú disponibles en el sistema.
@@ -71,6 +72,18 @@ const ALL_MENU_ITEMS = [
         to: '/users',
         title: 'Gestión de Usuarios',
     },
+    {
+        label: 'Empresa',
+        icon: 'pi pi-fw pi-briefcase',
+        to: '/company/settings',
+        title: 'Datos de la Empresa',
+    },
+    {
+        label: 'Mi plan',
+        icon: 'pi pi-fw pi-star',
+        to: '/company/subscription',
+        title: 'Consulta y gestiona tu plan',
+    },
 ];
 
 /**
@@ -79,18 +92,24 @@ const ALL_MENU_ITEMS = [
  *
  * @param {string} role        — Rol del usuario actual
  * @param {boolean} hasBranch  — Si tiene sucursal activa seleccionada
+ * @param {object|null} planFeatures — Flags del plan (subscription-summary.features)
+ * @param {object|null} subscriptionSummary — Resumen cargado (null = aún no fetched)
  * @returns {Array} Items de menú visibles
  */
-export function getMenuItemsByRole(role, hasBranch = false) {
+export function getMenuItemsByRole(role, hasBranch = false, planFeatures = null, subscriptionSummary = null) {
     if (!role) return ALL_MENU_ITEMS;
     const allowed = ROLE_ALLOWED_ROUTES[role];
     if (!allowed) return [];
+
+    const entitlements = resolvePlanEntitlements(subscriptionSummary, planFeatures);
 
     return ALL_MENU_ITEMS.filter(item => {
         // 1. Debe ser una ruta permitida para el rol
         if (!allowed.some(r => item.to.startsWith(r))) return false;
         // 2. Sin sucursal activa → ocultar rutas que la requieren
         if (!hasBranch && BRANCH_REQUIRED_ROUTES.some(r => item.to.startsWith(r))) return false;
+        // 3. Plan SaaS — ocultar módulos no contratados
+        if (!isRouteAllowedByPlan(item.to, entitlements)) return false;
         return true;
     });
 }

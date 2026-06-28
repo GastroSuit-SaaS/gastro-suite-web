@@ -10,28 +10,60 @@ import { useOperationalBootstrap } from '../../../shared/composables/use-operati
 import { useOperationalSocket } from '../../../shared/composables/use-operational-socket.js'
 import CashRegisterStatusBanner from '../../../shared/presentation/components/cash-register-status-banner.vue'
 import EmployeeLinkStatusBanner from '../../../shared/presentation/components/employee-link-status-banner.vue'
+import LowStockStatusBanner from '../../../shared/presentation/components/low-stock-status-banner.vue'
 import OfflineStatusBanner from '../../../shared/presentation/components/offline-status-banner.vue'
+import SubscriptionGraceBanner from '../../../shared/presentation/components/subscription-grace-banner.vue'
+import NotificationsBell from '../../../communication/presentation/components/notifications-bell.vue'
+import { useNotificationsBootstrap } from '../../../shared/composables/use-notifications-bootstrap.js'
+import { useCompanyStore } from '../../../company/application/company.store.js'
+import { ROLES } from '../../../shared/presentation/constants/roles.constants.js'
 
 useOperationalBootstrap()
 useOperationalSocket()
+useNotificationsBootstrap()
 
 const route    = useRoute()
 const iamStore = useIamStore()
+const companyStore = useCompanyStore()
 const collapsed = ref(window.innerWidth < 768)
 const toggleSidebar = () => { collapsed.value = !collapsed.value }
 
-const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole, iamStore.hasBranchSelected))
+const filteredMenuItems = computed(() =>
+    getMenuItemsByRole(
+        iamStore.userRole,
+        iamStore.hasBranchSelected,
+        companyStore.features,
+        companyStore.subscriptionSummary,
+    ),
+)
 
-/** Rutas que fijan el viewport: paneles internos con scroll (POS, caja). */
+/** Rutas que fijan el viewport: paneles internos con scroll (POS). */
 const isPosFullscreenLayout = computed(() =>
   route.name === 'pos-order'
   || route.name === 'pos-payment'
-  || route.name === 'cash-register-home',
 )
 
 watch(() => route.fullPath, () => {
   clearToolbarContext()
 })
+
+watch(
+  () => [iamStore.isAuthenticated, iamStore.userRole, iamStore.companyId],
+  ([authenticated, role]) => {
+    if (authenticated && role && role !== ROLES.SYSTEM) {
+      companyStore.fetchSubscriptionSummary()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => iamStore.isAuthenticated,
+  (authenticated) => {
+    if (authenticated) iamStore.loadRolesCatalog()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -50,6 +82,7 @@ watch(() => route.fullPath, () => {
         :description="route.meta.description || ''"
         :show-back-button="route.meta.showBackButton ?? false"
         :back-route="route.meta.backRoute ?? null"
+        :back-label="route.meta.backLabel ?? ''"
       >
         <!-- Botón hamburguesa: solo visible en móvil para abrir el drawer -->
         <template #actions>
@@ -66,7 +99,9 @@ watch(() => route.fullPath, () => {
       <div class="content-area" :class="{ 'content-area--pos-fullscreen': isPosFullscreenLayout }">
         <div class="content-area__inner" :class="{ 'content-area__inner--pos-fullscreen': isPosFullscreenLayout }">
           <employee-link-status-banner />
+          <subscription-grace-banner />
           <cash-register-status-banner />
+          <low-stock-status-banner />
           <offline-status-banner />
           <router-view :key="iamStore.activeBranchId ?? 'global'" />
         </div>
@@ -130,8 +165,7 @@ watch(() => route.fullPath, () => {
 }
 
 .content-area__inner--pos-fullscreen :deep(.pos-order-layout),
-.content-area__inner--pos-fullscreen :deep(.payment-layout),
-.content-area__inner--pos-fullscreen :deep(.cr-page--fill) {
+.content-area__inner--pos-fullscreen :deep(.payment-layout) {
   flex: 1;
   min-height: 0;
   overflow: hidden;

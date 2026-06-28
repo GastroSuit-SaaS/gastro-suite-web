@@ -5,6 +5,7 @@ import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { toolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import BranchSwitcher from './branch-switcher.vue'
+import NotificationsBell from '../../../communication/presentation/components/notifications-bell.vue'
 
 const props = defineProps({
     title: {
@@ -22,6 +23,10 @@ const props = defineProps({
     backRoute: {
         type: [String, Object],
         default: null,
+    },
+    backLabel: {
+        type: String,
+        default: '',
     },
 })
 
@@ -60,9 +65,11 @@ const resolvedTitle = computed(() =>
 const resolvedDescription = computed(() =>
     contextString(toolbarContext.description) ? toolbarContext.description : props.description,
 )
-const resolvedBackLabel = computed(() =>
-    contextString(toolbarContext.backLabel) ? toolbarContext.backLabel : 'Volver',
-)
+const resolvedBackLabel = computed(() => {
+    if (contextString(toolbarContext.backLabel)) return toolbarContext.backLabel
+    if (contextString(props.backLabel)) return props.backLabel
+    return 'Volver'
+})
 const resolvedShowBack = computed(() =>
     toolbarContext.showBackButton !== null && toolbarContext.showBackButton !== undefined
         ? toolbarContext.showBackButton
@@ -151,6 +158,8 @@ function chipStyle(chip) {
 
         <!-- Branch switcher (visible cuando hay sucursal activa) -->
         <BranchSwitcher v-if="iamStore.hasBranchSelected" class="hidden md:flex" />
+
+        <NotificationsBell v-if="!iamStore.isSystem" class="hidden md:flex" />
 
         <!-- Slot for extra action buttons -->
         <slot name="actions" />

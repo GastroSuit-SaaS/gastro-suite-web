@@ -11,6 +11,8 @@ import usersRoutes          from "../users/presentation/users.routes.js";
 import menuRoutes           from "../menu/presentation/menu.routes.js";
 import cashRegisterRoutes   from "../cash-register/presentation/cash-register.routes.js";
 import branchesRoutes       from "../branches/presentation/branches.routes.js";
+import companyRoutes        from "../company/presentation/company.routes.js";
+import platformRoutes       from "../platform/presentation/platform.routes.js";
 import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -24,6 +26,9 @@ const routes = [
 
     // IAM Routes (public – no layout wrapper)
     ...iamRoutes,
+
+    // Platform (conditional via VITE_*)
+    ...platformRoutes,
 
     // Protected routes – wrapped in the main layout
     {
@@ -91,6 +96,12 @@ const routes = [
         component: layout,
         children: branchesRoutes,
         meta: { title: 'Sucursales' },
+    },
+    {
+        path: '/company',
+        component: layout,
+        children: companyRoutes,
+        meta: { title: 'Empresa' },
     },
     {
         path: '/select-branch',

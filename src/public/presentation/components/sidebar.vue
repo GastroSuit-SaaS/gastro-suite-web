@@ -49,39 +49,41 @@ const handleSignOut = async () => {
 </script>
 
 <template>
-  <nav :class="['sidebar flex flex-column h-full overflow-y-auto overflow-x-hidden', { 'sidebar--collapsed': collapsed }]">
+  <nav :class="['sidebar flex flex-column h-full overflow-hidden', { 'sidebar--collapsed': collapsed }]">
 
     <!-- Brand / Logo -->
     <div
-      :class="['flex align-items-center border-bottom-1 brand-border py-4',
+      :class="['sidebar-brand flex align-items-center border-bottom-1 brand-border py-4 flex-shrink-0',
                collapsed ? 'justify-content-center px-0' : 'gap-2 px-3']"
     >
       <i class="pi pi-shop brand-icon flex-shrink-0"></i>
       <span v-show="!collapsed" class="brand-name font-bold white-space-nowrap">GastroSuite</span>
     </div>
 
-    <!-- Navigation -->
-    <ul class="list-none m-0 py-2 flex-1">
-      <li
-        v-for="item in menuItems"
-        :key="item.label"
-        :class="['menu-item', { active: isActive(item.to) }]"
-      >
-        <RouterLink
-          :to="item.to"
-          :class="['menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
-                   { 'justify-content-center': collapsed }]"
-          :title="item.label"
-          @click="handleNavClick"
+    <!-- Navigation (solo esta zona hace scroll) -->
+    <div class="sidebar-menu flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <ul class="list-none m-0 py-2">
+        <li
+          v-for="item in menuItems"
+          :key="item.label"
+          :class="['menu-item', { active: isActive(item.to) }]"
         >
-          <i :class="['menu-icon text-center flex-shrink-0', item.icon]"></i>
-          <span v-show="!collapsed" class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
-        </RouterLink>
-      </li>
-    </ul>
+          <RouterLink
+            :to="item.to"
+            :class="['menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
+                     { 'justify-content-center': collapsed }]"
+            :title="item.label"
+            @click="handleNavClick"
+          >
+            <i :class="['menu-icon text-center flex-shrink-0', item.icon]"></i>
+            <span v-show="!collapsed" class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </div>
 
     <!-- Usuario: solo visible en móvil dentro del drawer -->
-    <div class="border-top-1 brand-border md:hidden">
+    <div class="sidebar-footer border-top-1 brand-border md:hidden flex-shrink-0">
       <!-- Expanded: avatar + info + logout -->
       <div v-if="!collapsed" class="flex align-items-center gap-2 px-3 py-3">
         <div class="user-avatar flex-shrink-0">
@@ -104,7 +106,7 @@ const handleSignOut = async () => {
     </div>
 
     <!-- Toggle button: solo visible en desktop -->
-    <div class="hidden md:flex justify-content-center py-3 border-top-1 brand-border">
+    <div class="sidebar-footer hidden md:flex justify-content-center py-3 border-top-1 brand-border flex-shrink-0">
       <button
         class="toggle-btn flex align-items-center justify-content-center border-round cursor-pointer"
         :title="collapsed ? 'Expandir menú' : 'Colapsar menú'"
@@ -126,6 +128,10 @@ const handleSignOut = async () => {
   border-right: 1px solid var(--border-color);
   user-select: none;
   transition: width 0.25s ease, min-width 0.25s ease;
+}
+
+.sidebar-menu {
+  overscroll-behavior: contain;
 }
 
 /* Desktop collapsed: icon-only strip */

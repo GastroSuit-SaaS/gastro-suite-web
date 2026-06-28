@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useBranchesStore } from '../../../branches/application/branches.store.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
 
-const router        = useRouter()
 const branchesStore = useBranchesStore()
 const iamStore      = useIamStore()
+const { switchToBranch, leaveBranch } = useBranchSwitch()
 const popoverRef    = ref()
 const isOpen        = ref(false)
 
@@ -27,19 +27,21 @@ const triggerLabel = computed(() => {
 
 function toggle(event) {
     if (!iamStore.isOwner) return
+    if (!branchesStore.items.length) {
+        branchesStore.fetchAll()
+    }
     popoverRef.value.toggle(event)
 }
 
-function selectBranch(branch) {
+async function selectBranch(branch) {
     if (branch.id === iamStore.activeBranchId) return
-    iamStore.selectBranch(branch.id, branch.nombre)
-    popoverRef.value.hide()
+    const ok = await switchToBranch(branch)
+    if (ok) popoverRef.value.hide()
 }
 
-function leaveBranch() {
-    iamStore.clearBranch()
-    popoverRef.value.hide()
-    router.push('/dashboard')
+async function handleLeaveBranch() {
+    const ok = await leaveBranch('/dashboard')
+    if (ok) popoverRef.value.hide()
 }
 
 function getBranchLocation(branch) {
@@ -146,7 +148,7 @@ onMounted(() => {
                 <!-- Footer -->
                 <div class="bs__footer">
                     <span class="bs__footer-hint">Los datos mostrados corresponden a la sucursal seleccionada</span>
-                    <button class="bs__leave-btn" @click="leaveBranch">
+                    <button class="bs__leave-btn" @click="handleLeaveBranch">
                         <i class="pi pi-sign-out"></i>
                         Dejar sucursal
                     </button>

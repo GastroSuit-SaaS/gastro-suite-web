@@ -43,6 +43,17 @@
   --text-secondary: #9CA3AF;
   --text-muted: #6B7280;
   --text-disabled: #4B5563;
+
+  /* Texto legible según superficie (contraste WCAG) */
+  --text-on-light: var(--color-gray-900);
+  --text-on-light-secondary: #4b5563;
+  --text-on-light-muted: #6b7280;
+  --text-on-dark: var(--text-primary);
+  --text-on-dark-secondary: var(--text-secondary);
+
+  /* Alias usados en vistas (convención PrimeVue-like) */
+  --text-color: var(--text-on-light);
+  --text-color-secondary: var(--text-on-light-secondary);
   
   --border-color: #374151;
   --border-light: #2A3B4F;
