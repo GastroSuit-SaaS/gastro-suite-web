@@ -1,32 +1,24 @@
-import { DashboardMetric } from '../../domain/models/dashboard-metric.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { OperationalMetrics } from '../../domain/models/dashboard-metric.entity.js';
+import { entityFromResponse } from '../../../shared/infrustructure/api-response.js';
 
 /**
- * Dashboard Infrastructure - DashboardMetric Assembler
- *
- * Transforma recursos crudos del API en entidades de dominio.
- * Nunca retorna datos crudos fuera de esta clase.
- *
- * NOTA: Actualmente NO se usa — el dashboard agrega datos de sub-stores.
- * Reservada para cuando el backend provea un endpoint dedicado de métricas.
+ * Mapeo 1:1 del contrato API → dominio frontend.
  */
 export class DashboardMetricAssembler {
-
-    static toEntityFromResource(resource) {
-        return new DashboardMetric({
-            id:     resource.id,
-            label:  resource.label  ?? '',
-            value:  resource.value  ?? 0,
-            unit:   resource.unit   ?? '',
-            period: resource.period ?? null,
+    static fromApiResource(resource) {
+        if (!resource) return null;
+        return new OperationalMetrics({
+            businessDate: resource.businessDate ?? null,
+            timezone: resource.timezone,
+            sales: resource.sales,
+            diningRoom: resource.diningRoom,
+            kitchen: resource.kitchen,
+            cashRegister: resource.cashRegister,
+            inventory: resource.inventory,
         });
     }
 
-    static toEntitiesFromResponse(response) {
-        return entitiesFromResponse(response, DashboardMetricAssembler.toEntityFromResource);
-    }
-
-    static toEntityFromResponse(response) {
-        return entityFromResponse(response, DashboardMetricAssembler.toEntityFromResource);
+    static fromApiResponse(response) {
+        return entityFromResponse(response, DashboardMetricAssembler.fromApiResource);
     }
 }

@@ -12,6 +12,13 @@ const dashboardRoutes = [
             showBackButton: false,
         },
     },
+    {
+        path: 'comparison',
+        redirect: (to) => ({
+            name: 'dashboard-home',
+            query: { ...to.query, compare: to.query.compare ?? 'yesterday' },
+        }),
+    },
 ];
 
 export default dashboardRoutes;
