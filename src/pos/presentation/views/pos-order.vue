@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast }            from 'primevue/usetoast'
 import { usePosStore }         from '../../application/pos.store.js'
 import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
+import { SALE_STATUS } from '../../domain/models/sale.entity.js'
 import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
 import TransferTableDialog from '../components/transfer-table-dialog.vue'
 import { TICKET_STATUS_CONFIG } from '../../../stations/presentation/constants/stations.constants-ui.js'
@@ -28,6 +29,10 @@ const zone    = computed(() => table.value?.zoneId ? posStore.zoneById(table.val
 const isTakeaway = computed(() => sale.value?.isTakeaway ?? false)
 const isDelivery = computed(() => sale.value?.isDelivery ?? false)
 const isOffPremise = computed(() => sale.value?.isOffPremise ?? false)
+const isPartiallyPaid = computed(() => sale.value?.status === SALE_STATUS.PARTIALLY_PAID)
+const isOrderReadOnly = computed(() =>
+    isPartiallyPaid.value || (sale.value?.amountPaid ?? 0) > 0.009,
+)
 const deliveryBusy = ref(false)
 
 // Ítems pendientes de enviar a cocina / confirmar para cobro
@@ -166,6 +171,7 @@ const selectedCategoryFilter = computed({
 })
 
 function addItem(menuItem) {
+    if (isOrderReadOnly.value) return
     posStore.addItemToCurrentSale(menuItem)
 }
 
@@ -242,6 +248,21 @@ function cancelDiscount() {
 
 
 async function enviarEstaciones() {
+    if (entitlements.value.hasKitchen) {
+        const missingStation = pendingItems.value.filter((item) => !item.stationId)
+        if (missingStation.length > 0) {
+            const names = missingStation
+                .map((item) => item.name || item.menuItemName || 'Ítem')
+                .join(', ')
+            toast.add({
+                severity: 'error',
+                summary:  'Estación de cocina requerida',
+                detail:   `${missingStation.length} ítem(s) sin estación asignada: ${names}. Edita el menú antes de enviar.`,
+                life:     6000,
+            })
+            return
+        }
+    }
     try {
         const result = await posStore.sendCurrentSaleToStations()
         await posStore.refreshKitchenTickets()
@@ -357,8 +378,21 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
 <template>
     <div class="pos-order-layout">
 
+        <div v-if="isOrderReadOnly" class="partial-pay-banner flex align-items-center justify-content-between gap-3 p-3 mb-2 border-round-lg">
+            <div class="flex align-items-center gap-2">
+                <i class="pi pi-info-circle" style="color:#b45309"></i>
+                <span>Orden con pago parcial — solo puedes cobrar el saldo pendiente.</span>
+            </div>
+            <pv-button
+                label="Cobrar saldo"
+                size="small"
+                severity="warn"
+                @click="router.push(posPaymentRoute(saleId))"
+            />
+        </div>
+
         <!-- ── LEFT: Catálogo ─────────────────────────────────────────────────────────────── -->
-        <div class="pos-catalog" :class="{ 'pos-catalog--mobile-hidden': mobileView !== 'catalog' }">
+        <div class="pos-catalog" :class="{ 'pos-catalog--mobile-hidden': mobileView !== 'catalog', 'pos-catalog--readonly': isOrderReadOnly }">
 
             <!-- Header: contexto + búsqueda -->
             <div class="pos-catalog__header">

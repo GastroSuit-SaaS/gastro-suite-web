@@ -48,9 +48,9 @@ export const PAYMENT_METHODS = [
 ];
 
 export const RECEIPT_TYPES = [
-    { key: 'nota',    label: 'Nota de Venta',       icon: 'pi-file',        color: '#6b7280' },
-    { key: 'boleta',  label: 'Boleta Electrónica',  icon: 'pi-file-export', color: '#2563eb' },
-    { key: 'factura', label: 'Factura Electrónica', icon: 'pi-building',    color: '#7c3aed' },
+    { key: 'nota',    label: 'Ticket interno',       icon: 'pi-file',        color: '#6b7280' },
+    { key: 'boleta',  label: 'Pre-cuenta (referencia)', icon: 'pi-file-export', color: '#2563eb' },
+    { key: 'factura', label: 'Datos cliente (referencia)', icon: 'pi-building',    color: '#7c3aed' },
 ];
 
 export const POS_LABELS = {

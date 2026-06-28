@@ -1,15 +1,16 @@
 import { apiEnv } from '../../shared/infrustructure/env.js';
 
-const platformLayout = () => import('./views/platform-layout.vue');
 const platformHome = () => import('./views/platform-home.vue');
 const platformPlans = () => import('./views/platform-plans.vue');
 const platformCompanies = () => import('./views/platform-companies.vue');
 const platformAdmins = () => import('./views/platform-admins.vue');
+const platformRequests = () => import('./views/platform-subscription-requests.vue');
 const platformBootstrap = () => import('./views/platform-bootstrap.vue');
 
 export const PLATFORM_ROUTES = Object.freeze({
     ROOT: '/platform',
     BOOTSTRAP: '/platform/bootstrap',
+    REQUESTS: '/platform/requests',
 });
 
 const platformChildRoutes = [
@@ -17,25 +18,67 @@ const platformChildRoutes = [
         path: '',
         name: 'platform-home',
         component: platformHome,
-        meta: { title: 'Platform', requiresSystem: true },
+        meta: {
+            title: 'Plataforma Metasoft',
+            titleModule: 'Plataforma Metasoft',
+            description: 'Gestión SaaS de Gastro Suite',
+            requiresSystem: true,
+        },
+    },
+    {
+        path: 'requests',
+        name: 'platform-requests',
+        component: platformRequests,
+        meta: {
+            title: 'Solicitudes',
+            titleModule: 'Solicitudes de suscripción',
+            description: 'Validar pagos y activar o renovar contratos',
+            requiresSystem: true,
+        },
     },
     {
         path: 'plans',
         name: 'platform-plans',
         component: platformPlans,
-        meta: { title: 'Planes', requiresSystem: true },
+        meta: {
+            title: 'Planes',
+            titleModule: 'Planes de suscripción',
+            description: 'Catálogo comercial y límites por plan',
+            requiresSystem: true,
+        },
     },
     {
         path: 'companies',
         name: 'platform-companies',
         component: platformCompanies,
-        meta: { title: 'Empresas', requiresSystem: true },
+        meta: {
+            title: 'Empresas',
+            titleModule: 'Empresas cliente',
+            description: 'Restaurantes registrados y estado de suscripción',
+            requiresSystem: true,
+        },
     },
     {
         path: 'admins',
         name: 'platform-admins',
         component: platformAdmins,
-        meta: { title: 'Admins', requiresSystem: true },
+        meta: {
+            title: 'Super admins',
+            titleModule: 'Super administradores',
+            description: 'Usuarios SYSTEM de Metasoft',
+            requiresSystem: true,
+        },
+    },
+    {
+        path: 'audit',
+        name: 'platform-audit',
+        component: () => import('./views/platform-audit-log.vue'),
+        meta: {
+            title: 'Auditoría',
+            titleModule: 'Auditoría de plataforma',
+            description: 'Trazabilidad de acciones de super admins',
+            requiresSystem: true,
+        },
     },
 ];
 
@@ -48,13 +91,7 @@ const bootstrapRoute = apiEnv.platformBootstrapEnabled
     }]
     : [];
 
-const platformRoute = apiEnv.platformEnabled
-    ? [{
-        path: PLATFORM_ROUTES.ROOT,
-        component: platformLayout,
-        children: platformChildRoutes,
-        meta: { title: 'Platform', requiresSystem: true },
-    }]
-    : [];
+/** Rutas hijas bajo layout.vue — el padre se registra en router/index.js */
+export const platformLayoutChildren = platformChildRoutes;
 
-export default [...bootstrapRoute, ...platformRoute];
+export default [...bootstrapRoute];

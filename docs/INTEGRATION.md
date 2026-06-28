@@ -1,6 +1,6 @@
 # Matriz de Integración Frontend ↔ Backend
 
-> **Última actualización:** 2026-06-27 (análisis arquitectónico profundo)  
+> **Última actualización:** 2026-06-28 (Fase F0c PLAN-38–51)  
 > **Base API:** `{VITE_PLATFORM_API_URL}` → dev: `http://localhost:8080/api/v1`  
 > **Política:** El web consume **solo** rutas BFF/operativas. **Cero** llamadas a `/support/*`.  
 > **Validación operativa:** `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md`
@@ -294,13 +294,18 @@ Storage keys: `shared/infrustructure/session-storage.js`
 
 ## 19. Brechas operativas (integración)
 
-| Brecha | Impacto | Plan |
-|--------|---------|------|
-| Transfer mesa no sync tickets backend | Cocina muestra mesa antigua | Orquestación BFF |
-| Checkout sin caja → error backend | UX: banner pero pedidos permitidos | Bloqueo UI en pago |
-| Ítems sin estación sin ticket | Líneas no visibles en cocina | Validación menú/POS |
-| Venta no descuenta stock | Inventario desconectado | Recetas + BFF sales |
-| Sin emisión SUNAT | Legal Perú | PLAN billing |
+| Brecha | Impacto | Estado / Plan |
+|--------|---------|---------------|
+| Transfer mesa no sync tickets backend | Cocina muestra mesa antigua | ✅ PLAN-31 |
+| Checkout sin caja → error backend | UX: banner; pedidos permitidos por default | ✅ PLAN-33; configurable PLAN-45 (`requireOpenCashSessionForSales`) |
+| Ítems sin estación sin ticket | Líneas no visibles en cocina | ✅ PLAN-40 (validación menú + dispatch + pre-check POS) |
+| Pago parcial → edición confusa | Usuario agrega ítems tras abono | ✅ PLAN-42 (solo lectura + CTA cobrar saldo) |
+| Entitlements permisivos post-login | Flash de rutas premium | ✅ PLAN-43 |
+| Comprobante UI vs SUNAT | Expectativa fiscal incorrecta | ✅ PLAN-44 (ticket interno / pre-cuenta) |
+| Cobro offline | Cola sin checkout | ✅ PLAN-48 v1 (botón deshabilitado) |
+| PRODUCT_MIX solo UUIDs | Reporte ilegible | ✅ PLAN-41 |
+| Venta no descuenta stock | Inventario desconectado | Recetas + BFF sales (PLAN-32 diferido) |
+| Sin emisión SUNAT | Legal Perú | PLAN-17–19 (roadmap) |
 
 ---
 

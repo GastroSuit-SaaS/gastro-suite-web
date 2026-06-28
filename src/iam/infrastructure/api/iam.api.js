@@ -24,6 +24,11 @@ export class IamApi extends BaseApi {
         return this.#auth.postAt(`${this.#auth.endpointPath}/register-owner`, resource);
     }
 
+    /** POST /auth/registration/send-verification-code — código 6 dígitos al correo del OWNER. */
+    sendRegistrationVerificationCode(email) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/registration/send-verification-code`, { email });
+    }
+
     /** POST /companies — público; preferir registerOwner en onboarding. */
     createCompany(resource) {
         return this.http.post(apiEnv.companies, resource);
@@ -38,8 +43,18 @@ export class IamApi extends BaseApi {
         return this.#auth.postAt(`${this.#auth.endpointPath}/forgot-password`, { email });
     }
 
-    resetPassword(token, password) {
-        return this.#auth.postAt(`${this.#auth.endpointPath}/reset-password`, { token, password });
+    verifyPasswordResetCode(email, verificationCode) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/reset-password/verify-code`, {
+            email,
+            verificationCode,
+        });
+    }
+
+    resetPassword(email, password) {
+        return this.#auth.postAt(`${this.#auth.endpointPath}/reset-password`, {
+            email,
+            password,
+        });
     }
 }
 

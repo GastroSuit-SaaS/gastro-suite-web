@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDashboardStore } from '../../application/dashboard.store.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useBranchesStore } from '../../../branches/application/branches.store.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import DashboardComparisonPanel from '../components/dashboard-comparison-panel.vue'
 import { DASHBOARD_COMPARE_OPTIONS, COMPARISON_PERIOD_NONE } from '../../domain/models/dashboard-comparison.entity.js'
@@ -27,7 +28,46 @@ const store = useDashboardStore()
 const route = useRoute()
 const router = useRouter()
 const iamStore = useIamStore()
+const branchesStore = useBranchesStore()
 const { entitlements } = useSubscriptionEntitlements()
+const ownerViewBootstrapping = ref(false)
+
+const ownerBranchOptions = computed(() => {
+    const sorted = [...branchesStore.activeBranches].sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number.MAX_SAFE_INTEGER
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number.MAX_SAFE_INTEGER
+        if (ta !== tb) return ta - tb
+        return String(a.codigo ?? '').localeCompare(String(b.codigo ?? ''))
+    })
+    return sorted.map((branch) => ({
+        label: branch.nombre,
+        value: branch.id,
+    }))
+})
+
+const branchOptions = computed(() =>
+    iamStore.isOwner ? ownerBranchOptions.value : [],
+)
+
+const selectedBranchId = computed({
+    get: () => store.viewBranchId,
+    set: (branchId) => {
+        if (!branchId || String(branchId) === String(store.viewBranchId)) return
+        store.setViewBranchId(branchId)
+    },
+})
+
+const needsBranchSelection = computed(
+    () => iamStore.isOwner && !store.viewBranchId && !ownerViewBootstrapping.value,
+)
+
+const pageLoading = computed(() =>
+    ownerViewBootstrapping.value
+        ? true
+        : (needsBranchSelection.value
+            ? false
+            : (isComparisonMode.value ? store.comparisonLoading : store.isLoading)),
+)
 
 const compareOptions = computed(() => {
     if (!entitlements.value.hasDashboardComparison) {
@@ -40,10 +80,6 @@ const isComparisonMode = computed(
     () =>
         Boolean(store.comparisonPeriod)
         && store.comparisonPeriod !== COMPARISON_PERIOD_NONE,
-)
-
-const pageLoading = computed(() =>
-    isComparisonMode.value ? store.comparisonLoading : store.isLoading,
 )
 
 const pageError = computed(() =>
@@ -67,10 +103,41 @@ function applyCompareFromQuery() {
     store.setComparisonPeriod(compare)
 }
 
+async function bootstrapOwnerDashboardView() {
+    if (!iamStore.isOwner) return
+
+    ownerViewBootstrapping.value = true
+    try {
+        if (!branchesStore.items.length) {
+            await branchesStore.fetchAll()
+        }
+        store.initOwnerViewBranch(branchesStore.activeBranches)
+    } finally {
+        ownerViewBootstrapping.value = false
+    }
+}
+
 onMounted(async () => {
+    if (iamStore.isOwner) {
+        await bootstrapOwnerDashboardView()
+        if (!store.viewBranchId) return
+    } else if (!iamStore.hasBranchSelected) {
+        return
+    }
     await store.fetchAll()
     applyCompareFromQuery()
 })
+
+watch(
+    () => store.viewBranchId,
+    async (branchId, previous) => {
+        if (!branchId || String(branchId) === String(previous)) return
+        await store.fetchAll()
+        if (store.comparisonPeriod && store.comparisonPeriod !== COMPARISON_PERIOD_NONE) {
+            await store.fetchComparison()
+        }
+    },
+)
 
 watch(
     () => entitlements.value.hasDashboardComparison,
@@ -106,6 +173,11 @@ const greeting = computed(() =>
 const dateLabel = computed(() =>
     formatDashboardDateShort(store.comparison?.businessDate ?? m.value?.businessDate),
 )
+
+const metricsSourceLabel = computed(() =>
+    store.metricsSource === 'api' ? 'Datos del servidor' : 'Estimación local',
+)
+const metricsSourceIsClient = computed(() => store.metricsSource === 'client')
 
 const formatSoles = (n) => `S/ ${Number(n ?? 0).toFixed(2)}`
 
@@ -163,10 +235,21 @@ function goTo(path) {
     <module-state-feedback
         :loading="pageLoading"
         :error="pageError"
-        :loading-label="isComparisonMode ? COMPARISON_UI.LOADING : DASHBOARD_MESSAGES.LOADING"
+        :loading-label="ownerViewBootstrapping ? 'Preparando dashboard…' : (isComparisonMode ? COMPARISON_UI.LOADING : DASHBOARD_MESSAGES.LOADING)"
         @retry="retryLoad()"
     >
-        <div v-if="m || isComparisonMode" class="dash">
+        <div v-if="needsBranchSelection" class="dash dash--empty-branch">
+            <header class="dash__hero dash__hero--pick">
+                <p class="dash__greeting">{{ greeting }}</p>
+                <h2 class="dash__pick-title">Sin sucursales activas</h2>
+                <p class="dash__pick-sub">
+                    Crea al menos una sucursal para ver el dashboard de tu negocio.
+                </p>
+            </header>
+            <pv-button label="Ir a Sucursales" icon="pi pi-building" @click="goTo('/branches')" />
+        </div>
+
+        <div v-else-if="m || isComparisonMode" class="dash">
 
             <!-- Encabezado -->
             <header class="dash__hero">
@@ -178,6 +261,24 @@ function goTo(path) {
                         </p>
                     </div>
                     <div class="dash__hero-actions">
+                        <pv-select
+                            v-if="iamStore.isOwner && branchOptions.length"
+                            v-model="selectedBranchId"
+                            :options="branchOptions"
+                            option-label="label"
+                            option-value="value"
+                            placeholder="Sucursal"
+                            class="dash__branch-select"
+                            aria-label="Sucursal del dashboard"
+                        />
+                        <span
+                            class="dash__date-chip"
+                            :class="{ 'dash__source-chip--client': metricsSourceIsClient }"
+                            :title="metricsSourceIsClient ? 'Dashboard API no disponible; cifras estimadas desde datos locales' : ''"
+                        >
+                            <i :class="metricsSourceIsClient ? 'pi pi-wifi-off' : 'pi pi-server'"></i>
+                            {{ metricsSourceLabel }}
+                        </span>
                         <span class="dash__date-chip">
                             <i class="pi pi-calendar"></i>
                             {{ dateLabel }}
@@ -477,8 +578,58 @@ function goTo(path) {
     color: #6d28d9;
 }
 
-.dash__compare-select {
+.dash__compare-select,
+.dash__branch-select {
     min-width: 180px;
+}
+
+.dash--empty-branch,
+.dash--pick-branch {
+    max-width: 32rem;
+    margin: 0 auto;
+    padding-top: 2.5rem;
+    text-align: center;
+}
+
+.dash__hero--pick {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.dash__pick-title {
+    margin: 0.5rem 0 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #111827;
+}
+
+.dash__pick-sub {
+    margin: 0.65rem 0 0;
+    font-size: 0.9rem;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.dash__pick-control {
+    background: #fff;
+    border: 1px solid #eef0f4;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.dash__pick-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+.dash__pick-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.82rem;
+    color: #9ca3af;
 }
 
 @media (max-width: 768px) {

@@ -127,6 +127,8 @@ watch(
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-top-left-radius: 1.25rem;
+  border-bottom-left-radius: 1.25rem;
 }
 
 .content-area {

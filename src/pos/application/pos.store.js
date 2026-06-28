@@ -98,6 +98,14 @@ export const usePosStore = defineStore('pos', () => {
     const kitchenTicketsAll       = ref([]);
     /** Alineado con gastro-suite.pos.billable-requires-sent (API). */
     const billableRequiresSent    = ref(apiEnv.posBillableRequiresSent);
+    const requireOpenCashSessionForSales = ref(false);
+
+    function assertCashSessionForNewSale() {
+        if (!requireOpenCashSessionForSales.value) return;
+        if (!cashRegisterStore.hasOpenSession) {
+            throw new Error('No hay turno de caja abierto. Abre caja antes de crear una orden.');
+        }
+    }
 
     function planHasKitchen() {
         try {
@@ -349,6 +357,9 @@ export const usePosStore = defineStore('pos', () => {
     function applyOperationsConfig(cfg) {
         if (cfg && typeof cfg.billableRequiresSent === 'boolean') {
             billableRequiresSent.value = cfg.billableRequiresSent;
+        }
+        if (cfg && typeof cfg.requireOpenCashSessionForSales === 'boolean') {
+            requireOpenCashSessionForSales.value = cfg.requireOpenCashSessionForSales;
         }
     }
 
@@ -674,6 +685,7 @@ export const usePosStore = defineStore('pos', () => {
                 currentSaleIsRecovered.value = true;
                 return currentSale.value;
             }
+            assertCashSessionForNewSale();
             // Use a temporary negative ID — replaced with backend ID after api.create()
             const tempId  = -(Date.now());
             const newSale = new Sale({ id: tempId, tableId, zoneId, status: SALE_STATUS.ACTIVE, cashierId: iamStore.currentUser?.id ?? null });
@@ -713,6 +725,7 @@ export const usePosStore = defineStore('pos', () => {
      * @returns {Sale} La venta creada
      */
     async function openTakeawaySale(customerName = '') {
+        assertCashSessionForNewSale();
         const tempId  = -(Date.now());
         const newSale = new Sale({
             id:           tempId,
@@ -751,6 +764,7 @@ export const usePosStore = defineStore('pos', () => {
         if (!address) {
             throw new Error('La dirección de entrega es obligatoria.');
         }
+        assertCashSessionForNewSale();
         const tempId = -(Date.now());
         const newSale = new Sale({
             id:              tempId,

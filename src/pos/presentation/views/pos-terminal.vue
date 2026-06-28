@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { usePosStore } from '../../application/pos.store.js'
 import { isPersistedSaleId } from '../../infrastructure/assemblers/sale.assembler.js'
-import { posOrderRoute, posTablesRoute, formatTableLabel } from '../constants/pos.constants-ui.js'
+import { posOrderRoute, posPaymentRoute, posTablesRoute, formatTableLabel } from '../constants/pos.constants-ui.js'
 import {
     ALL_ZONES,
     buildZoneFilterOptions,
@@ -88,6 +88,10 @@ function startNewOrder() {
 }
 
 async function openOrder(order) {
+    if (order.status === 'partially_paid' || (order.amountPaid ?? 0) > 0.009) {
+        router.push(posPaymentRoute(order.id))
+        return
+    }
     try {
         if (order.isOffPremise) {
             posStore.currentSale = order

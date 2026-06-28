@@ -1,17 +1,16 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { usePlatformStore } from '../../application/platform.store.js';
 import { useTablePagination } from '../../../shared/composables/use-table-pagination.js';
+import { PLATFORM_AUDIT_ACTION_LABELS } from '../constants/platform.constants-ui.js';
 import ModuleTable from '../../../shared/presentation/components/module-table.vue';
 import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue';
 import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue';
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue';
-import CreateAndEditPlatformAdmin from './create-and-edit-platform-admin.vue';
 
 const store = usePlatformStore();
-const showDialog = ref(false);
 
-const items = computed(() => store.admins ?? []);
+const items = computed(() => store.auditLogs ?? []);
 
 const {
     page,
@@ -23,20 +22,19 @@ const {
     totalItems,
 } = useTablePagination(items);
 
-onMounted(() => store.loadAdmins());
+onMounted(() => store.loadAuditLogs());
 
 function formatDate(value) {
     if (!value) return '—';
-    return new Date(value).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(value).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function fullName(row) {
-    return [row.nombres, row.apellidos].filter(Boolean).join(' ').trim() || '—';
+function actionLabel(action) {
+    return PLATFORM_AUDIT_ACTION_LABELS[action] ?? action;
 }
 
-async function onAdminSaved(payload) {
-    await store.createAdmin(payload);
-    showDialog.value = false;
+function actorLabel(data) {
+    return data.actorDisplayName || data.actorUsername || '—';
 }
 </script>
 
@@ -46,58 +44,44 @@ async function onAdminSaved(payload) {
       :loading="store.isLoading && !items.length"
       :error="store.error"
       :is-empty="false"
-      loading-label="Cargando administradores..."
-      @retry="store.loadAdmins()"
+      loading-label="Cargando auditoría..."
+      @retry="store.loadAuditLogs()"
     >
       <div class="platform-page__body">
         <div class="platform-toolbar">
-          <pv-button label="Nuevo super admin" icon="pi pi-user-plus" size="small" @click="showDialog = true" />
+          <pv-button label="Actualizar" icon="pi pi-refresh" outlined size="small" :loading="store.isLoading" @click="store.loadAuditLogs()" />
         </div>
 
         <module-empty-state
           v-if="!store.isLoading && items.length === 0"
-          icon="pi-shield"
-          title="No hay super administradores"
-          subtitle="Crea el primer usuario SYSTEM para operar la plataforma Metasoft."
-        >
-          <pv-button label="Nuevo super admin" icon="pi pi-user-plus" size="small" @click="showDialog = true" />
-        </module-empty-state>
+          icon="pi-history"
+          title="Sin registros de auditoría"
+          subtitle="Las acciones de super admins aparecerán aquí cuando se creen planes, validen solicitudes o den de alta usuarios."
+        />
 
         <template v-else-if="items.length > 0">
           <module-table>
             <thead>
               <tr>
-                <th>Nombre</th>
+                <th>Fecha</th>
                 <th>Usuario</th>
-                <th>Correo</th>
-                <th>Doc.</th>
-                <th>Número</th>
-                <th>Teléfono</th>
-                <th>Alta</th>
-                <th>Activo</th>
+                <th>Acción</th>
+                <th>Referencia</th>
+                <th>Detalle</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in paginatedItems" :key="row.userId">
-                <td class="font-semibold">{{ fullName(row) }}</td>
-                <td>{{ row.username }}</td>
-                <td>{{ row.email || '—' }}</td>
-                <td>{{ row.tipoDocumento || '—' }}</td>
-                <td>{{ row.numeroDocumento || '—' }}</td>
-                <td>{{ row.telefono || '—' }}</td>
+              <tr v-for="row in paginatedItems" :key="row.auditLogId">
                 <td>{{ formatDate(row.createdAt) }}</td>
                 <td>
-                  <span
-                    class="gs-badge"
-                    :style="{
-                      background: (row.active ? '#059669' : '#6b7280') + '22',
-                      color: row.active ? '#059669' : '#6b7280',
-                      border: '1px solid ' + (row.active ? '#059669' : '#6b7280') + '66',
-                    }"
-                  >
-                    {{ row.active ? 'Sí' : 'No' }}
-                  </span>
+                  <div class="font-semibold">{{ actorLabel(row) }}</div>
+                  <div class="text-muted text-xs">{{ row.actorUsername }}</div>
                 </td>
+                <td>
+                  <span class="gs-badge gs-badge--info">{{ actionLabel(row.action) }}</span>
+                </td>
+                <td>{{ row.entityLabel || '—' }}</td>
+                <td>{{ row.details || '—' }}</td>
               </tr>
             </tbody>
           </module-table>
@@ -109,16 +93,11 @@ async function onAdminSaved(payload) {
             :range-start="rangeStart"
             :range-end="rangeEnd"
             :total-items="totalItems"
-            item-label="administradores"
+            item-label="registros"
           />
         </template>
       </div>
     </module-state-feedback>
-
-    <create-and-edit-platform-admin
-      v-model:visible="showDialog"
-      @admin-saved="onAdminSaved"
-    />
   </div>
 </template>
 
@@ -150,5 +129,19 @@ async function onAdminSaved(payload) {
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 600;
+}
+
+.gs-badge--info {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.text-muted {
+  color: #9ca3af;
+}
+
+.text-xs {
+  font-size: 0.75rem;
 }
 </style>

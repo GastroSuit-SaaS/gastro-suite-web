@@ -4,11 +4,20 @@ export const COMPANY_MESSAGES = Object.freeze({
     SUBSCRIPTION_TITLE: 'Mi plan',
     SUBSCRIPTION_DESCRIPTION: 'Elige el plan que mejor se adapte a tu operación y consulta tu consumo frente a los límites.',
     SUBSCRIPTION_SELF_SERVICE_HINT:
-        'Selecciona un plan comercial para activar módulos y límites. Puedes cambiar de plan cuando lo necesites; '
-        + 'el cobro automático se habilitará en una fase posterior.',
+        'Para cambiar de plan o renovar, elige uno del catálogo y envía la referencia de pago. Metasoft validará manualmente la operación.',
+    SUBSCRIPTION_ACTIVE_BANNER:
+        'Tu plan está activo. El equipo de GastroSuite & Metasoft Solutions está disponible para ayudarte con tu operación.',
     SAVE_SUCCESS: 'Datos guardados correctamente.',
-    PLAN_CHOOSE_SUCCESS: 'Plan activado correctamente.',
-    PLAN_CHOOSE_CONFIRM: '¿Activar este plan para tu empresa?',
+    PLAN_CHOOSE_SUCCESS: 'Solicitud enviada. Metasoft validará tu pago antes de activar el plan.',
+    PLAN_RENEW_SUCCESS: 'Solicitud de renovación enviada. Metasoft validará tu pago antes de extender la suscripción.',
+    PLAN_CHOOSE_CONFIRM: '¿Enviar solicitud de contrato para este plan?',
+    PLAN_RENEW_CONFIRM: '¿Enviar solicitud de renovación para este plan?',
+    PAYMENT_REFERENCE_LABEL: 'Referencia de pago',
+    PAYMENT_REFERENCE_HINT: 'Número de operación, voucher o transferencia (obligatorio).',
+    OWNER_NOTES_LABEL: 'Comentarios (opcional)',
+    PENDING_REQUEST_BANNER:
+        'Tienes una solicitud pendiente de validación por Metasoft. No puedes enviar otra hasta que sea aprobada o rechazada.',
+    PENDING_REQUEST_DETAIL: 'Plan solicitado',
     NO_PLANS_CATALOG: 'Aún no hay planes publicados. Contacta a soporte de Metasoft Solutions.',
     GRACE_BANNER:
         'Tu suscripción venció. Tienes 3 días de gracia antes del bloqueo total. '

@@ -23,10 +23,10 @@ const PUBLIC_PATHS = [
  *   2. Sin token → redirige a /sign-in.
  *   3. Con token + ruta protegida:
  *      a. Verifica acceso por rol (si hay usuario cargado).
- *      b. Si la ruta requiere sucursal y no hay sucursal activa → /select-branch.
+ *      b. Si la ruta requiere sucursal y no hay sucursal activa → /select-branch (OWNER) o /dashboard.
  *   4. Si ya está autenticado e intenta ir a /sign-in → /dashboard.
  */
-export function authenticationGuard(to, from, next) {
+export async function authenticationGuard(to, from, next) {
     const iamStore = useIamStore();
     const isPublic = PUBLIC_PATHS.includes(to.path);
 
@@ -78,6 +78,13 @@ export function authenticationGuard(to, from, next) {
     // Plan SaaS — bloquear rutas no incluidas en el plan activo
     if (role && role !== ROLES.SYSTEM) {
         const companyStore = useCompanyStore();
+        if (!companyStore.subscriptionFetchAttempted) {
+            try {
+                await companyStore.fetchSubscriptionSummary();
+            } catch {
+                /* entitlements restrictivos vía resolvePlanEntitlements */
+            }
+        }
         const entitlements = resolvePlanEntitlements(
             companyStore.subscriptionSummary,
             companyStore.features,
@@ -87,13 +94,11 @@ export function authenticationGuard(to, from, next) {
         }
     }
 
-    // Verificar si la ruta requiere sucursal activa
+    // Verificar si la ruta requiere sucursal activa (operación POS, menú, etc.)
     if (requiresBranch(to.path) && !iamStore.hasBranchSelected) {
-        // OWNER sin sucursal → seleccionar primero
         if (iamStore.isOwner) {
             return next({ path: '/select-branch', query: { redirect: to.fullPath } });
         }
-        // Rol operativo sin sucursal (error de datos) → dashboard
         return next('/dashboard');
     }
 

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
+import { useMenuStore } from '../../../menu/application/menu.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
 import CreateAndEditStation      from './create-and-edit-station.vue'
@@ -12,6 +13,7 @@ import { setToolbarContext, clearToolbarContext } from '../../../shared/composab
 import { ticketDisplayRef, ticketOrderRef } from '../utils/stations-history.utils.js'
 
 const store = useStationsStore()
+const menuStore = useMenuStore()
 const { confirmDelete } = useConfirmDialog()
 
 const activeTab         = ref('display')   // 'display' | 'stations'
@@ -102,6 +104,7 @@ let _timerInterval = null
 let _syncInterval  = null
 onMounted(() => {
     store.fetchAll()
+    menuStore.fetchAll().catch(() => {})
     _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000)
     // Sincroniza tickets con el servidor (otras pantallas / pestañas de cocina)
     _syncInterval = setInterval(() => store.fetchTicketsSilent(), 60_000)
@@ -158,8 +161,7 @@ const hasAnyTickets  = computed(() => searchedTickets.value.length > 0)
 const hasAnyFocused  = computed(() => focusedTickets.value.length > 0)
 
 function menuItemCountForStation(stationId) {
-    // Rough count from tickets (mock) — real impl from menu store
-    return store.tickets.filter(t => t.stationId === stationId).length
+    return menuStore.items.filter(i => i.isAvailable && i.stationId === stationId).length
 }
 
 // ── Station CRUD ──────────────────────────────────────────────────────────

@@ -11,11 +11,12 @@ import {
     saveSignUpDraft,
     clearSignUpDraft,
 } from '../../infrastructure/sign-up-draft.js'
-import IamBranding          from '../components/iam-branding.vue'
-import SignUpStepper        from '../components/sign-up-stepper.vue'
-import SignUpStepEmpresa    from '../components/sign-up-step-empresa.vue'
-import SignUpStepUsuario    from '../components/sign-up-step-usuario.vue'
-import SignUpStepFinalizado from '../components/sign-up-step-finalizado.vue'
+import IamBranding               from '../components/iam-branding.vue'
+import SignUpStepper             from '../components/sign-up-stepper.vue'
+import SignUpStepEmpresa         from '../components/sign-up-step-empresa.vue'
+import SignUpStepUsuario         from '../components/sign-up-step-usuario.vue'
+import SignUpStepVerificarEmail  from '../components/sign-up-step-verificar-email.vue'
+import SignUpStepFinalizado      from '../components/sign-up-step-finalizado.vue'
 
 const router   = useRouter()
 const iamStore = useIamStore()
@@ -25,6 +26,7 @@ const savedDraft = loadSignUpDraft()
 /** Estado compartido con los inputs — hidratado antes del primer render. */
 const formEmpresa = reactive(new EmpresaRegistration(savedDraft?.empresa ?? {}))
 const formUsuario = reactive(new UsuarioRegistration(savedDraft?.usuario ?? {}))
+const verificationCode = ref(savedDraft?.verificationCode ?? '')
 
 const currentStep = ref(
     savedDraft?.currentStep >= 1 && savedDraft?.currentStep <= SIGN_UP_STEPS.length - 1
@@ -34,6 +36,7 @@ const currentStep = ref(
 
 const stepEmpresa = ref()
 const stepUsuario = ref()
+const stepVerificar = ref()
 
 function snapshotEmpresa(data) {
     return {
@@ -63,6 +66,7 @@ function persistDraft() {
         currentStep: currentStep.value,
         empresa: snapshotEmpresa(formEmpresa),
         usuario: snapshotUsuario(formUsuario),
+        verificationCode: verificationCode.value,
     })
 }
 
@@ -77,21 +81,45 @@ onBeforeUnmount(() => {
     }
 })
 
+async function sendVerificationCode() {
+    iamStore.clearAuthError()
+    const email = snapshotUsuario(formUsuario).email
+    if (!email) {
+        iamStore.error = 'Ingresa un correo válido en el paso anterior.'
+        return false
+    }
+    return iamStore.sendRegistrationVerificationCode(email)
+}
+
+async function resendVerificationCode() {
+    await sendVerificationCode()
+}
+
 async function nextStep() {
-    const stepRefs = [stepEmpresa, stepUsuario]
-    const currentRef = stepRefs[currentStep.value - 1]
-    if (currentRef?.value && !currentRef.value.validate()) return
+    if (currentStep.value === 1) {
+        if (stepEmpresa.value && !stepEmpresa.value.validate()) return
+    }
 
-    persistDraft()
+    if (currentStep.value === 2) {
+        if (stepUsuario.value && !stepUsuario.value.validate()) return
+        persistDraft()
+        const sent = await sendVerificationCode()
+        if (!sent) return
+    }
 
-    if (currentStep.value === SIGN_UP_STEPS.length - 1) {
+    if (currentStep.value === 3) {
+        if (stepVerificar.value && !stepVerificar.value.validate()) return
+        persistDraft()
         iamStore.clearAuthError()
         const ok = await iamStore.register({
             empresa: snapshotEmpresa(formEmpresa),
             usuario: snapshotUsuario(formUsuario),
+            emailVerificationCode: verificationCode.value,
         })
         if (!ok) return
         clearSignUpDraft()
+    } else {
+        persistDraft()
     }
 
     currentStep.value++
@@ -110,6 +138,18 @@ const summaryEmpresaNombre = computed(() => formEmpresa.nombreComercial ?? '')
 const summaryUsuarioNombre = computed(() =>
     [formUsuario.nombres, formUsuario.apellidos].filter(Boolean).join(' '),
 )
+
+const nextButtonLabel = computed(() => {
+    if (currentStep.value === 2) return 'Enviar código'
+    if (currentStep.value === 3) return 'Verificar y registrar'
+    return 'Siguiente'
+})
+
+const nextButtonIcon = computed(() => {
+    if (currentStep.value === 3) return 'pi pi-check'
+    if (currentStep.value === 2) return 'pi pi-envelope'
+    return 'pi pi-arrow-right'
+})
 </script>
 
 <template>
@@ -140,8 +180,16 @@ const summaryUsuarioNombre = computed(() =>
                     <div v-show="currentStep === 2">
                         <sign-up-step-usuario ref="stepUsuario" :form="formUsuario" />
                     </div>
+                    <div v-show="currentStep === 3">
+                        <sign-up-step-verificar-email
+                            ref="stepVerificar"
+                            v-model="verificationCode"
+                            :email="formUsuario.email"
+                            @resend="resendVerificationCode"
+                        />
+                    </div>
                     <sign-up-step-finalizado
-                        v-if="currentStep === 3"
+                        v-if="currentStep === 4"
                         :empresa-nombre="summaryEmpresaNombre"
                         :usuario-nombre="summaryUsuarioNombre"
                     />
@@ -155,11 +203,12 @@ const summaryUsuarioNombre = computed(() =>
                         severity="secondary"
                         outlined
                         class="flex-1"
+                        :disabled="iamStore.isLoading"
                         @click="prevStep"
                     />
                     <pv-button
-                        :label="currentStep < SIGN_UP_STEPS.length - 1 ? 'Siguiente' : 'Finalizar Registro'"
-                        :icon="currentStep < SIGN_UP_STEPS.length - 1 ? 'pi pi-arrow-right' : 'pi pi-check'"
+                        :label="nextButtonLabel"
+                        :icon="nextButtonIcon"
                         icon-pos="right"
                         class="flex-1"
                         :loading="iamStore.isLoading"

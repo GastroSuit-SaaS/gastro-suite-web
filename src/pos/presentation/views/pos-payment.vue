@@ -12,6 +12,7 @@ import {
 import SplitBillDialog from '../components/split-bill-dialog.vue'
 import { useCentralCashSession } from '../../../shared/composables/use-central-cash-session.js'
 import { useMenuStore } from '../../../menu/application/menu.store.js'
+import { isNetworkOnline } from '../../application/pos-offline-sync.js'
 
 const route    = useRoute()
 const router   = useRouter()
@@ -221,6 +222,7 @@ const customerData = reactive({
 
 // ── Validación global ──────────────────────────────────────────────────────
 const canConfirm = computed(() => {
+    if (!isNetworkOnline()) return false
     if (!centralCash.isOpen.value) return false
     if (!sale.value || sale.value.items.length === 0) return false
     if (partialMode.value) {
@@ -345,7 +347,7 @@ ${totals.discount > 0 ? `<div><span>Descuento</span><span>-S/ ${totals.discount.
 ${tip > 0 ? `<div><span>Propina</span><span>S/ ${tip.toFixed(2)}</span></div>` : ''}
 <div class="grand"><span>TOTAL</span><span>S/ ${(totals.total + tip).toFixed(2)}</span></div>
 </div>
-<p class="footer">*** Este documento no es comprobante de pago ***</p>
+<p class="footer">Documento interno — no válido como comprobante de pago ante SUNAT</p>
 </body></html>`
 
     const win = window.open('', '_blank', 'width=320,height=500')
@@ -601,8 +603,11 @@ async function confirmPayment() {
             <div class="form-section">
                 <h3 class="form-section__title">
                     <i class="pi pi-file-edit"></i>
-                    Tipo de Comprobante
+                    Tipo de documento (interno)
                 </h3>
+                <p class="form-section__hint text-sm text-color-secondary mb-2">
+                    Referencia operativa. No emite boleta ni factura electrónica SUNAT.
+                </p>
 
                 <div class="receipt-grid">
                     <button
@@ -836,6 +841,9 @@ async function confirmPayment() {
 
             <!-- Botones de acción -->
             <div class="payment-panel__actions">
+                <p v-if="!isNetworkOnline()" class="text-sm text-orange-600 mb-2">
+                    Sin conexión — el cobro requiere internet. Puedes seguir editando la orden en otra pantalla.
+                </p>
                 <button
                     :class="['pay-btn pay-btn--primary', canConfirm ? 'pay-btn--ready' : '']"
                     :disabled="!canConfirm"

@@ -25,7 +25,7 @@ export class RegistrationAssembler {
         };
     }
 
-    static toRegisterOwnerRequest(empresa, usuario) {
+    static toRegisterOwnerRequest(empresa, usuario, emailVerificationCode) {
         const company = RegistrationAssembler.toCreateCompanyRequest(empresa);
         return {
             company: {
@@ -40,6 +40,7 @@ export class RegistrationAssembler {
                 nombres: usuario.nombres,
                 apellidos: usuario.apellidos,
                 email: usuario.email,
+                emailVerificationCode: String(emailVerificationCode ?? '').trim(),
                 tipoDocumento: usuario.tipoDocumento,
                 numeroDocumento: usuario.numeroDocumento,
                 telefono: usuario.telefono ?? '',

@@ -25,7 +25,18 @@ const { showConfirm } = useConfirmDialog()
 const username = computed(() => iamStore.currentUser?.username || 'Usuario')
 const userRole = computed(() => iamStore.currentUser?.roles?.[0] || 'Usuario')
 
-const isActive = (path) => route.path.startsWith(path)
+/** Ruta del ítem de menú más específica que coincide (evita que /platform marque Inicio en todas las subrutas). */
+const activeMenuPath = computed(() => {
+  const current = route.path
+  const matches = props.menuItems.filter((item) => {
+    const to = item.to
+    return current === to || current.startsWith(`${to}/`)
+  })
+  if (!matches.length) return null
+  return matches.reduce((best, item) => (item.to.length >= best.to.length ? item : best)).to
+})
+
+const isActive = (path) => activeMenuPath.value === path
 
 function handleNavClick() {
   // En mobile el sidebar actúa como drawer — cerrarlo tras navegar

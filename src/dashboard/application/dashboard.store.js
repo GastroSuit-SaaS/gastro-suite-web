@@ -8,6 +8,9 @@ import { useCashRegisterStore } from '../../cash-register/application/cash-regis
 import { useInventoryStore } from '../../inventory/application/inventory.store.js';
 import { useReservationsStore } from '../../tables/application/reservations.store.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
+import { useIamStore } from '../../iam/application/iam.store.js';
+import { pickOldestActiveBranch } from '../../branches/domain/branch-selection.helpers.js';
+import { SESSION_KEYS } from '../../shared/infrustructure/session-storage.js';
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 import { dashboardApi } from '../infrastructure/api/dashboard.api.js';
 import { DashboardMetricAssembler } from '../infrastructure/assemblers/dashboard-metric.assembler.js';
@@ -53,6 +56,44 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const comparisonPeriod = ref(COMPARISON_PERIOD_NONE);
     /** @type {import('../domain/models/dashboard-comparison.entity.js').DashboardComparison|null} */
     const comparison = ref(null);
+
+    /**
+     * Sucursal cuyas métricas muestra el dashboard (OWNER).
+     * Independiente de iam.activeBranchId usado en POS/caja/etc.
+     */
+    const viewBranchId = ref(
+        sessionStorage.getItem(SESSION_KEYS.DASHBOARD_VIEW_BRANCH) ?? null,
+    );
+
+    function effectiveViewBranchId() {
+        const iamStore = useIamStore();
+        if (iamStore.isOwner && viewBranchId.value) {
+            return viewBranchId.value;
+        }
+        return iamStore.activeBranchId;
+    }
+
+    function setViewBranchId(branchId) {
+        viewBranchId.value = branchId ?? null;
+        if (branchId) {
+            sessionStorage.setItem(SESSION_KEYS.DASHBOARD_VIEW_BRANCH, branchId);
+        } else {
+            sessionStorage.removeItem(SESSION_KEYS.DASHBOARD_VIEW_BRANCH);
+        }
+    }
+
+    /** OWNER: sucursal más antigua por defecto si aún no hay vista elegida. */
+    function initOwnerViewBranch(activeBranches) {
+        const iamStore = useIamStore();
+        if (!iamStore.isOwner || !activeBranches?.length) return;
+
+        const stillValid = viewBranchId.value
+            && activeBranches.some((b) => String(b.id) === String(viewBranchId.value));
+        if (stillValid) return;
+
+        const oldest = pickOldestActiveBranch(activeBranches);
+        if (oldest) setViewBranchId(oldest.id);
+    }
 
     const paymentMethodRows = computed(() =>
         buildPaymentMethodRows(metrics.value?.sales?.byMethod, metrics.value?.sales?.revenue ?? 0),
@@ -114,6 +155,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
 
     async function loadClientMetrics() {
+        const iamStore = useIamStore();
+        const branchId = effectiveViewBranchId();
+        if (iamStore.isOwner && branchId && String(branchId) !== String(iamStore.activeBranchId)) {
+            throw new Error('Vista de otra sucursal: use métricas del servidor');
+        }
+        requireActiveBranchId();
         const today = new Date().toISOString().slice(0, 10);
         await Promise.all([
             paymentsStore.fetchAll(),
@@ -138,7 +185,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
 
     async function loadApiMetrics() {
-        const branchId = requireActiveBranchId();
+        const branchId = effectiveViewBranchId();
+        if (!branchId) throw new Error('Sin sucursal para el dashboard');
         const response = await dashboardApi.getMetrics(branchId);
         metrics.value = DashboardMetricAssembler.fromApiResponse(response);
         metricsSource.value = 'api';
@@ -151,11 +199,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
             comparisonLoading.value = false;
             return;
         }
+        const branchId = effectiveViewBranchId();
+        if (!branchId) {
+            comparison.value = null;
+            comparisonError.value = null;
+            comparisonLoading.value = false;
+            return;
+        }
         comparisonLoading.value = true;
         comparisonError.value = null;
         comparisonPeriod.value = period;
         try {
-            const branchId = requireActiveBranchId();
             const response = await dashboardApi.getComparison(branchId, { compare: period });
             comparison.value = DashboardComparisonAssembler.fromApiResponse(response);
         } catch (e) {
@@ -171,6 +225,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
 
     async function fetchAll() {
+        const branchId = effectiveViewBranchId();
+        if (!branchId) {
+            metrics.value = null;
+            comparison.value = null;
+            error.value = null;
+            isLoading.value = false;
+            return;
+        }
+
         isLoading.value = true;
         error.value = null;
         try {
@@ -218,6 +281,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
         comparisonError,
         comparisonPeriod,
         comparison,
+        viewBranchId,
+        setViewBranchId,
+        initOwnerViewBranch,
         fetchAll,
         fetchComparison,
         setComparisonPeriod,

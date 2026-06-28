@@ -5,6 +5,7 @@ import { useIamStore } from '../../application/iam.store.js';
 import { IAM_ROUTES } from '../iam.routes.js';
 import IamBranding from '../components/iam-branding.vue';
 import { resolvePostLoginPath } from '../../../shared/application/post-login-route.js';
+import { setLoginRevealPending } from '../../../shared/infrustructure/session-storage.js';
 
 const router   = useRouter();
 const iamStore = useIamStore();
@@ -19,10 +20,8 @@ onMounted(() => {
 async function handleLogin() {
     const ok = await iamStore.signIn({ username: username.value, password: password.value });
     if (ok) {
-        router.push(resolvePostLoginPath(
-            iamStore.userRole,
-            iamStore.hasBranchSelected,
-        ));
+        setLoginRevealPending();
+        router.push(resolvePostLoginPath(iamStore.userRole));
     }
 }
 </script>
@@ -34,7 +33,7 @@ async function handleLogin() {
     <iam-branding />
 
     <!-- Panel derecho - Formulario -->
-    <div class="bg-surface flex align-items-center justify-content-center p-4 md:p-6 w-full md:w-6 md:h-screen">
+    <div class="login-form-panel bg-surface flex align-items-center justify-content-center p-4 md:p-6 w-full md:w-6 md:h-screen">
 
       <div class="w-full form-container px-2 md:px-3">
 
@@ -129,6 +128,13 @@ async function handleLogin() {
 .bg-surface     { background-color: var(--color-white); }
 .link-primary   { color: var(--color-primary); }
 a.link-primary:hover { opacity: 0.8; }
+
+@media (min-width: 768px) {
+    .login-form-panel {
+        border-top-left-radius: 2rem;
+        border-bottom-left-radius: 2rem;
+    }
+}
 
 .login-error {
     display: flex;

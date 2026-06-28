@@ -20,6 +20,8 @@ const CODE_FALLBACKS = {
     REG_USER_ERROR: 'No se pudo crear el usuario administrador.',
     REG_EMPLOYEE_ERROR: 'No se pudo vincular el administrador con la empresa.',
     REG_SIGN_IN_ERROR: 'No se pudo iniciar sesión tras crear la cuenta.',
+    REG_EMAIL_VERIFY: 'El código de verificación es incorrecto o expiró. Solicita uno nuevo.',
+    REG_EMAIL_VERIFY_RESEND: 'Debes esperar antes de solicitar otro código.',
     GEN_VALIDATION_ERROR: 'Revisa los datos del formulario.',
     AUTH_INVALID_CREDENTIALS: 'Credenciales incorrectas al iniciar sesión automática.',
 };

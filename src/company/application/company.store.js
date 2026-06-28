@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { CompanyApi } from '../infrastructure/api/company.api.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
+import { useNotificationsStore } from '../../communication/application/notifications.store.js';
 import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
 
 const api = new CompanyApi();
@@ -16,10 +17,17 @@ export const useCompanyStore = defineStore('company', () => {
     const isChoosingPlan = ref(false);
     const error = ref(null);
     const plansError = ref(null);
+    /** true tras el primer intento de cargar suscripción (éxito o fallo). */
+    const subscriptionFetchAttempted = ref(false);
 
     const accessState = computed(() => subscriptionSummary.value?.accessState ?? null);
     const inGracePeriod = computed(() => subscriptionSummary.value?.inGracePeriod === true);
     const hasSubscription = computed(() => !!subscriptionSummary.value?.subscriptionId);
+    const hasPendingRequest = computed(() => {
+        const summary = subscriptionSummary.value;
+        return !!summary?.pendingRequestId
+            && summary?.pendingRequestStatus === 'PENDING_VALIDATION';
+    });
     const limits = computed(() => subscriptionSummary.value?.limits ?? null);
     const features = computed(() => subscriptionSummary.value?.features ?? null);
 
@@ -77,6 +85,14 @@ export const useCompanyStore = defineStore('company', () => {
             error.value = getApiErrorMessage(e, 'Error al cargar la suscripción');
         } finally {
             isPlansLoading.value = false;
+            subscriptionFetchAttempted.value = true;
+            try {
+                const notificationsStore = useNotificationsStore();
+                await notificationsStore.fetchUnreadCount();
+                await notificationsStore.registerPushTokenIfAvailable();
+            } catch {
+                /* notificaciones opcionales */
+            }
         }
     }
 
@@ -96,7 +112,7 @@ export const useCompanyStore = defineStore('company', () => {
         }
     }
 
-    async function choosePlan(subscriptionId, subscriptionType = 'MENSUAL') {
+    async function choosePlan(subscriptionId, subscriptionType = 'MENSUAL', paymentReference = '', ownerNotes = '') {
         isChoosingPlan.value = true;
         error.value = null;
         try {
@@ -104,11 +120,13 @@ export const useCompanyStore = defineStore('company', () => {
             const response = await api.chooseSubscriptionPlan(companyId, {
                 subscriptionId,
                 subscriptionType,
+                paymentReference,
+                ownerNotes,
             });
             subscriptionSummary.value = response.data;
             return true;
         } catch (e) {
-            error.value = getApiErrorMessage(e, 'No se pudo activar el plan seleccionado');
+            error.value = getApiErrorMessage(e, 'No se pudo enviar la solicitud de suscripción');
             return false;
         } finally {
             isChoosingPlan.value = false;
@@ -125,11 +143,13 @@ export const useCompanyStore = defineStore('company', () => {
         isChoosingPlan.value = false;
         error.value = null;
         plansError.value = null;
+        subscriptionFetchAttempted.value = false;
     }
 
     return {
         company,
         subscriptionSummary,
+        subscriptionFetchAttempted,
         availablePlans,
         isLoading,
         isSaving,
@@ -140,6 +160,7 @@ export const useCompanyStore = defineStore('company', () => {
         accessState,
         inGracePeriod,
         hasSubscription,
+        hasPendingRequest,
         limits,
         features,
         fetchCompany,

@@ -1,7 +1,6 @@
 import { computed } from 'vue';
 import { useCompanyStore } from '../../company/application/company.store.js';
 import {
-    DEFAULT_ENTITLEMENTS,
     RESTRICTED_ENTITLEMENTS,
     isReportTypeAllowed,
     isRouteAllowedByPlan,
@@ -18,7 +17,7 @@ export function useSubscriptionEntitlements() {
         ),
     );
 
-    const subscriptionLoaded = computed(() => companyStore.subscriptionSummary != null);
+    const subscriptionLoaded = computed(() => companyStore.subscriptionFetchAttempted);
 
     function canAccessRoute(path) {
         return isRouteAllowedByPlan(path, entitlements.value);
@@ -34,6 +33,5 @@ export function useSubscriptionEntitlements() {
         canAccessRoute,
         canUseReportType,
         restricted: RESTRICTED_ENTITLEMENTS,
-        defaults: DEFAULT_ENTITLEMENTS,
     };
 }

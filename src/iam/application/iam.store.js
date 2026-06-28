@@ -11,10 +11,12 @@ import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructu
 import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
 import { appLogger } from '../../shared/infrustructure/app-logger.js';
 import { logRegisterFailure, resolveRegisterErrorMessage } from '../infrastructure/register-error.js';
+import { resolvePasswordResetErrorMessage } from '../infrastructure/password-reset-error.js';
 import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
 import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
 import { resetApplicationStores } from '../../shared/application/reset-application-stores.js';
 import { resetBranchOperationalContext } from '../../shared/application/branch-switch.js';
+import { useNotificationsStore } from '../../communication/application/notifications.store.js';
 
 const api = new IamApi();
 const rolesApi = new RolesApi();
@@ -124,7 +126,9 @@ export const useIamStore = defineStore('iam', () => {
             const user = UserAssembler.toEntityFromSignInResponse(data);
             _setUser(user);
 
-            if (user.sucursalId) {
+            if (user.isOwner) {
+                _setBranch(null);
+            } else if (user.sucursalId) {
                 _setBranch(user.sucursalId, user.sucursalNombre);
             }
             await ensureEmployeeLink();
@@ -155,6 +159,11 @@ export const useIamStore = defineStore('iam', () => {
     async function logout() {
         error.value = null;
         resetOperationalSocketClient();
+        try {
+            await useNotificationsStore().cleanupBeforeLogout();
+        } catch {
+            /* best effort: la sesión se cierra igual */
+        }
         _clearSession();
     }
 
@@ -234,15 +243,37 @@ export const useIamStore = defineStore('iam', () => {
     }
 
     /**
+     * Envía código de verificación al correo del futuro OWNER.
+     * @param {string} email
+     */
+    async function sendRegistrationVerificationCode(email) {
+        isLoading.value = true;
+        error.value     = null;
+        try {
+            await api.sendRegistrationVerificationCode(String(email ?? '').trim());
+            return true;
+        } catch (err) {
+            error.value = resolveRegisterErrorMessage(
+                err,
+                'No se pudo enviar el código de verificación. Intenta de nuevo.',
+            );
+            return false;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    /**
      * Onboarding OWNER atómico: POST /auth/register-owner
      * (empresa + usuario + empleado + sesión; rollback en servidor si falla un paso).
-     * @param {{ empresa: import('../domain/models/empresa-registration.vo.js').EmpresaRegistration, usuario: import('../domain/models/usuario-registration.vo.js').UsuarioRegistration }} payload
+     * @param {{ empresa: import('../domain/models/empresa-registration.vo.js').EmpresaRegistration, usuario: import('../domain/models/usuario-registration.vo.js').UsuarioRegistration, emailVerificationCode: string }} payload
      */
     async function register(payload) {
         isLoading.value = true;
         error.value     = null;
         const empresa = payload?.empresa ?? {};
         const usuario = payload?.usuario ?? {};
+        const emailVerificationCode = payload?.emailVerificationCode ?? '';
 
         try {
             appLogger.info('IAM:Register', 'Iniciando registro OWNER', {
@@ -251,7 +282,7 @@ export const useIamStore = defineStore('iam', () => {
             });
 
             const response = await api.registerOwner(
-                RegistrationAssembler.toRegisterOwnerRequest(empresa, usuario),
+                RegistrationAssembler.toRegisterOwnerRequest(empresa, usuario, emailVerificationCode),
             );
             const data = response.data;
             const jwt = data?.token;
@@ -285,28 +316,54 @@ export const useIamStore = defineStore('iam', () => {
         }
     }
 
-    async function forgotPassword(email) {
+    async function forgotPassword(identifier) {
         isLoading.value = true;
         error.value = null;
         try {
-            await iamApi.forgotPassword(String(email ?? '').trim());
+            await api.forgotPassword(String(identifier ?? '').trim());
             return true;
         } catch (err) {
-            error.value = getApiErrorMessage(err, 'No se pudo enviar el enlace de recuperación.');
+            error.value = resolvePasswordResetErrorMessage(
+                err,
+                'No se pudo enviar el código de verificación.',
+            );
             return false;
         } finally {
             isLoading.value = false;
         }
     }
 
-    async function resetPassword(token, password) {
+    async function verifyPasswordResetCode(identifier, verificationCode) {
         isLoading.value = true;
         error.value = null;
         try {
-            await iamApi.resetPassword(String(token ?? '').trim(), password);
+            await api.verifyPasswordResetCode(
+                String(identifier ?? '').trim(),
+                String(verificationCode ?? '').trim(),
+            );
             return true;
         } catch (err) {
-            error.value = getApiErrorMessage(err, 'No se pudo restablecer la contraseña.');
+            error.value = resolvePasswordResetErrorMessage(
+                err,
+                'No se pudo verificar el código.',
+            );
+            return false;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function resetPassword(identifier, password) {
+        isLoading.value = true;
+        error.value = null;
+        try {
+            await api.resetPassword(String(identifier ?? '').trim(), password);
+            return true;
+        } catch (err) {
+            error.value = resolvePasswordResetErrorMessage(
+                err,
+                'No se pudo restablecer la contraseña.',
+            );
             return false;
         } finally {
             isLoading.value = false;
@@ -342,7 +399,8 @@ export const useIamStore = defineStore('iam', () => {
         currentUser, token, isLoading, error,
         isAuthenticated, userRole, isOwner, isSystem, hasBranchSelected, hasEmployeeLink, companyId,
         activeBranchId, activeBranchName,
-        signIn, logout, clearAuthError, register, forgotPassword, resetPassword,
+        signIn, logout, clearAuthError, sendRegistrationVerificationCode, register,
+        forgotPassword, verifyPasswordResetCode, resetPassword,
         selectBranch, clearBranch, ensureEmployeeLink, loadRolesCatalog,
         employeeLinkStatus, employeeLinkMessage,
         rolesCatalog, rolesCatalogSource, assignableRoles,

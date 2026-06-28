@@ -72,7 +72,7 @@ const router = useRouter()
             icon="pi pi-arrow-right"
             icon-pos="right"
             class="w-full"
-            @click="router.push(iamStore.isAuthenticated ? '/select-branch' : IAM_ROUTES.SIGN_IN)"
+            @click="router.push(iamStore.isAuthenticated ? '/dashboard' : IAM_ROUTES.SIGN_IN)"
         />
 
     </div>

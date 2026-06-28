@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useCompanyStore } from '../../application/company.store.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
 import {
     ACCESS_STATE_LABELS,
     BILLING_PERIOD_OPTIONS,
@@ -19,10 +18,18 @@ import ModuleStateFeedback from '../../../shared/presentation/components/module-
 const store = useCompanyStore()
 const iamStore = useIamStore()
 const toast = useToast()
-const { showConfirm } = useConfirmDialog()
 
 const billingPeriod = ref('MENSUAL')
 const pageReady = ref(false)
+const paymentDialogVisible = ref(false)
+const selectedPlan = ref(null)
+const paymentReference = ref('')
+const ownerNotes = ref('')
+
+const REQUEST_TYPE_LABELS = {
+    NEW_CONTRACT: 'Nuevo contrato',
+    RENEWAL: 'Renovación',
+}
 
 onMounted(async () => {
     await store.fetchSubscriptionSummary()
@@ -59,15 +66,33 @@ const subscriptionTypeLabel = computed(() => {
 
 const pageLoading = computed(() => !pageReady.value && !store.error)
 
+const hasPendingRequest = computed(() => store.hasPendingRequest)
+
 const contextAlert = computed(() => {
+    if (hasPendingRequest.value) {
+        return { severity: 'warn', text: COMPANY_MESSAGES.PENDING_REQUEST_BANNER }
+    }
     if (store.inGracePeriod) {
         return { severity: 'warn', text: COMPANY_MESSAGES.GRACE_BANNER }
     }
     if (!store.hasSubscription) {
         return { severity: 'warn', text: COMPANY_MESSAGES.NO_SUBSCRIPTION }
     }
+    if (summary.value?.accessState === 'ACTIVE') {
+        return { severity: 'success', text: COMPANY_MESSAGES.SUBSCRIPTION_ACTIVE_BANNER }
+    }
     return { severity: 'info', text: COMPANY_MESSAGES.SUBSCRIPTION_SELF_SERVICE_HINT }
 })
+
+function isRenewalFlow() {
+    return store.hasSubscription && (store.inGracePeriod || summary.value?.accessState === 'EXPIRED')
+}
+
+function planActionLabel(plan) {
+    if (isCurrentPlan(plan)) return 'Plan activo'
+    if (hasPendingRequest.value) return 'Solicitud pendiente'
+    return isRenewalFlow() ? 'Solicitar renovación' : 'Solicitar plan'
+}
 
 function formatDate(value) {
     if (!value) return '—'
@@ -136,22 +161,44 @@ function metricLimit(metric) {
 }
 
 async function onChoosePlan(plan) {
-    if (isCurrentPlan(plan)) return
+    if (isCurrentPlan(plan) || hasPendingRequest.value) return
 
-    const confirmed = await showConfirm({
-        header: 'Activar plan',
-        message: `${COMPANY_MESSAGES.PLAN_CHOOSE_CONFIRM} (${plan.subscriptionName})`,
-        acceptLabel: 'Activar',
-    })
-    if (!confirmed) return
+    selectedPlan.value = plan
+    paymentReference.value = ''
+    ownerNotes.value = ''
+    paymentDialogVisible.value = true
+}
 
-    const ok = await store.choosePlan(plan.subscriptionId, billingPeriod.value)
+async function submitPlanRequest() {
+    const plan = selectedPlan.value
+    if (!plan) return
+
+    const ref = paymentReference.value?.trim()
+    if (!ref) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Referencia requerida',
+            detail: COMPANY_MESSAGES.PAYMENT_REFERENCE_HINT,
+            life: 3500,
+        })
+        return
+    }
+
+    const renewal = isRenewalFlow()
+    const ok = await store.choosePlan(
+        plan.subscriptionId,
+        billingPeriod.value,
+        ref,
+        ownerNotes.value?.trim() ?? '',
+    )
     if (ok) {
+        paymentDialogVisible.value = false
+        selectedPlan.value = null
         toast.add({
             severity: 'success',
-            summary: 'Plan actualizado',
-            detail: COMPANY_MESSAGES.PLAN_CHOOSE_SUCCESS,
-            life: 3500,
+            summary: renewal ? 'Renovación solicitada' : 'Solicitud enviada',
+            detail: renewal ? COMPANY_MESSAGES.PLAN_RENEW_SUCCESS : COMPANY_MESSAGES.PLAN_CHOOSE_SUCCESS,
+            life: 4500,
         })
         await store.fetchSubscriptionSummary()
     }
@@ -195,6 +242,28 @@ async function onChoosePlan(plan) {
         >
           {{ contextAlert.text }}
         </pv-message>
+
+        <div
+          v-if="hasPendingRequest && summary.pendingPlanName"
+          class="surface-card pending-request-card"
+        >
+          <div class="pending-request-card__head">
+            <i class="pi pi-clock"></i>
+            <strong>{{ COMPANY_MESSAGES.PENDING_REQUEST_DETAIL }}</strong>
+          </div>
+          <p class="m-0">
+            {{ summary.pendingPlanName }}
+            <span v-if="summary.pendingRequestType">
+              · {{ REQUEST_TYPE_LABELS[summary.pendingRequestType] ?? summary.pendingRequestType }}
+            </span>
+          </p>
+          <p v-if="summary.pendingPaymentReference" class="pending-request-card__ref m-0">
+            Ref. pago: {{ summary.pendingPaymentReference }}
+          </p>
+          <p v-if="summary.pendingSubmittedAt" class="pending-request-card__meta m-0">
+            Enviada {{ formatDate(summary.pendingSubmittedAt) }}
+          </p>
+        </div>
 
         <div class="plan-layout">
           <aside class="plan-sidebar">
@@ -317,11 +386,11 @@ async function onChoosePlan(plan) {
                 </div>
 
                 <pv-button
-                  :label="isCurrentPlan(plan) ? 'Plan activo' : 'Seleccionar plan'"
+                  :label="planActionLabel(plan)"
                   :severity="isCurrentPlan(plan) ? 'secondary' : 'primary'"
                   :outlined="isCurrentPlan(plan)"
-                  :disabled="isCurrentPlan(plan) || store.isChoosingPlan"
-                  :loading="store.isChoosingPlan"
+                  :disabled="isCurrentPlan(plan) || store.isChoosingPlan || hasPendingRequest"
+                  :loading="store.isChoosingPlan && selectedPlan?.subscriptionId === plan.subscriptionId"
                   class="w-full plan-card__cta"
                   @click="onChoosePlan(plan)"
                 />
@@ -331,6 +400,44 @@ async function onChoosePlan(plan) {
         </div>
       </template>
     </module-state-feedback>
+
+    <pv-dialog
+      v-model:visible="paymentDialogVisible"
+      :header="isRenewalFlow() ? 'Solicitar renovación' : 'Solicitar plan'"
+      modal
+      :style="{ width: 'min(28rem, 95vw)' }"
+    >
+      <div v-if="selectedPlan" class="flex flex-column gap-3">
+        <p class="m-0 text-sm text-color-secondary">
+          {{ selectedPlan.subscriptionName }} · S/ {{ formatPrice(planPrice(selectedPlan)) }}{{ planPeriodLabel() }}
+        </p>
+        <p class="m-0 text-sm">
+          Realiza el pago acordado con Metasoft y registra la referencia. Un super admin validará manualmente antes de
+          {{ isRenewalFlow() ? 'extender' : 'activar' }} tu suscripción.
+        </p>
+        <div class="flex flex-column gap-1">
+          <label class="font-semibold text-sm">{{ COMPANY_MESSAGES.PAYMENT_REFERENCE_LABEL }}</label>
+          <pv-input-text
+            v-model="paymentReference"
+            class="w-full"
+            :placeholder="COMPANY_MESSAGES.PAYMENT_REFERENCE_HINT"
+            maxlength="120"
+          />
+        </div>
+        <div class="flex flex-column gap-1">
+          <label class="font-semibold text-sm">{{ COMPANY_MESSAGES.OWNER_NOTES_LABEL }}</label>
+          <pv-textarea v-model="ownerNotes" rows="3" class="w-full" auto-resize maxlength="500" />
+        </div>
+        <div class="flex gap-2 justify-content-end">
+          <pv-button label="Cancelar" severity="secondary" text @click="paymentDialogVisible = false" />
+          <pv-button
+            :label="isRenewalFlow() ? 'Enviar renovación' : 'Enviar solicitud'"
+            :loading="store.isChoosingPlan"
+            @click="submitPlanRequest"
+          />
+        </div>
+      </div>
+    </pv-dialog>
   </div>
 </template>
 
@@ -381,6 +488,32 @@ async function onChoosePlan(plan) {
 
 .plan-alert {
   margin-bottom: 1.25rem;
+}
+
+.pending-request-card {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.15rem;
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.pending-request-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  color: #92400e;
+}
+
+.pending-request-card__head i {
+  font-size: 1.1rem;
+}
+
+.pending-request-card__ref,
+.pending-request-card__meta {
+  margin-top: 0.35rem !important;
+  font-size: 0.85rem;
+  color: #78716c;
 }
 
 .plan-layout {

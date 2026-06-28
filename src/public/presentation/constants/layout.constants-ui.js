@@ -1,5 +1,6 @@
-import { ROLE_ALLOWED_ROUTES, BRANCH_REQUIRED_ROUTES } from '../../../shared/presentation/constants/roles.constants.js';
+import { ROLE_ALLOWED_ROUTES, BRANCH_REQUIRED_ROUTES, ROLES } from '../../../shared/presentation/constants/roles.constants.js';
 import { isRouteAllowedByPlan, resolvePlanEntitlements } from '../../../shared/presentation/constants/subscription-entitlements.constants.js';
+import { PLATFORM_MENU_ITEMS } from '../../../platform/presentation/constants/platform.constants-ui.js';
 
 /**
  * Todos los items de menú disponibles en el sistema.
@@ -98,6 +99,11 @@ const ALL_MENU_ITEMS = [
  */
 export function getMenuItemsByRole(role, hasBranch = false, planFeatures = null, subscriptionSummary = null) {
     if (!role) return ALL_MENU_ITEMS;
+
+    if (role === ROLES.SYSTEM) {
+        return PLATFORM_MENU_ITEMS;
+    }
+
     const allowed = ROLE_ALLOWED_ROUTES[role];
     if (!allowed) return [];
 

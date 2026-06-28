@@ -1,133 +1,189 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { usePlatformStore } from '../../application/platform.store.js';
-import { usePrimeTableRows } from '../../../shared/composables/use-table-pagination.js';
+import { useTablePagination } from '../../../shared/composables/use-table-pagination.js';
+import ModuleTable from '../../../shared/presentation/components/module-table.vue';
+import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue';
+import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue';
+import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue';
+import CreateAndEditPlatformPlan from './create-and-edit-platform-plan.vue';
 
 const store = usePlatformStore();
+
+const showDialog = ref(false);
+const editingPlan = ref(null);
+
+const isEditing = computed(() => !!editingPlan.value?.subscriptionId);
+
+const items = computed(() => store.plans ?? []);
+
 const {
-    rows: tableRows,
-    rowsPerPageOptions,
-    paginatorTemplate,
-    currentPageReportTemplate,
-} = usePrimeTableRows();
-
-const FEATURE_FIELDS = [
-    { key: 'subscriptionHasInventory', label: 'Inventario' },
-    { key: 'subscriptionHasReports', label: 'Reportes completos' },
-    { key: 'subscriptionHasReservations', label: 'Reservas' },
-    { key: 'subscriptionHasKitchen', label: 'Cocina / estaciones' },
-    { key: 'subscriptionHasDashboardComparison', label: 'Comparación dashboard' },
-    { key: 'subscriptionHasExcelExport', label: 'Exportación Excel' },
-    { key: 'subscriptionHasPushNotifications', label: 'Notificaciones push' },
-];
-
-const defaultForm = () => ({
-    subscriptionName: '',
-    subscriptionPriceMontly: 99.9,
-    subscriptionPriceAnnual: 999,
-    subscriptionMaxBranches: 3,
-    subscriptionMaxUsers: 10,
-    subscriptionMaxTables: 30,
-    subscriptionMaxMenuItems: 200,
-    subscriptionHasInventory: true,
-    subscriptionHasReports: true,
-    subscriptionHasReservations: true,
-    subscriptionHasKitchen: true,
-    subscriptionHasDashboardComparison: false,
-    subscriptionHasExcelExport: true,
-    subscriptionHasPushNotifications: true,
-});
-
-const form = ref(defaultForm());
+    page,
+    pageSize,
+    totalPages,
+    paginatedItems,
+    rangeStart,
+    rangeEnd,
+    totalItems,
+} = useTablePagination(items);
 
 onMounted(() => store.loadPlans());
 
-async function createPlan() {
-    try {
-        await store.savePlan({ ...form.value });
-        form.value = defaultForm();
-    } catch {
-        /* error en store.error */
-    }
+function formatDate(value) {
+    if (!value) return '—';
+    return new Date(value).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function featureLabel(plan, key) {
     return plan?.[key] === true ? 'Sí' : 'No';
 }
+
+function openCreate() {
+    editingPlan.value = null;
+    showDialog.value = true;
+}
+
+function openEdit(plan) {
+    editingPlan.value = { ...plan };
+    showDialog.value = true;
+}
+
+async function onPlanSaved(data) {
+    try {
+        await store.savePlan(data, editingPlan.value?.subscriptionId ?? null);
+        showDialog.value = false;
+        editingPlan.value = null;
+    } catch {
+        /* store.error */
+    }
+}
 </script>
 
 <template>
-  <div>
-    <h2 class="text-2xl font-bold mb-4 text-color">Planes de suscripción</h2>
-    <pv-message v-if="store.error" severity="error" class="mb-3">{{ store.error }}</pv-message>
-
-    <div class="grid">
-      <div class="col-12 lg:col-5">
-        <div class="surface-card border-round-lg p-4 mb-4">
-          <h3 class="font-bold mb-3 text-color">Nuevo plan</h3>
-          <div class="flex flex-column gap-2">
-            <pv-input-text v-model="form.subscriptionName" placeholder="Nombre del plan" class="w-full" />
-            <pv-input-number v-model="form.subscriptionPriceMontly" placeholder="Precio mensual (S/)" class="w-full" :min-fraction-digits="2" />
-            <pv-input-number v-model="form.subscriptionPriceAnnual" placeholder="Precio anual (S/)" class="w-full" :min-fraction-digits="2" />
-            <pv-input-number v-model="form.subscriptionMaxBranches" placeholder="Max sucursales" class="w-full" />
-            <pv-input-number v-model="form.subscriptionMaxUsers" placeholder="Max usuarios" class="w-full" />
-            <pv-input-number v-model="form.subscriptionMaxTables" placeholder="Max mesas / sucursal" class="w-full" />
-            <pv-input-number v-model="form.subscriptionMaxMenuItems" placeholder="Max ítems menú / sucursal" class="w-full" />
-
-            <p class="text-sm font-semibold mt-2 mb-0 text-color-secondary">Módulos incluidos</p>
-            <div v-for="field in FEATURE_FIELDS" :key="field.key" class="flex align-items-center gap-2">
-              <pv-checkbox v-model="form[field.key]" :input-id="field.key" binary />
-              <label :for="field.key" class="cursor-pointer">{{ field.label }}</label>
-            </div>
-            <p class="text-xs text-color-secondary mt-1 mb-0">
-              Si «Reportes completos» está desactivado, el plan solo permite ventas diarias (Gastro Local).
-            </p>
-
-            <pv-button label="Crear plan" :loading="store.isLoading" class="mt-2" @click="createPlan" />
-          </div>
+  <div class="platform-page module-page">
+    <module-state-feedback
+      :loading="store.isLoading && !items.length"
+      :error="store.error"
+      :is-empty="false"
+      loading-label="Cargando planes..."
+      @retry="store.loadPlans()"
+    >
+      <div class="platform-page__body">
+        <div class="platform-toolbar">
+          <pv-button label="Nuevo plan" icon="pi pi-plus" size="small" @click="openCreate" />
         </div>
-      </div>
-      <div class="col-12 lg:col-7">
-        <pv-data-table
-          v-model:rows="tableRows"
-          :value="store.plans"
-          :loading="store.isLoading"
-          :paginator="true"
-          :rows-per-page-options="rowsPerPageOptions"
-          :paginator-template="paginatorTemplate"
-          :current-page-report-template="currentPageReportTemplate"
-          size="small"
-          scrollable
-          scroll-height="520px"
+
+        <module-empty-state
+          v-if="!store.isLoading && items.length === 0"
+          icon="pi-star"
+          title="No hay planes publicados"
+          subtitle="Crea el primer plan comercial para que los restaurantes puedan solicitar suscripción."
         >
-          <pv-column field="subscriptionName" header="Plan" frozen />
-          <pv-column field="subscriptionMaxBranches" header="Suc." />
-          <pv-column field="subscriptionMaxUsers" header="Usu." />
-          <pv-column field="subscriptionMaxTables" header="Mesas" />
-          <pv-column field="subscriptionMaxMenuItems" header="Menú" />
-          <pv-column header="Inv.">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasInventory') }}</template>
-          </pv-column>
-          <pv-column header="Rep.">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasReports') }}</template>
-          </pv-column>
-          <pv-column header="Res.">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasReservations') }}</template>
-          </pv-column>
-          <pv-column header="Coc.">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasKitchen') }}</template>
-          </pv-column>
-          <pv-column header="Cmp.">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasDashboardComparison') }}</template>
-          </pv-column>
-          <pv-column header="XLS">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasExcelExport') }}</template>
-          </pv-column>
-          <pv-column header="Push">
-            <template #body="{ data }">{{ featureLabel(data, 'subscriptionHasPushNotifications') }}</template>
-          </pv-column>
-        </pv-data-table>
+          <pv-button label="Nuevo plan" icon="pi pi-plus" size="small" @click="openCreate" />
+        </module-empty-state>
+
+        <template v-else-if="items.length > 0">
+          <module-table>
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th style="text-align:right">Mensual</th>
+                <th>Suc.</th>
+                <th>Usu.</th>
+                <th>Activo</th>
+                <th>Actualizado</th>
+                <th>Inv.</th>
+                <th>Rep.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="plan in paginatedItems"
+                :key="plan.subscriptionId"
+                class="gs-row--clickable"
+                @click="openEdit(plan)"
+              >
+                <td class="font-semibold">{{ plan.subscriptionName }}</td>
+                <td style="text-align:right;font-weight:600">S/ {{ plan.subscriptionPriceMontly }}</td>
+                <td>{{ plan.subscriptionMaxBranches }}</td>
+                <td>{{ plan.subscriptionMaxUsers }}</td>
+                <td>
+                  <span
+                    class="gs-badge"
+                    :style="{
+                      background: (plan.isActive !== false ? '#059669' : '#6b7280') + '22',
+                      color: plan.isActive !== false ? '#059669' : '#6b7280',
+                      border: '1px solid ' + (plan.isActive !== false ? '#059669' : '#6b7280') + '66',
+                    }"
+                  >
+                    {{ plan.isActive !== false ? 'Sí' : 'No' }}
+                  </span>
+                </td>
+                <td>{{ formatDate(plan.updatedAt) }}</td>
+                <td>{{ featureLabel(plan, 'subscriptionHasInventory') }}</td>
+                <td>{{ featureLabel(plan, 'subscriptionHasReports') }}</td>
+                <td class="td-actions">
+                  <pv-button icon="pi pi-pencil" text rounded size="small" severity="info" @click.stop="openEdit(plan)" />
+                </td>
+              </tr>
+            </tbody>
+          </module-table>
+
+          <table-pagination-bar
+            v-model:page="page"
+            v-model:page-size="pageSize"
+            :total-pages="totalPages"
+            :range-start="rangeStart"
+            :range-end="rangeEnd"
+            :total-items="totalItems"
+            item-label="planes"
+          />
+        </template>
       </div>
-    </div>
+    </module-state-feedback>
+
+    <create-and-edit-platform-plan
+      v-model:visible="showDialog"
+      :edit="isEditing"
+      :plan="editingPlan"
+      @plan-saved="onPlanSaved"
+    />
   </div>
 </template>
+
+<style scoped>
+.platform-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.platform-page__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.platform-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.gs-badge {
+  display: inline-flex;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.td-actions {
+  width: 3rem;
+  white-space: nowrap;
+}
+</style>

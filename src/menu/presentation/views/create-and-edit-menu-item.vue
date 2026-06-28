@@ -3,6 +3,8 @@ import { reactive, ref, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import FileUploader  from '../../../shared/presentation/components/file-uploader.vue'
 import { useStationsStore } from '../../../stations/application/stations.store.js'
+import { useMenuStore } from '../../../menu/application/menu.store.js'
+import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
 
 // ===========================
 // PROPS & EMITS
@@ -22,16 +24,24 @@ const STATION_NONE = '__none__'
 // STATIONS (from store — fuente de verdad)
 // ===========================
 const stationsStore = useStationsStore()
+const { entitlements } = useSubscriptionEntitlements()
+const kitchenRequired = computed(() => entitlements.value.hasKitchen)
 
-const stationOptions = computed(() => [
-    { id: STATION_NONE, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
-    ...stationsStore.activeStations.map(s => ({
+const stationOptions = computed(() => {
+    const stations = stationsStore.activeStations.map(s => ({
         id: s.id,
         name: s.name,
         icon: 'pi-bolt',
         color: s.color ?? '#3b82f6',
-    })),
-])
+    }))
+    if (kitchenRequired.value) {
+        return stations
+    }
+    return [
+        { id: STATION_NONE, name: 'Ninguna (No requiere preparación)', icon: 'pi-ban', color: '#ef4444' },
+        ...stations,
+    ]
+})
 
 // ===========================
 // FORM STATE
@@ -50,7 +60,7 @@ const form = reactive({
 
 const imageFile = ref(null)
 
-const errors = reactive({ name: false, categoryId: false, sku: false, price: false })
+const errors = reactive({ name: false, categoryId: false, sku: false, price: false, stationId: false })
 
 // ===========================
 // WATCHERS
@@ -76,6 +86,7 @@ watch(() => props.visible, async (val) => {
         errors.categoryId = false
         errors.sku        = false
         errors.price      = false
+        errors.stationId  = false
     }
 })
 
@@ -91,8 +102,10 @@ function onSave() {
     errors.categoryId = !form.categoryId
     errors.sku        = !form.sku.trim()
     errors.price      = form.price <= 0
+    errors.stationId  = kitchenRequired.value
+        && (form.stationId == null || form.stationId === '' || form.stationId === STATION_NONE)
 
-    if (errors.name || errors.categoryId || errors.sku || errors.price) return
+    if (errors.name || errors.categoryId || errors.sku || errors.price || errors.stationId) return
 
     const stationId = form.stationId === STATION_NONE ? null : form.stationId
     const selectedStation = stationOptions.value.find(s => s.id === form.stationId)
@@ -225,7 +238,10 @@ function onClose() {
 
                 <!-- Estación de Preparación -->
                 <div class="flex flex-column gap-1">
-                    <label class="field-label">Estación de Preparación</label>
+                    <label class="field-label">
+                        Estación de Preparación
+                        <span v-if="kitchenRequired" class="required">*</span>
+                    </label>
                     <pv-select
                         v-model="form.stationId"
                         :options="stationOptions"
@@ -249,7 +265,12 @@ function onClose() {
                             </div>
                         </template>
                     </pv-select>
-                    <small class="text-color-secondary">Seleccione la estación donde se preparará este producto</small>
+                    <small v-if="errors.stationId" class="text-red-500">Seleccione una estación de cocina</small>
+                    <small v-else class="text-color-secondary">
+                        {{ kitchenRequired
+                            ? 'Obligatorio con plan de cocina activo'
+                            : 'Seleccione la estación donde se preparará este producto' }}
+                    </small>
                 </div>
 
                 <!-- Disponibilidad -->
