@@ -21,6 +21,8 @@ const selectedIds = ref(new Set())
 const selectionMode = ref(false)
 const activeFilter = ref(NOTIFICATION_FILTER.ALL)
 const hoveredId = ref(null)
+const nestedOverlayOpen = ref(0)
+let nestedOverlayHideTimer = null
 
 const hasSelection = computed(() => selectedIds.value.size > 0)
 const allLoadedSelected = computed(() =>
@@ -45,11 +47,6 @@ const headerMenuItems = computed(() => [
         icon: 'pi pi-check-circle',
         disabled: !store.hasUnread,
         command: () => store.markAllAsRead(),
-    },
-    {
-        label: selectionMode.value ? COMMUNICATION_MESSAGES.DONE : COMMUNICATION_MESSAGES.MANAGE,
-        icon: selectionMode.value ? 'pi pi-times' : 'pi pi-check-square',
-        command: () => toggleSelectionMode(),
     },
     { separator: true },
     {
@@ -135,6 +132,21 @@ function openItemMenu(event, item) {
     itemMenu.value.toggle(event)
 }
 
+function onNestedOverlayShow() {
+    if (nestedOverlayHideTimer) {
+        clearTimeout(nestedOverlayHideTimer)
+        nestedOverlayHideTimer = null
+    }
+    nestedOverlayOpen.value += 1
+}
+
+function onNestedOverlayHide() {
+    nestedOverlayHideTimer = setTimeout(() => {
+        nestedOverlayOpen.value = Math.max(0, nestedOverlayOpen.value - 1)
+        nestedOverlayHideTimer = null
+    }, 200)
+}
+
 async function onRowClick(item) {
     if (selectionMode.value) {
         toggleSelectItem(item.id)
@@ -201,6 +213,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('gastro:notifications-updated', onNotificationsUpdated)
+    if (nestedOverlayHideTimer) clearTimeout(nestedOverlayHideTimer)
 })
 </script>
 
@@ -223,6 +236,7 @@ onUnmounted(() => {
     <pv-popover
       ref="panel"
       class="notifications-bell__popover"
+      :dismissable="nestedOverlayOpen === 0"
       :pt="{ content: { class: 'notifications-bell__popover-content' } }"
       @hide="onPanelHide"
     >
@@ -230,17 +244,46 @@ onUnmounted(() => {
         <!-- Header -->
         <div class="notifications-panel__header">
           <h2 class="notifications-panel__title">{{ COMMUNICATION_MESSAGES.PANEL_TITLE }}</h2>
-          <pv-button
-            icon="pi pi-ellipsis-h"
-            text
-            rounded
-            size="small"
-            severity="secondary"
-            aria-label="Opciones de notificaciones"
-            class="notifications-panel__menu-btn"
-            @click="openHeaderMenu"
+          <div class="notifications-panel__header-actions">
+            <pv-button
+              v-if="selectionMode"
+              :label="COMMUNICATION_MESSAGES.DONE"
+              text
+              rounded
+              size="small"
+              class="notifications-panel__done-btn"
+              @click.stop="toggleSelectionMode"
+            />
+            <pv-button
+              v-else
+              :label="COMMUNICATION_MESSAGES.MANAGE"
+              icon="pi pi-check-square"
+              text
+              rounded
+              size="small"
+              severity="secondary"
+              class="notifications-panel__manage-btn"
+              @click.stop="toggleSelectionMode"
+            />
+            <pv-button
+              v-if="!selectionMode"
+              icon="pi pi-ellipsis-h"
+              text
+              rounded
+              size="small"
+              severity="secondary"
+              aria-label="Opciones de notificaciones"
+              class="notifications-panel__menu-btn"
+              @click.stop="openHeaderMenu"
+            />
+          </div>
+          <pv-menu
+            ref="headerMenu"
+            :model="headerMenuItems"
+            popup
+            @show="onNestedOverlayShow"
+            @hide="onNestedOverlayHide"
           />
-          <pv-menu ref="headerMenu" :model="headerMenuItems" popup />
         </div>
 
         <!-- Filter tabs -->
@@ -268,31 +311,32 @@ onUnmounted(() => {
 
         <!-- Selection toolbar (modo gestionar) -->
         <div v-if="selectionMode" class="notifications-panel__selection-bar">
-          <div class="notifications-panel__select-all">
+          <label class="notifications-panel__select-all" for="notifications-select-all">
             <pv-checkbox
               :model-value="allLoadedSelected"
               :binary="true"
               :indeterminate="someLoadedSelected"
               input-id="notifications-select-all"
+              class="notifications-panel__checkbox"
+              @click.stop
               @update:model-value="toggleSelectAll"
             />
-            <label for="notifications-select-all" class="notifications-panel__select-label">
+            <span class="notifications-panel__select-label">
               {{ allLoadedSelected ? COMMUNICATION_MESSAGES.DESELECT_ALL : COMMUNICATION_MESSAGES.SELECT_ALL }}
-            </label>
-          </div>
-          <div class="notifications-panel__selection-actions">
-            <span v-if="hasSelection" class="notifications-panel__selection-count">
+            </span>
+          </label>
+          <div v-if="hasSelection" class="notifications-panel__selection-actions">
+            <span class="notifications-panel__selection-count">
               {{ COMMUNICATION_MESSAGES.SELECTED_COUNT(selectedIds.size) }}
             </span>
-            <pv-button
-              v-if="hasSelection"
-              :label="COMMUNICATION_MESSAGES.DELETE_SELECTED"
-              link
-              size="small"
-              severity="danger"
-              class="p-0"
-              @click="onDeleteSelected"
-            />
+            <button
+              type="button"
+              class="notifications-panel__delete-selected"
+              @click.stop="onDeleteSelected"
+            >
+              <i class="pi pi-trash" aria-hidden="true" />
+              <span>{{ COMMUNICATION_MESSAGES.DELETE }}</span>
+            </button>
           </div>
         </div>
 
@@ -341,7 +385,7 @@ onUnmounted(() => {
                   v-if="selectionMode"
                   :model-value="isSelected(item.id)"
                   :binary="true"
-                  class="notifications-panel__item-check"
+                  class="notifications-panel__checkbox notifications-panel__item-check"
                   @click.stop
                   @update:model-value="() => toggleSelectItem(item.id)"
                 />
@@ -380,7 +424,13 @@ onUnmounted(() => {
           </section>
         </div>
 
-        <pv-menu ref="itemMenu" :model="activeItem ? itemMenuItems(activeItem) : []" popup />
+        <pv-menu
+          ref="itemMenu"
+          :model="activeItem ? itemMenuItems(activeItem) : []"
+          popup
+          @show="onNestedOverlayShow"
+          @hide="onNestedOverlayHide"
+        />
 
         <!-- Footer -->
         <div v-if="store.hasMore && !store.isLoading" class="notifications-panel__footer">
@@ -441,6 +491,36 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.notifications-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.notifications-panel__manage-btn {
+  flex-shrink: 0;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  padding-inline: 0.4rem !important;
+  color: #4b5563 !important;
+}
+
+.notifications-panel__done-btn {
+  flex-shrink: 0;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  padding: 0.35rem 0.7rem !important;
+  border-radius: 8px !important;
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+}
+
+.notifications-panel__done-btn:hover {
+  background: #dbeafe !important;
+  color: #1e40af !important;
 }
 
 .notifications-panel__title {
@@ -514,36 +594,77 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 10px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
 .notifications-panel__select-all {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-}
-
-.notifications-panel__select-label {
-  font-size: 0.78rem;
-  color: #4b5563;
+  gap: 0.5rem;
+  min-width: 0;
   cursor: pointer;
   user-select: none;
 }
 
+.notifications-panel__select-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #374151;
+  line-height: 1.2;
+}
+
 .notifications-panel__selection-actions {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .notifications-panel__selection-count {
-  font-size: 0.72rem;
-  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.notifications-panel__delete-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.notifications-panel__delete-selected:hover {
+  color: #b91c1c;
+}
+
+.notifications-panel__delete-selected .pi {
+  font-size: 0.75rem;
+}
+
+.notifications-panel__item-check {
+  flex-shrink: 0;
+  align-self: center;
 }
 
 /* ── Scroll area ───────────────────────────────────────────────────────── */
@@ -614,12 +735,12 @@ onUnmounted(() => {
 }
 
 .notifications-panel__item--selected {
-  background: #fef2f2;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 
-.notifications-panel__item-check {
-  flex-shrink: 0;
-  margin-top: 0.55rem;
+.notifications-panel__item--selected:hover {
+  background: #dbeafe;
 }
 
 .notifications-panel__avatar {
@@ -763,10 +884,43 @@ onUnmounted(() => {
   border-radius: 14px !important;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
   border: 1px solid #e5e7eb !important;
+  overflow: visible !important;
 }
 
 .notifications-menu-danger .p-menuitem-link,
 .notifications-menu-danger .p-menuitem-text {
   color: #dc2626 !important;
+}
+
+/* Checkboxes del panel — acento azul coherente con tabs */
+.notifications-panel .notifications-panel__checkbox.p-checkbox .p-checkbox-box {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.notifications-panel .notifications-panel__checkbox.p-checkbox:not(.p-disabled) .p-checkbox-box:hover {
+  border-color: #2563eb;
+}
+
+.notifications-panel .notifications-panel__checkbox.p-checkbox[data-p-checked='true'] .p-checkbox-box,
+.notifications-panel .notifications-panel__checkbox.p-checkbox.p-checkbox-checked .p-checkbox-box,
+.notifications-panel .notifications-panel__checkbox.p-checkbox .p-checkbox-box.p-highlight {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.notifications-panel .notifications-panel__checkbox.p-checkbox[data-p-checked='true'] .p-checkbox-icon,
+.notifications-panel .notifications-panel__checkbox.p-checkbox .p-checkbox-box.p-highlight .p-checkbox-icon {
+  color: #fff;
+  font-size: 0.65rem;
+}
+
+.notifications-panel .notifications-panel__checkbox.p-checkbox[data-p-indeterminate='true'] .p-checkbox-box {
+  background: #2563eb;
+  border-color: #2563eb;
 }
 </style>
