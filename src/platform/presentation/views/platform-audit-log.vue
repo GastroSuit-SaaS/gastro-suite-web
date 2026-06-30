@@ -1,26 +1,22 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { usePlatformStore } from '../../application/platform.store.js';
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js';
 import { PLATFORM_AUDIT_ACTION_LABELS } from '../constants/platform.constants-ui.js';
-import ModuleTable from '../../../shared/presentation/components/module-table.vue';
-import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue';
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue';
+import DataManager from '../../../shared/presentation/components/data-manager.vue';
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue';
 
 const store = usePlatformStore();
+const searchQuery = ref('');
 
 const items = computed(() => store.auditLogs ?? []);
 
-const {
-    page,
-    pageSize,
-    totalPages,
-    paginatedItems,
-    rangeStart,
-    rangeEnd,
-    totalItems,
-} = useTablePagination(items);
+const tableColumns = [
+    { field: 'createdAt', header: 'Fecha', sortable: true, template: 'al-date', style: 'min-width: 130px' },
+    { field: 'actorDisplayName', header: 'Usuario', sortable: true, template: 'al-actor', style: 'min-width: 140px' },
+    { field: 'action', header: 'Acción', sortable: true, template: 'al-action', style: 'min-width: 140px' },
+    { field: 'entityLabel', header: 'Referencia', sortable: true, style: 'min-width: 120px' },
+    { field: 'details', header: 'Detalle', sortable: false, style: 'min-width: 200px' },
+];
 
 onMounted(() => store.loadAuditLogs());
 
@@ -48,54 +44,51 @@ function actorLabel(data) {
       @retry="store.loadAuditLogs()"
     >
       <div class="platform-page__body">
-        <div class="platform-toolbar">
-          <pv-button label="Actualizar" icon="pi pi-refresh" outlined size="small" :loading="store.isLoading" @click="store.loadAuditLogs()" />
-        </div>
+        <data-manager
+          class="platform-table-manager flex-1 min-h-0"
+          :items="items"
+          :columns="tableColumns"
+          :title="{ singular: 'registro', plural: 'registros' }"
+          data-key="auditLogId"
+          :loading="store.isLoading"
+          :dynamic="true"
+          :global-filter-value="searchQuery"
+          search-placeholder="Buscar usuario, acción o referencia..."
+          :show-new="false"
+          :show-export="false"
+          :show-selection="false"
+          :show-actions="false"
+          empty-icon="pi-history"
+          empty-title="Sin registros de auditoría"
+          empty-subtitle="Las acciones de super admins aparecerán aquí cuando se creen planes, validen solicitudes o den de alta usuarios."
+          item-label="registros"
+          :rows="20"
+          @global-filter-change="searchQuery = $event"
+        >
+          <template #filters>
+            <pv-button
+              label="Actualizar"
+              icon="pi pi-refresh"
+              outlined
+              size="small"
+              :loading="store.isLoading"
+              @click="store.loadAuditLogs()"
+            />
+          </template>
 
-        <module-empty-state
-          v-if="!store.isLoading && items.length === 0"
-          icon="pi-history"
-          title="Sin registros de auditoría"
-          subtitle="Las acciones de super admins aparecerán aquí cuando se creen planes, validen solicitudes o den de alta usuarios."
-        />
+          <template #al-date="{ data: row }">
+            {{ formatDate(row.createdAt) }}
+          </template>
 
-        <template v-else-if="items.length > 0">
-          <module-table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Usuario</th>
-                <th>Acción</th>
-                <th>Referencia</th>
-                <th>Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in paginatedItems" :key="row.auditLogId">
-                <td>{{ formatDate(row.createdAt) }}</td>
-                <td>
-                  <div class="font-semibold">{{ actorLabel(row) }}</div>
-                  <div class="text-muted text-xs">{{ row.actorUsername }}</div>
-                </td>
-                <td>
-                  <span class="gs-badge gs-badge--info">{{ actionLabel(row.action) }}</span>
-                </td>
-                <td>{{ row.entityLabel || '—' }}</td>
-                <td>{{ row.details || '—' }}</td>
-              </tr>
-            </tbody>
-          </module-table>
+          <template #al-actor="{ data: row }">
+            <div class="font-semibold">{{ actorLabel(row) }}</div>
+            <div class="text-muted text-xs">{{ row.actorUsername }}</div>
+          </template>
 
-          <table-pagination-bar
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :total-pages="totalPages"
-            :range-start="rangeStart"
-            :range-end="rangeEnd"
-            :total-items="totalItems"
-            item-label="registros"
-          />
-        </template>
+          <template #al-action="{ data: row }">
+            <span class="gs-badge gs-badge--info">{{ actionLabel(row.action) }}</span>
+          </template>
+        </data-manager>
       </div>
     </module-state-feedback>
   </div>
@@ -115,12 +108,7 @@ function actorLabel(data) {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem 1.5rem 1.5rem;
-}
-
-.platform-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  min-height: 0;
 }
 
 .gs-badge {

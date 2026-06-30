@@ -1,5 +1,5 @@
 import { Product } from '../../domain/models/product.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 const UNIT_WEB_TO_API = {
     unidad:  'UNIDAD',

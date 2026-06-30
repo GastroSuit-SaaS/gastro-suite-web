@@ -1,23 +1,21 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useReportsStore } from '../../application/reports.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
 import { REPORTS_MESSAGES } from '../constants/reports.constants-ui.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
 import { REPORT_TYPE_LABELS, EXPORT_FORMAT_LABELS } from '../constants/reports.constants-ui.js'
 import { REPORT_TYPE, REPORT_STATUS, EXPORT_FORMAT } from '../../domain/models/report.entity.js'
-import { exportCollectorSalesReportExcel, exportSalesByPaymentMethodReportCsv, exportSalesByPaymentMethodReportExcel } from '../utils/reports-excel.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 import { isReportTypeAllowed } from '../../../shared/presentation/constants/subscription-entitlements.constants.js'
 
 const store = useReportsStore()
-const iamStore = useIamStore()
 const { confirmDelete } = useConfirmDialog()
 const { entitlements } = useSubscriptionEntitlements()
 
 const canGenerateReports = computed(() =>
-    iamStore.hasEmployeeLink && entitlements.value.canAccessReports,
+    store.hasEmployeeLink && entitlements.value.canAccessReports,
 )
 
 const allowedReportTypes = computed(() =>
@@ -31,7 +29,7 @@ const hasAnyReportType = computed(() => allowedReportTypes.value.length > 0)
 const canExportExcel = computed(() => entitlements.value.hasExcelExport)
 
 const generateDisabledTitle = computed(() => {
-    if (!iamStore.hasEmployeeLink) return REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED
+    if (!store.hasEmployeeLink) return REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED
     if (!entitlements.value.canAccessReports) return 'Tu plan no incluye reportes.'
     if (!hasAnyReportType.value) return 'No hay tipos de reporte disponibles en tu plan.'
     return ''
@@ -39,7 +37,7 @@ const generateDisabledTitle = computed(() => {
 
 onMounted(() => {
     store.fetchAll()
-    iamStore.ensureEmployeeLink()
+    store.ensureEmployeeLink()
 })
 
 const showGenerate = ref(false)
@@ -96,14 +94,14 @@ async function onGenerate() {
     }
     const dateFrom = r.dateFrom ? new Date(`${r.dateFrom}T00:00:00`).toISOString() : null
     const dateTo = r.dateTo ? new Date(`${r.dateTo}T23:59:59.999`).toISOString() : null
-    const ok = await store.generate({
+    const result = await store.generate({
         type: r.type,
         title: r.title,
         exportFormat: EXPORT_FORMAT.EXCEL,
         dateFrom,
         dateTo,
     })
-    if (ok) {
+    if (result.ok) {
         showGenerate.value = false
     }
 }
@@ -181,17 +179,17 @@ const paymentMethodTotals = computed(() => ({
 
 function exportDetailExcel() {
     if (!canExportExcel.value || !detailReport.value || !isCollectorReport.value) return
-    exportCollectorSalesReportExcel(detailReport.value)
+    store.exportCollectorReportExcel(detailReport.value)
 }
 
 function exportPaymentMethodExcel() {
     if (!canExportExcel.value || !detailReport.value || !isPaymentMethodReport.value) return
-    exportSalesByPaymentMethodReportExcel(detailReport.value)
+    store.exportPaymentMethodReportExcel(detailReport.value)
 }
 
 function exportPaymentMethodCsv() {
     if (!detailReport.value || !isPaymentMethodReport.value) return
-    exportSalesByPaymentMethodReportCsv(detailReport.value)
+    store.exportPaymentMethodReportCsv(detailReport.value)
 }
 
 function clearSearch() {
@@ -290,10 +288,11 @@ function clearSearch() {
         </div>
 
         <!-- ── Reports List ──────────────────────────────────────── -->
-        <div v-if="store.filteredReports.length === 0" class="rpt-empty">
-            <i class="pi pi-inbox" style="font-size:2.5rem; color:#cbd5e1"></i>
-            <p>No se encontraron reportes</p>
-        </div>
+        <module-empty-state
+            v-if="store.filteredReports.length === 0"
+            icon="pi-inbox"
+            title="No se encontraron reportes"
+        />
 
         <div v-else class="rpt-list">
             <div v-for="report in store.filteredReports" :key="report.id" class="rpt-card" @click="openDetail(report)">

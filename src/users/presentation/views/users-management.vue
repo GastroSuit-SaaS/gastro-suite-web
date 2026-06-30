@@ -1,30 +1,25 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUsersStore } from '../../application/users.store.js'
-import { useBranchesStore } from '../../../branches/application/branches.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { USER_ROLE_CONFIG, buildUserRoleOptions } from '../constants/users.constants-ui.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js'
+import { USER_ROLE_CONFIG } from '../constants/users.constants-ui.js'
 import { ROLE_ALLOWED_ROUTES } from '../../../shared/presentation/constants/roles.constants.js'
 import CreateAndEditUser from './create-and-edit-user.vue'
 import UserDetailDialog from './user-detail-dialog.vue'
-import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab from '../../../shared/presentation/components/module-tab.vue'
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import DataManager from '../../../shared/presentation/components/data-manager.vue'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const store       = useUsersStore()
-const branchStore = useBranchesStore()
-const iamStore    = useIamStore()
 const { confirmDelete } = useConfirmDialog()
+const { showSuccess, showError } = useNotification()
 const { entitlements } = useSubscriptionEntitlements()
 
 const assignableRolesForPlan = computed(() =>
-    iamStore.assignableRoles.filter(
-        (role) => entitlements.value.hasKitchen || role !== 'COOK',
-    ),
+    store.assignableRolesForPlan(entitlements.value),
 )
 
 const activeTab    = ref('users')  // 'users' | 'roles'
@@ -38,11 +33,8 @@ const filterBranch = ref('')
 const selectedStatus = ref(null)   // null | 'active' | 'inactive'
 
 onMounted(async () => {
-    await Promise.all([
-        store.fetchAll(),
-        branchStore.fetchAll(),
-        iamStore.loadRolesCatalog(),
-    ])
+    await store.bootstrapManagement()
+    await store.fetchAll()
 })
 
 // ── Computed ──────────────────────────────────────────────
@@ -80,26 +72,30 @@ const filteredUsers = computed(() => {
     return list
 })
 
-const {
-    page: usersPage,
-    pageSize: usersPageSize,
-    paginatedItems: paginatedUsers,
-    totalPages: usersTotalPages,
-    rangeStart: usersRangeStart,
-    rangeEnd: usersRangeEnd,
-    totalItems: usersTotalItems,
-} = useTablePagination(filteredUsers)
+const userTableColumns = [
+    { field: 'fullName', header: 'Usuario', sortable: true, template: 'user-name', style: 'min-width: 200px' },
+    { field: 'email', header: 'Email', sortable: true, style: 'min-width: 180px' },
+    { field: 'role', header: 'Rol', sortable: true, template: 'user-role', style: 'min-width: 130px' },
+    { field: 'sucursalNombre', header: 'Sucursal', sortable: true, style: 'min-width: 120px' },
+    { field: 'isActive', header: 'Estado', sortable: true, template: 'user-status', style: 'min-width: 100px' },
+    { field: 'actions', header: '', sortable: false, template: 'user-actions', style: 'min-width: 7rem' },
+]
+
+function userRowClass(data) {
+    return [
+        'user-row--clickable',
+        !data.isActive ? 'user-row--inactive' : '',
+    ].filter(Boolean).join(' ')
+}
 
 const totalUsers    = computed(() => store.users.length)
 const activeUsers   = computed(() => store.users.filter(u => u.isActive).length)
 const inactiveUsers = computed(() => store.users.filter(u => !u.isActive).length)
 
-const branchOptions = computed(() =>
-    branchStore.items.map(b => ({ value: b.id, label: b.nombre }))
-)
+const branchOptions = computed(() => store.branchOptions)
 
 const roleOptions = computed(() =>
-    buildUserRoleOptions(assignableRolesForPlan.value).map(({ value, label }) => ({ value, label }))
+    store.roleOptionsForPlan(entitlements.value).map(({ value, label }) => ({ value, label })),
 )
 
 // ── Roles & Permissions data ──────────────────────────────
@@ -175,12 +171,44 @@ function openDetail(user) {
 }
 
 function onDelete(user) {
-    confirmDelete('el usuario', user.fullName, () => store.remove(user.id))
+    confirmDelete('el usuario', user.fullName, async () => {
+        const result = await store.remove(user.id)
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted('Usuario'))
+        else showError(result.message)
+    })
 }
 
-function onDialogSaved() {
+async function onUserSaved(payload) {
+    const isEdit = !!editingUser.value
+    const result = isEdit
+        ? await store.update(editingUser.value.id, payload)
+        : await store.create(payload)
+
+    if (!result.ok) {
+        showError(result.message)
+        return
+    }
+
+    if (payload.role === 'BRANCH_ADMIN' && payload.sucursalId) {
+        const fullName = `${payload.nombres} ${payload.apellidos}`.trim()
+        const userId = isEdit
+            ? editingUser.value.id
+            : (result.id ?? store.users.find(u => u.username === payload.username)?.id)
+        if (userId) {
+            const branchResult = await store.assignBranchManager(payload.sucursalId, {
+                encargadoId: userId,
+                encargadoNombre: fullName,
+            })
+            if (!branchResult.ok) {
+                showError(branchResult.message)
+                return
+            }
+        }
+    }
+
     showDialog.value = false
     editingUser.value = null
+    showSuccess(isEdit ? CRUD_MESSAGES.updated('Usuario') : CRUD_MESSAGES.created('Usuario'))
 }
 
 function roleConfig(role) {
@@ -245,122 +273,112 @@ function clearSearch() {
                 </div>
             </div>
 
-            <!-- ── Toolbar ───────────────────────────────────────────── -->
-            <div class="flex align-items-center gap-2">
-                <div class="search-wrapper flex-1">
-                    <i class="pi pi-search search-wrapper__icon"></i>
-                    <pv-input-text
-                        v-model="searchQuery"
-                        placeholder="Buscar por nombre, usuario, email, documento..."
-                        class="w-full search-wrapper__input"
-                    />
-                </div>
-                <pv-select
-                    v-model="filterBranch"
-                    :options="[{ value: '', label: 'Todas las sucursales' }, ...branchOptions]"
-                    option-label="label"
-                    option-value="value"
-                    placeholder="Sucursal"
-                    class="user-filter-select"
-                />
-                <pv-select
-                    v-model="filterRole"
-                    :options="[{ value: '', label: 'Todos los roles' }, ...roleOptions]"
-                    option-label="label"
-                    option-value="value"
-                    placeholder="Rol"
-                    class="user-filter-select"
-                />
-                <pv-button label="Nuevo Usuario" icon="pi pi-plus" size="small" severity="info" @click="openCreate" />
-            </div>
-
-            <!-- ── Loading / Empty ───────────────────────────────────── -->
-            <ModuleStateFeedback
+            <data-manager
+                class="users-table-manager flex-1 min-h-0"
+                :items="store.users"
+                :filtered-items="filteredUsers"
+                :columns="userTableColumns"
+                :title="{ singular: 'usuario', plural: 'usuarios' }"
                 :loading="store.isLoading"
-                :is-empty="filteredUsers.length === 0 && !store.isLoading"
+                :dynamic="true"
+                :global-filter-value="searchQuery"
+                :row-class="userRowClass"
+                search-placeholder="Buscar por nombre, usuario, email, documento..."
+                :inline-toolbar="true"
+                new-button-label="Nuevo Usuario"
+                :show-selection="false"
+                :show-export="false"
+                :show-actions="false"
                 empty-icon="pi-users"
                 empty-title="Sin usuarios"
                 empty-subtitle="Cree usuarios para asignarlos a las sucursales."
-            />
+                item-label="usuarios"
+                :rows="12"
+                @new-item-requested-manager="openCreate"
+                @global-filter-change="searchQuery = $event"
+                @view-item-requested-manager="openDetail"
+            >
+                <template #filters>
+                    <pv-select
+                        v-model="filterBranch"
+                        :options="[{ value: '', label: 'Todas las sucursales' }, ...branchOptions]"
+                        option-label="label"
+                        option-value="value"
+                        placeholder="Sucursal"
+                        class="user-filter-select"
+                    />
+                    <pv-select
+                        v-model="filterRole"
+                        :options="[{ value: '', label: 'Todos los roles' }, ...roleOptions]"
+                        option-label="label"
+                        option-value="value"
+                        placeholder="Rol"
+                        class="user-filter-select"
+                    />
+                </template>
 
-            <!-- ── Table ──────────────────────────────────────────────── -->
-            <div v-if="!store.isLoading && filteredUsers.length > 0" class="user-table-wrap">
-                <table class="user-table">
-                    <thead>
-                        <tr>
-                            <th>Usuario</th>
-                            <th>Email</th>
-                            <th>Rol</th>
-                            <th>Sucursal</th>
-                            <th>Estado</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="user in paginatedUsers"
-                            :key="user.id"
-                            :class="['user-row', !user.isActive && 'user-row--inactive']"
-                            @click="openDetail(user)"
+                <template #user-name="{ data: user }">
+                    <div class="user-cell-name">
+                        <div class="user-cell-avatar" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
+                            {{ user.initials }}
+                        </div>
+                        <div>
+                            <span class="user-cell-fullname">{{ user.fullName }}</span>
+                            <span class="user-cell-username">@{{ user.username }}</span>
+                        </div>
+                    </div>
+                </template>
+
+                <template #user-role="{ data: user }">
+                    <span class="user-role-badge" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
+                        <i :class="['pi', roleConfig(user.role).icon]"></i>
+                        {{ roleConfig(user.role).label }}
+                    </span>
+                </template>
+
+                <template #user-status="{ data: user }">
+                    <span :class="['status-badge', user.isActive ? 'status-badge--on' : 'status-badge--off']">
+                        {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                    </span>
+                </template>
+
+                <template #user-actions="{ data: user }">
+                    <div class="user-row-actions">
+                        <button
+                            type="button"
+                            class="dm-action-btn"
+                            :class="user.isActive ? 'dm-action-btn--power-on' : 'dm-action-btn--power-off'"
+                            :title="user.isActive ? 'Desactivar' : 'Activar'"
+                            @click.stop="store.toggleActive(user.id)"
                         >
-                            <td>
-                                <div class="user-cell-name">
-                                    <div class="user-cell-avatar" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
-                                        {{ user.initials }}
-                                    </div>
-                                    <div>
-                                        <span class="user-cell-fullname">{{ user.fullName }}</span>
-                                        <span class="user-cell-username">@{{ user.username }}</span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="td-email">{{ user.email }}</td>
-                            <td>
-                                <span class="user-role-badge" :style="{ background: roleConfig(user.role).bg, color: roleConfig(user.role).color }">
-                                    <i :class="['pi', roleConfig(user.role).icon]"></i>
-                                    {{ roleConfig(user.role).label }}
-                                </span>
-                            </td>
-                            <td class="td-branch">{{ user.sucursalNombre || '—' }}</td>
-                            <td>
-                                <span :class="['status-badge', user.isActive ? 'status-badge--on' : 'status-badge--off']">
-                                    {{ user.isActive ? 'Activo' : 'Inactivo' }}
-                                </span>
-                            </td>
-                            <td class="td-actions">
-                                <pv-button icon="pi pi-power-off" text rounded size="small"
-                                    :severity="user.isActive ? 'success' : 'secondary'"
-                                    :title="user.isActive ? 'Desactivar' : 'Activar'"
-                                    @click.stop="store.toggleActive(user.id)"
-                                />
-                                <pv-button icon="pi pi-pencil" text rounded size="small" severity="info"
-                                    @click.stop="openEdit(user)"
-                                />
-                                <pv-button icon="pi pi-trash" text rounded size="small" severity="danger"
-                                    @click.stop="onDelete(user)"
-                                />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <table-pagination-bar
-                    v-model:page="usersPage"
-                    v-model:page-size="usersPageSize"
-                    :total-pages="usersTotalPages"
-                    :range-start="usersRangeStart"
-                    :range-end="usersRangeEnd"
-                    :total-items="usersTotalItems"
-                    item-label="usuarios"
-                />
-            </div>
+                            <i class="pi pi-power-off" />
+                        </button>
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--edit"
+                            title="Editar"
+                            @click.stop="openEdit(user)"
+                        >
+                            <i class="pi pi-pencil" />
+                        </button>
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--delete"
+                            title="Eliminar"
+                            @click.stop="onDelete(user)"
+                        >
+                            <i class="pi pi-trash" />
+                        </button>
+                    </div>
+                </template>
+            </data-manager>
 
             <!-- Dialog crear/editar -->
             <CreateAndEditUser
-                v-if="showDialog"
-                :visible="showDialog"
+                v-model:visible="showDialog"
+                :edit="!!editingUser"
                 :user="editingUser"
-                @close="showDialog = false"
-                @saved="onDialogSaved"
+                @user-saved="onUserSaved"
             />
 
             <!-- Dialog detalle -->
@@ -507,52 +525,19 @@ function clearSearch() {
 
 .user-filter-select { width: 220px; }
 
-/* ── Table ────────────────────────────────────────────────────────────────── */
-.user-table-wrap {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    overflow: hidden;
+.users-table-manager {
+    flex: 1;
+    min-height: 0;
 }
 
-.user-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.83rem;
+.user-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
 }
 
-.user-table thead tr {
-    background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.user-table th {
-    padding: 0.7rem 0.85rem;
-    text-align: left;
-    font-size: 0.73rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-.user-row {
-    border-bottom: 1px solid #f3f4f6;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.user-row:hover { background: #fafafe; }
-.user-row--inactive { opacity: 0.55; }
-.user-row--inactive:hover { opacity: 0.75; }
-
-.user-table td {
-    padding: 0.65rem 0.85rem;
-    color: #374151;
-    vertical-align: middle;
-}
-
-/* Name cell: avatar + name/username */
+/* ── Celdas de usuario ───────────────────────────────────────────────────── */
 .user-cell-name {
     display: flex;
     align-items: center;

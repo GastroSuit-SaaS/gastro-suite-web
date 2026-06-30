@@ -1,8 +1,11 @@
 import { Sale, SALE_STATUS, SALE_TYPE, DELIVERY_STATUS } from '../../domain/models/sale.entity.js';
 import { SaleItem } from '../../domain/models/sale-item.entity.js';
-import { entitiesFromResponse, entityFromResponse, extractResource } from '../../../shared/infrustructure/api-response.js';
+import { isPersistedSaleId } from '../../domain/sale.persistence.js';
+import { entitiesFromResponse, entityFromResponse, extractResource } from '../../../shared/infrastructure/api-response.js';
 import { requireActiveBranchId } from '../../../shared/application/tenant-context.js';
 import { PaymentAssembler } from '../../../payments/infrastructure/assemblers/payment.assembler.js';
+
+export { isPersistedSaleId } from '../../domain/sale.persistence.js';
 
 const API_STATUS = Object.freeze({
     [SALE_STATUS.ACTIVE]:    'ACTIVE',
@@ -19,16 +22,6 @@ const DOMAIN_STATUS = Object.freeze({
     CANCELLED: SALE_STATUS.CANCELLED,
     PENDING:   SALE_STATUS.PENDING,
 });
-
-/** RFC 4122 (v1–v8); el API usa UUID v7 time-ordered. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** @param {string|number|null|undefined} id */
-export function isPersistedSaleId(id) {
-    if (id == null) return false;
-    if (typeof id === 'number' && id < 0) return false;
-    return UUID_RE.test(String(id).trim());
-}
 
 /**
  * POS Infrastructure - Sale Assembler

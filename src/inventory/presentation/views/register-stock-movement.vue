@@ -1,10 +1,10 @@
 <script setup>
 import { reactive, computed, watch } from 'vue'
 import { MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../../domain/models/stock-movement.entity.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useInventoryStore } from '../../application/inventory.store.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 
-const iamStore = useIamStore()
+const inventoryStore = useInventoryStore()
 
 const props = defineProps({
     visible:  { type: Boolean, default: false },
@@ -102,7 +102,7 @@ const productOptions = computed(() =>
 )
 
 const registrarLabel = computed(() => {
-    const user = iamStore.currentUser
+    const user = inventoryStore.currentUser
     if (!user) return 'Sesión no disponible'
     if (user.employeeId) {
         return user.fullName || [user.nombres, user.apellidos].filter(Boolean).join(' ').trim() || user.username
@@ -112,7 +112,7 @@ const registrarLabel = computed(() => {
 
 const canSave = computed(() => {
     if (!form.productId || form.quantity <= 0) return false
-    return props.edit || !!iamStore.currentUser
+    return props.edit || !!inventoryStore.currentUser
 })
 
 const onCancel = () => emit('update:visible', false)

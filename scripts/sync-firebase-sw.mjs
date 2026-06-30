@@ -113,6 +113,28 @@ function resolveCredentialsPath(env) {
     return null;
 }
 
+function resolveVapidKey(env, credentialsPath) {
+    const fromEnv = env.VITE_FIREBASE_VAPID_KEY ?? process.env.VITE_FIREBASE_VAPID_KEY ?? '';
+    if (fromEnv.trim()) return fromEnv.trim();
+
+    const localEnv = loadEnvFile('.env.development.local');
+    if (localEnv.VITE_FIREBASE_VAPID_KEY?.trim()) return localEnv.VITE_FIREBASE_VAPID_KEY.trim();
+
+    const candidates = [
+        resolve(root, '../gastro-suite-api/secrets/firebase-vapid.key'),
+        resolve(root, '../gastro-suite-api/secrets/firebase-vapid.txt'),
+        credentialsPath ? resolve(credentialsPath, '..', 'firebase-vapid.key') : null,
+    ].filter(Boolean);
+
+    for (const path of candidates) {
+        if (existsSync(path)) {
+            const value = readFileSync(path, 'utf8').trim();
+            if (value) return value;
+        }
+    }
+    return '';
+}
+
 function buildSwContent(config) {
     return `/* Auto-generado por scripts/sync-firebase-sw.mjs — no editar a mano */
 importScripts('https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js');
@@ -174,7 +196,7 @@ let config = {
     messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
     appId: env.VITE_FIREBASE_APP_ID ?? '',
 };
-let vapidKey = env.VITE_FIREBASE_VAPID_KEY ?? '';
+let vapidKey = resolveVapidKey(env, resolveCredentialsPath(env));
 
 if (!config.apiKey || !config.projectId) {
     const credentialsPath = resolveCredentialsPath(env);
@@ -187,8 +209,9 @@ if (!config.apiKey || !config.projectId) {
     const webConfig = await fetchWebAppConfig(serviceAccount);
     config = webConfig;
 
-    const localEnv = loadEnvFile('.env.development.local');
-    vapidKey = vapidKey || localEnv.VITE_FIREBASE_VAPID_KEY || '';
+    if (!vapidKey) {
+        vapidKey = resolveVapidKey(env, credentialsPath);
+    }
 
     writeEnvFile('.env.development.local', {
         VITE_FIREBASE_API_KEY: config.apiKey,
@@ -201,8 +224,18 @@ if (!config.apiKey || !config.projectId) {
 
     console.log(`[firebase-sw] Config web desde ${credentialsPath} (${webConfig.displayName ?? webConfig.appId})`);
     if (!vapidKey) {
-        console.warn('[firebase-sw] Falta VITE_FIREBASE_VAPID_KEY — añádela en .env.development.local (Firebase Console → Cloud Messaging)');
+        console.warn('[firebase-sw] Falta VITE_FIREBASE_VAPID_KEY — añádela en .env.development.local o secrets/firebase-vapid.key');
     }
+} else if (vapidKey) {
+    const localEnv = loadEnvFile('.env.development.local');
+    writeEnvFile('.env.development.local', {
+        VITE_FIREBASE_API_KEY: config.apiKey || localEnv.VITE_FIREBASE_API_KEY,
+        VITE_FIREBASE_AUTH_DOMAIN: config.authDomain || localEnv.VITE_FIREBASE_AUTH_DOMAIN,
+        VITE_FIREBASE_PROJECT_ID: config.projectId || localEnv.VITE_FIREBASE_PROJECT_ID,
+        VITE_FIREBASE_MESSAGING_SENDER_ID: config.messagingSenderId || localEnv.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        VITE_FIREBASE_APP_ID: config.appId || localEnv.VITE_FIREBASE_APP_ID,
+        VITE_FIREBASE_VAPID_KEY: vapidKey,
+    });
 }
 
 const outPath = resolve(root, 'public', 'firebase-messaging-sw.js');

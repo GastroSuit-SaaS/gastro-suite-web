@@ -62,7 +62,6 @@ const onSave = () => {
     if (isDuplicate.value) return
     const table = new Table({ ...form, number: id })
     emit('table-saved', table)
-    emit('update:visible', false)
 }
 </script>
 

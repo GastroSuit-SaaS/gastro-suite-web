@@ -1,13 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useReservationsStore } from '../../application/reservations.store.js'
 import { useTablesStore } from '../../application/tables.store.js'
-import { usePosStore } from '../../../pos/application/pos.store.js'
 import DataManager from '../../../shared/presentation/components/data-manager.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import CreateReservationDialog from '../components/create-reservation-dialog.vue'
-import { useNotification } from '../../../shared/composables/use-notification.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
 import {
     RESERVATION_STATUS_LABELS,
     RESERVATIONS_MESSAGES,
@@ -15,9 +13,7 @@ import {
     RESERVATION_TABLE_FILTER_OPTIONS,
 } from '../constants/reservations.constants-ui.js'
 
-const store = useReservationsStore()
 const tablesStore = useTablesStore()
-const posStore = usePosStore()
 const router = useRouter()
 const { showSuccess, showError } = useNotification()
 
@@ -28,11 +24,11 @@ const tableFilter = ref('')
 
 onMounted(async () => {
     await tablesStore.fetchAll()
-    await store.fetchByDate()
+    await tablesStore.fetchByDate()
 })
 
 const tableRows = computed(() =>
-    store.reservations.map(r => ({
+    tablesStore.reservations.map(r => ({
         id: r.id,
         timeLabel: formatTime(r.reservedAt),
         guestName: r.guestName,
@@ -96,7 +92,7 @@ function clearFilters() {
 
 function onDateChange(event) {
     const value = event.target?.value
-    if (value) store.fetchByDate(value)
+    if (value) tablesStore.fetchByDate(value)
 }
 
 async function onReservationSaved(payload) {
@@ -114,34 +110,33 @@ async function onReservationSaved(payload) {
         return
     }
 
-    const saved = await store.create({ ...payload, guestName: name })
+    const saved = await tablesStore.createReservation({ ...payload, guestName: name })
     if (saved) {
         showSuccess(RESERVATIONS_MESSAGES.CREATE_SUCCESS)
         dialogOpen.value = false
-    } else if (store.error) {
-        showError(store.error)
+    } else if (tablesStore.reservationsError) {
+        showError(tablesStore.reservationsError)
     }
 }
 
 async function cancelReservation(row) {
-    const ok = await store.cancel(row.reservation.id)
+    const ok = await tablesStore.cancelReservation(row.reservation.id)
     if (ok) showSuccess(RESERVATIONS_MESSAGES.CANCEL_SUCCESS)
-    else if (store.error) showError(store.error)
+    else if (tablesStore.reservationsError) showError(tablesStore.reservationsError)
 }
 
 async function checkIn(row) {
     const r = row.reservation
-    const tableId = await store.checkIn(r.id, r.partySize)
+    const tableId = await tablesStore.checkInReservation(r.id, r.partySize)
     if (!tableId) {
-        if (store.error) showError(store.error)
+        if (tablesStore.reservationsError) showError(tablesStore.reservationsError)
         return
     }
     showSuccess(RESERVATIONS_MESSAGES.CHECKIN_SUCCESS)
     const table = tablesStore.tables.find(t => String(t.id) === String(tableId))
     if (table?.zoneId) {
         try {
-            await posStore.openSaleForTable(tableId, table.zoneId, r.partySize)
-            const sale = posStore.currentSale
+            const sale = await tablesStore.openPosOrderAfterCheckIn(tableId, table.zoneId, r.partySize)
             if (sale?.id) {
                 router.push({ name: 'pos-order', params: { saleId: String(sale.id) } })
                 return
@@ -164,10 +159,10 @@ function formatTime(d) {
 
 <template>
     <module-state-feedback
-        :loading="store.isLoading"
-        :error="store.error"
+        :loading="tablesStore.reservationsLoading"
+        :error="tablesStore.reservationsError"
         loading-label="Cargando reservas..."
-        @retry="store.fetchByDate()"
+        @retry="tablesStore.fetchByDate()"
     >
         <div class="reservations-panel">
             <data-manager
@@ -175,7 +170,7 @@ function formatTime(d) {
                 :items="filteredRows"
                 :columns="tableColumns"
                 :title="{ singular: 'reserva', plural: 'reservas' }"
-                :loading="store.isLoading"
+                :loading="tablesStore.reservationsLoading"
                 :dynamic="true"
                 :filtered-items="filteredRows"
                 :global-filter-value="searchQuery"
@@ -194,7 +189,7 @@ function formatTime(d) {
             >
                 <template #filters="{ clearFilters: clearDmFilters }">
                     <input
-                        :value="store.selectedDate"
+                        :value="tablesStore.selectedDate"
                         type="date"
                         class="res-filter res-filter--date"
                         title="Fecha del listado"

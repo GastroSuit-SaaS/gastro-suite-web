@@ -1,5 +1,5 @@
 import { Payment, PAYMENT_STATUS, PAYMENT_METHOD, RECEIPT_TYPE } from '../../domain/models/payment.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 import { requireActiveBranchId } from '../../../shared/application/tenant-context.js';
 
 const METHOD_TO_API = Object.freeze({

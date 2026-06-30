@@ -2,45 +2,18 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePosStore } from '../../application/pos.store.js'
-import { useCashRegisterStore } from '../../../cash-register/application/cash-register.store.js'
-import { useStationsStore } from '../../../stations/application/stations.store.js'
-import { useReservationsStore } from '../../../tables/application/reservations.store.js'
-import { useInventoryStore } from '../../../inventory/application/inventory.store.js'
-import { useTablesStore } from '../../../tables/application/tables.store.js'
-import { buildPosHubAlerts } from '../helpers/pos-hub-alerts.helpers.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const router = useRouter()
 const posStore = usePosStore()
-const cashRegisterStore = useCashRegisterStore()
-const stationsStore = useStationsStore()
-const reservationsStore = useReservationsStore()
-const inventoryStore = useInventoryStore()
-const tablesStore = useTablesStore()
 const { entitlements } = useSubscriptionEntitlements()
 
 onMounted(async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const tasks = [];
-    if (entitlements.value.hasKitchen) {
-        tasks.push(stationsStore.fetchAll?.().catch(() => {}));
-    }
-    if (entitlements.value.hasInventory) {
-        tasks.push(inventoryStore.fetchAll?.().catch(() => {}));
-    }
-    if (entitlements.value.hasReservations) {
-        tasks.push(reservationsStore.fetchByDateSilent?.(today).catch(() => {}));
-    }
-    await Promise.all(tasks);
+    await posStore.bootstrapHubAlerts(entitlements.value);
 });
 
 const alerts = computed(() =>
-    buildPosHubAlerts({
-        cashRegisterStore,
-        stationsStore,
-        reservationsStore,
-        inventoryStore,
-        tablesStore,
+    posStore.getHubAlerts({
         activeOrdersCount: posStore.activeOrders.length,
         entitlements: entitlements.value,
     }),

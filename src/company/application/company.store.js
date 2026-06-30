@@ -1,13 +1,17 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { CompanyApi } from '../infrastructure/api/company.api.js';
+import { CompanyAssembler } from '../infrastructure/assemblers/company.assembler.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
-import { useNotificationsStore } from '../../communication/application/notifications.store.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { useCommunicationStore } from '../../communication/application/communication.store.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { storeFailure, storeSuccess } from '../../shared/application/store-result.js';
+import { useCompanyFacade } from './company.facade.js';
 
 const api = new CompanyApi();
 
 export const useCompanyStore = defineStore('company', () => {
+    const facade = useCompanyFacade();
     const company = ref(null);
     const subscriptionSummary = ref(null);
     const availablePlans = ref([]);
@@ -45,7 +49,7 @@ export const useCompanyStore = defineStore('company', () => {
         try {
             const companyId = _requireCompanyId();
             const response = await api.getById(companyId);
-            company.value = response.data;
+            company.value = CompanyAssembler.toEntityFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al cargar los datos de la empresa');
             company.value = null;
@@ -59,12 +63,12 @@ export const useCompanyStore = defineStore('company', () => {
         error.value = null;
         try {
             const companyId = _requireCompanyId();
-            const response = await api.update(companyId, payload);
-            company.value = response.data;
-            return true;
+            const response = await api.update(companyId, CompanyAssembler.toUpdateRequest(payload));
+            company.value = CompanyAssembler.toEntityFromResponse(response);
+            return storeSuccess();
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al guardar los datos de la empresa');
-            return false;
+            return storeFailure(e, 'Error al guardar los datos de la empresa');
         } finally {
             isSaving.value = false;
         }
@@ -87,7 +91,7 @@ export const useCompanyStore = defineStore('company', () => {
             isPlansLoading.value = false;
             subscriptionFetchAttempted.value = true;
             try {
-                const notificationsStore = useNotificationsStore();
+                const notificationsStore = useCommunicationStore();
                 await notificationsStore.fetchUnreadCount();
                 await notificationsStore.registerPushTokenIfAvailable();
             } catch {
@@ -124,10 +128,10 @@ export const useCompanyStore = defineStore('company', () => {
                 ownerNotes,
             });
             subscriptionSummary.value = response.data;
-            return true;
+            return storeSuccess();
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo enviar la solicitud de suscripción');
-            return false;
+            return storeFailure(e, 'No se pudo enviar la solicitud de suscripción');
         } finally {
             isChoosingPlan.value = false;
         }
@@ -169,5 +173,6 @@ export const useCompanyStore = defineStore('company', () => {
         fetchAvailablePlans,
         choosePlan,
         $reset,
+        hasBranchSelected: facade.hasBranchSelected,
     };
 });

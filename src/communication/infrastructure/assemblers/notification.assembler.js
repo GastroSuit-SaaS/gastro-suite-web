@@ -1,29 +1,7 @@
-export class Notification {
-    constructor({
-        id = null,
-        userId = null,
-        title = '',
-        body = '',
-        status = 'UNREAD',
-        createdAt = null,
-        readAt = null,
-    } = {}) {
-        this.id = id;
-        this.userId = userId;
-        this.title = title;
-        this.body = body;
-        this.status = status;
-        this.createdAt = createdAt;
-        this.readAt = readAt;
-    }
+import { Notification } from '../../domain/models/notification.entity.js';
 
-    get isUnread() {
-        return this.status === 'UNREAD';
-    }
-}
-
-export const NotificationAssembler = {
-    toEntityFromResource(r) {
+export class NotificationAssembler {
+    static toEntityFromResource(r) {
         if (!r) return null;
         return new Notification({
             id: r.id,
@@ -34,10 +12,23 @@ export const NotificationAssembler = {
             createdAt: r.createdAt,
             readAt: r.readAt,
         });
-    },
+    }
 
-    toEntitiesFromResponse(response) {
+    static toEntitiesFromResponse(response) {
         const list = response?.data ?? [];
         return list.map((item) => NotificationAssembler.toEntityFromResource(item));
-    },
-};
+    }
+
+    static toPageFromResponse(response) {
+        const data = response?.data ?? {};
+        const content = (data.content ?? []).map((item) => NotificationAssembler.toEntityFromResource(item));
+        return {
+            content,
+            totalElements: data.totalElements ?? content.length,
+            currentPage: data.currentPage ?? 0,
+            pageSize: data.pageSize ?? content.length,
+            totalPages: data.totalPages ?? 1,
+            hasNext: data.hasNext ?? false,
+        };
+    }
+}

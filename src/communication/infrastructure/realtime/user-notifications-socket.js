@@ -1,5 +1,5 @@
 import { Client } from '@stomp/stompjs';
-import { apiEnv, getPlatformApiUrl } from '../../../shared/infrustructure/env.js';
+import { apiEnv, getPlatformApiUrl } from '../../../shared/infrastructure/env.js';
 
 const DEFAULT_WS_URL = 'ws://localhost:8080/ws/operational';
 
@@ -78,8 +78,14 @@ export class UserNotificationsSocketClient {
         if (!this.#client?.connected || !this.#userId) return;
 
         const destination = userNotificationsTopic(this.#userId);
-        this.#client.subscribe(destination, () => {
-            this.#onMessage();
+        this.#client.subscribe(destination, (message) => {
+            let payload = null;
+            try {
+                payload = message.body ? JSON.parse(message.body) : null;
+            } catch {
+                payload = null;
+            }
+            this.#onMessage(payload);
         });
     }
 

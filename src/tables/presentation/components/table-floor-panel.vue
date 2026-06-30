@@ -1,6 +1,8 @@
 <script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { TABLE_STATUS_CONFIG, formatTableLabel } from '../constants/tables.constants-ui.js'
-import { useTableFloor } from '../composables/use-table-floor.js'
+import { useTablesStore } from '../../application/tables.store.js'
+import { useDateFormatter } from '../../../shared/presentation/composables/use-date-formatter.js'
 
 defineProps({
     showAdminActions: { type: Boolean, default: false },
@@ -8,21 +10,66 @@ defineProps({
 
 const emit = defineEmits(['assign', 'open-order', 'mark-available', 'clear-reservation', 'create-table'])
 
-const {
-    store,
-    posStore,
-    elapsedTime,
-    tableSearch,
-    selectedStatus,
-    zoneColorMap,
-    zoneFilterOptions,
-    selectedZoneFilter,
-    filteredAndSearched,
-    activeConsumption,
-    occupancyRate,
-    toggleStatus,
-    urgencyClass,
-} = useTableFloor()
+const store = useTablesStore()
+const { elapsedTime } = useDateFormatter()
+
+const now = ref(Date.now())
+let clockInterval = null
+
+onMounted(() => {
+    clockInterval = setInterval(() => { now.value = Date.now() }, 30_000)
+})
+
+onUnmounted(() => {
+    clearInterval(clockInterval)
+})
+
+const zoneColorMap = computed(() => {
+    const map = {}
+    store.allZones.forEach((z) => { map[z.id] = { color: z.color, name: z.name } })
+    return map
+})
+
+const tableSearch = ref('')
+const selectedStatus = ref(null)
+const activeConsumption = computed(() => store.activePosConsumption)
+const occupancyRate = computed(() => store.occupancyRate)
+
+const zoneFilterOptions = computed(() => [
+    { label: `Todas las Zonas (${store.totalTables})`, value: '__all__', color: null },
+    ...store.zones.map((z) => ({
+        label: `${z.name} (${z.tableCount})`,
+        value: z.id,
+        color: z.color,
+    })),
+])
+
+const selectedZoneFilter = computed({
+    get: () => store.selectedZoneId ?? '__all__',
+    set: (val) => store.selectZone(val === '__all__' ? null : val),
+})
+
+const filteredAndSearched = computed(() => {
+    let base = store.filteredTables
+    if (selectedStatus.value) base = base.filter((t) => t.status === selectedStatus.value)
+    if (!tableSearch.value.trim()) return base
+    const q = tableSearch.value.trim().toLowerCase()
+    return base.filter((t) => String(t.number).toLowerCase().includes(q))
+})
+
+function saleByTableId(tableId) {
+    return store.saleByTableId(tableId)
+}
+
+function toggleStatus(status) {
+    selectedStatus.value = selectedStatus.value === status ? null : status
+}
+
+function urgencyClass(table) {
+    const _ = now.value
+    const level = table.urgencyLevel
+    return level !== 'ok' ? `table-card--${level}` : ''
+}
 </script>
 
 <template>
@@ -160,12 +207,12 @@ const {
                 <div class="table-card__divider"></div>
                 <div class="table-card__footer">
                     <span class="table-card__status-label">{{ TABLE_STATUS_CONFIG[table.status]?.label ?? table.status }}</span>
-                    <template v-if="table.status === 'occupied' && posStore.saleByTableId(table.id)">
+                    <template v-if="table.status === 'occupied' && saleByTableId(table.id)">
                         <div class="table-card__order-info">
                             <div class="table-card__order-row">
                                 <span class="table-card__order-time">{{ elapsedTime(table.occupiedSince) }}</span>
                                 <span class="table-card__order-amount">
-                                    S/ {{ (posStore.saleByTableId(table.id)?.total ?? 0).toFixed(2) }}
+                                    S/ {{ (saleByTableId(table.id)?.total ?? 0).toFixed(2) }}
                                 </span>
                             </div>
                         </div>

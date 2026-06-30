@@ -1,4 +1,4 @@
-ï»¿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { usePaymentsStore } from '../../payments/application/payments.store.js';
 import { usePosStore } from '../../pos/application/pos.store.js';
@@ -6,12 +6,11 @@ import { useTablesStore } from '../../tables/application/tables.store.js';
 import { useStationsStore } from '../../stations/application/stations.store.js';
 import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 import { useInventoryStore } from '../../inventory/application/inventory.store.js';
-import { useReservationsStore } from '../../tables/application/reservations.store.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
 import { pickOldestActiveBranch } from '../../branches/domain/branch-selection.helpers.js';
-import { SESSION_KEYS } from '../../shared/infrustructure/session-storage.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { SESSION_KEYS } from '../../shared/infrastructure/session-storage.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
 import { dashboardApi } from '../infrastructure/api/dashboard.api.js';
 import { DashboardMetricAssembler } from '../infrastructure/assemblers/dashboard-metric.assembler.js';
 import { DashboardComparisonAssembler } from '../infrastructure/assemblers/dashboard-comparison.assembler.js';
@@ -20,7 +19,7 @@ import { buildOperationalMetricsFromClientStores } from './dashboard-metrics.bui
 import {
     buildOperationalAlerts,
     buildPaymentMethodRows,
-} from '../presentation/constants/dashboard.constants-ui.js';
+} from './dashboard-operational.helpers.js';
 import {
     buildAlertCards,
     buildChannelBreakdown,
@@ -33,7 +32,13 @@ import {
     buildAreaChartPath,
     buildAreaChartLinePath,
     estimateCovers,
-} from '../presentation/helpers/dashboard-view.helpers.js';
+    formatDashboardDateShort,
+    formatRelativeTime,
+    formatReservationTime,
+    getOrderStatusMeta,
+    getReservationStatusMeta,
+} from './dashboard-view.helpers.js';
+import { useDashboardFacade } from './dashboard.facade.js';
 
 export const useDashboardStore = defineStore('dashboard', () => {
     const paymentsStore = usePaymentsStore();
@@ -42,8 +47,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const stationsStore = useStationsStore();
     const cashRegisterStore = useCashRegisterStore();
     const inventoryStore = useInventoryStore();
-    const reservationsStore = useReservationsStore();
+    const facade = useDashboardFacade();
 
+    const ownerViewBootstrapping = ref(false);
     const isLoading = ref(false);
     const error = ref(null);
     /** api | client */
@@ -58,7 +64,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const comparison = ref(null);
 
     /**
-     * Sucursal cuyas mÃ©tricas muestra el dashboard (OWNER).
+     * Sucursal cuyas mtricas muestra el dashboard (OWNER).
      * Independiente de iam.activeBranchId usado en POS/caja/etc.
      */
     const viewBranchId = ref(
@@ -82,7 +88,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         }
     }
 
-    /** OWNER: sucursal mÃ¡s antigua por defecto si aÃºn no hay vista elegida. */
+    /** OWNER: sucursal ms antigua por defecto si an no hay vista elegida. */
     function initOwnerViewBranch(activeBranches) {
         const iamStore = useIamStore();
         if (!iamStore.isOwner || !activeBranches?.length) return;
@@ -136,7 +142,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     });
 
     const upcomingReservations = computed(() =>
-        buildUpcomingReservations(reservationsStore.activeReservations ?? []),
+        buildUpcomingReservations(tablesStore.activeReservations ?? []),
     );
 
     const alertCards = computed(() =>
@@ -147,7 +153,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         const businessDate = metrics.value?.businessDate ?? new Date().toISOString().slice(0, 10);
         await Promise.all([
             paymentsStore.fetchAllSilent(),
-            reservationsStore.fetchByDateSilent(businessDate),
+            tablesStore.fetchByDateSilent(businessDate),
         ]);
         if (metricsSource.value === 'client') {
             await posStore.fetchAll().catch(() => {});
@@ -158,7 +164,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         const iamStore = useIamStore();
         const branchId = effectiveViewBranchId();
         if (iamStore.isOwner && branchId && String(branchId) !== String(iamStore.activeBranchId)) {
-            throw new Error('Vista de otra sucursal: use mÃ©tricas del servidor');
+            throw new Error('Vista de otra sucursal: use mtricas del servidor');
         }
         requireActiveBranchId();
         const today = new Date().toISOString().slice(0, 10);
@@ -169,7 +175,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
             stationsStore.fetchAll(),
             cashRegisterStore.fetchAll(),
             inventoryStore.fetchAll?.() ?? Promise.resolve(),
-            reservationsStore.fetchByDate(today).catch(() => {}),
+            tablesStore.fetchByDate(today).catch(() => {}),
         ]);
         metrics.value = buildOperationalMetricsFromClientStores({
             paymentsStore,
@@ -178,7 +184,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
             stationsStore,
             cashRegisterStore,
             inventoryStore,
-            reservationsCount: reservationsStore.activeReservations?.length ?? 0,
+            reservationsCount: tablesStore.activeReservations?.length ?? 0,
             businessDate: today,
         });
         metricsSource.value = 'client';
@@ -188,7 +194,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         const branchId = effectiveViewBranchId();
         if (!branchId) throw new Error('Sin sucursal para el dashboard');
         const response = await dashboardApi.getMetrics(branchId);
-        metrics.value = DashboardMetricAssembler.fromApiResponse(response);
+        metrics.value = DashboardMetricAssembler.toEntityFromResponse(response);
         metricsSource.value = 'api';
     }
 
@@ -211,7 +217,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         comparisonPeriod.value = period;
         try {
             const response = await dashboardApi.getComparison(branchId, { compare: period });
-            comparison.value = DashboardComparisonAssembler.fromApiResponse(response);
+            comparison.value = DashboardComparisonAssembler.toEntityFromResponse(response);
         } catch (e) {
             comparisonError.value = getApiErrorMessage(e, 'Error al cargar la comparativa');
         } finally {
@@ -260,6 +266,24 @@ export const useDashboardStore = defineStore('dashboard', () => {
         } catch { /* tolera fallos parciales en refresh */ }
     }
 
+    async function bootstrapOwnerView() {
+        if (!facade.isOwner.value) {
+            return { ready: facade.hasBranchSelected.value };
+        }
+        ownerViewBootstrapping.value = true;
+        try {
+            await facade.ensureBranchesLoaded();
+            initOwnerViewBranch(facade.activeBranches.value);
+            return { ready: !!viewBranchId.value };
+        } finally {
+            ownerViewBootstrapping.value = false;
+        }
+    }
+
+    function compareOptionsForEntitlements(entitlements) {
+        return facade.compareOptionsForEntitlements(entitlements);
+    }
+
     return {
         isLoading,
         error,
@@ -288,5 +312,18 @@ export const useDashboardStore = defineStore('dashboard', () => {
         fetchComparison,
         setComparisonPeriod,
         handleOperationalEvent,
+        ownerViewBootstrapping,
+        isOwner: facade.isOwner,
+        hasBranchSelected: facade.hasBranchSelected,
+        userGreetingName: facade.userGreetingName,
+        ownerBranchOptions: facade.ownerBranchOptions,
+        bootstrapOwnerView,
+        compareOptionsForEntitlements,
+        comparisonPeriodNone: facade.COMPARISON_PERIOD_NONE,
+        formatDashboardDateShort,
+        formatRelativeTime,
+        formatReservationTime,
+        getOrderStatusMeta,
+        getReservationStatusMeta,
     };
 });

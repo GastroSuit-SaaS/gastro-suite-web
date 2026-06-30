@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { setToolbarContext, clearToolbarContext, toolbarContext } from '../../../shared/composables/use-toolbar-context.js'
+import { setToolbarContext, clearToolbarContext, toolbarContext } from '../../../shared/presentation/composables/use-toolbar-context.js'
 import { useRoute, useRouter }  from 'vue-router'
 import { useToast }             from 'primevue/usetoast'
 import { usePosStore }          from '../../application/pos.store.js'
@@ -10,15 +10,12 @@ import {
     RECEIPT_TYPES,
 } from '../constants/pos.constants-ui.js'
 import SplitBillDialog from '../components/split-bill-dialog.vue'
-import { useCentralCashSession } from '../../../shared/composables/use-central-cash-session.js'
-import { useMenuStore } from '../../../menu/application/menu.store.js'
-import { isNetworkOnline } from '../../application/pos-offline-sync.js'
+import { useCentralCashSession } from '../../../shared/presentation/composables/use-central-cash-session.js'
 
 const route    = useRoute()
 const router   = useRouter()
 const toast    = useToast()
 const posStore = usePosStore()
-const menuStore = useMenuStore()
 const centralCash = useCentralCashSession()
 
 const tableId = computed(() => sale.value?.tableId ?? null)
@@ -39,7 +36,7 @@ const billableUnits = computed(() =>
 function itemLineLabel(item) {
     const name = item?.menuItemName?.trim()
     if (name) return name
-    const fromMenu = menuStore.items.find(m => m.id === item?.menuItemId)?.name
+    const fromMenu = posStore.menuItemName(item?.menuItemId)
     if (fromMenu) return fromMenu
     return item?.menuItemId ? 'Producto' : 'Ítem sin nombre'
 }
@@ -222,7 +219,7 @@ const customerData = reactive({
 
 // ── Validación global ──────────────────────────────────────────────────────
 const canConfirm = computed(() => {
-    if (!isNetworkOnline()) return false
+    if (!posStore.isNetworkOnline()) return false
     if (!centralCash.isOpen.value) return false
     if (!sale.value || sale.value.items.length === 0) return false
     if (partialMode.value) {
@@ -841,7 +838,7 @@ async function confirmPayment() {
 
             <!-- Botones de acción -->
             <div class="payment-panel__actions">
-                <p v-if="!isNetworkOnline()" class="text-sm text-orange-600 mb-2">
+                <p v-if="!posStore.isNetworkOnline()" class="text-sm text-orange-600 mb-2">
                     Sin conexión — el cobro requiere internet. Puedes seguir editando la orden en otra pantalla.
                 </p>
                 <button

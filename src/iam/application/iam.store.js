@@ -6,17 +6,21 @@ import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
 import { RoleAssembler } from '../infrastructure/assemblers/role.assembler.js';
 import { RegistrationAssembler } from '../infrastructure/assemblers/registration.assembler.js';
 import { User } from '../domain/models/user.entity.js';
-import { ROLES } from '../../shared/presentation/constants/roles.constants.js';
-import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrustructure/session-storage.js';
-import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
-import { appLogger } from '../../shared/infrustructure/app-logger.js';
+import { ROLES } from '../../shared/domain/roles.js';
+import { SESSION_KEYS, clearAllAppLocalStorage } from '../../shared/infrastructure/session-storage.js';
+import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrastructure/api-error.js';
+import { appLogger } from '../../shared/infrastructure/app-logger.js';
 import { logRegisterFailure, resolveRegisterErrorMessage } from '../infrastructure/register-error.js';
 import { resolvePasswordResetErrorMessage } from '../infrastructure/password-reset-error.js';
-import { clearSignUpDraft } from '../infrastructure/sign-up-draft.js';
-import { resetOperationalSocketClient } from '../../shared/infrustructure/realtime/operational-socket.js';
+import {
+    loadSignUpDraft as loadSignUpDraftFromStorage,
+    saveSignUpDraft as saveSignUpDraftToStorage,
+    clearSignUpDraft as clearSignUpDraftFromStorage,
+} from '../infrastructure/sign-up-draft.js';
+import { resetOperationalSocketClient } from '../../shared/infrastructure/realtime/operational-socket.js';
 import { resetApplicationStores } from '../../shared/application/reset-application-stores.js';
 import { resetBranchOperationalContext } from '../../shared/application/branch-switch.js';
-import { useNotificationsStore } from '../../communication/application/notifications.store.js';
+import { useCommunicationStore } from '../../communication/application/communication.store.js';
 
 const api = new IamApi();
 const rolesApi = new RolesApi();
@@ -108,7 +112,7 @@ export const useIamStore = defineStore('iam', () => {
         rolesCatalogSource.value  = 'fallback';
         resetApplicationStores();
         clearAllAppLocalStorage();
-        clearSignUpDraft();
+        clearSignUpDraftFromStorage();
     }
 
     async function signIn(credentials) {
@@ -160,7 +164,7 @@ export const useIamStore = defineStore('iam', () => {
         error.value = null;
         resetOperationalSocketClient();
         try {
-            await useNotificationsStore().cleanupBeforeLogout();
+            await useCommunicationStore().cleanupBeforeLogout();
         } catch {
             /* best effort: la sesión se cierra igual */
         }
@@ -404,5 +408,8 @@ export const useIamStore = defineStore('iam', () => {
         selectBranch, clearBranch, ensureEmployeeLink, loadRolesCatalog,
         employeeLinkStatus, employeeLinkMessage,
         rolesCatalog, rolesCatalogSource, assignableRoles,
+        loadSignUpDraft: loadSignUpDraftFromStorage,
+        saveSignUpDraft: saveSignUpDraftToStorage,
+        clearSignUpDraft: clearSignUpDraftFromStorage,
     };
 });

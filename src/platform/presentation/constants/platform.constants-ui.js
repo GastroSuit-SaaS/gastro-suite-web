@@ -15,7 +15,15 @@ export const PLATFORM_AUDIT_ACTION_LABELS = Object.freeze({
     SUBSCRIPTION_PLAN_DELETED: 'Plan eliminado',
     SUBSCRIPTION_REQUEST_APPROVED: 'Solicitud aprobada',
     SUBSCRIPTION_REQUEST_REJECTED: 'Solicitud rechazada',
+    COMPANY_SUBSCRIPTION_ASSIGNED: 'Suscripción asignada',
+    COMPANY_SUBSCRIPTION_UPDATED: 'Suscripción actualizada',
+    COMPANY_SUBSCRIPTION_REVOKED: 'Suscripción revocada',
 });
+
+export const PLATFORM_SUBSCRIPTION_TYPE_OPTIONS = Object.freeze([
+    { value: 'MENSUAL', label: 'Mensual' },
+    { value: 'ANUAL', label: 'Anual' },
+]);
 
 export const PLATFORM_MENU_ITEMS = [
     {

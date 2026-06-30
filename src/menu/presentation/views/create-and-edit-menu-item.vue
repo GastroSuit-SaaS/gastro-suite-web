@@ -2,9 +2,8 @@
 import { reactive, ref, computed, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import FileUploader  from '../../../shared/presentation/components/file-uploader.vue'
-import { useStationsStore } from '../../../stations/application/stations.store.js'
-import { useMenuStore } from '../../../menu/application/menu.store.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useMenuStore } from '../../application/menu.store.js'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 // ===========================
 // PROPS & EMITS
@@ -23,12 +22,12 @@ const STATION_NONE = '__none__'
 // ===========================
 // STATIONS (from store — fuente de verdad)
 // ===========================
-const stationsStore = useStationsStore()
+const store = useMenuStore()
 const { entitlements } = useSubscriptionEntitlements()
 const kitchenRequired = computed(() => entitlements.value.hasKitchen)
 
 const stationOptions = computed(() => {
-    const stations = stationsStore.activeStations.map(s => ({
+    const stations = store.activeStations.map(s => ({
         id: s.id,
         name: s.name,
         icon: 'pi-bolt',
@@ -68,7 +67,7 @@ const errors = reactive({ name: false, categoryId: false, sku: false, price: fal
 watch(() => props.visible, async (val) => {
     if (val) {
         try {
-            await stationsStore.fetchStations()
+            await store.fetchStationsIfNeeded()
         } catch { /* opciones quedan con lo ya cargado */ }
         const src = props.item
         form.name        = src?.name        ?? ''
@@ -136,7 +135,6 @@ function onClose() {
         :visible="visible"
         :edit="edit"
         size="standard"
-        @update:visible="$emit('update:visible', $event)"
         @canceled-shared="onClose"
         @saved-shared="onSave"
     >

@@ -1,12 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useToast } from 'primevue/usetoast'
 import { useCompanyStore } from '../../application/company.store.js'
 import { COMPANY_MESSAGES } from '../constants/company.constants-ui.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
 
 const store = useCompanyStore()
-const toast = useToast()
+const { showSuccess, showError } = useNotification()
 
 const isEditing = ref(false)
 
@@ -46,21 +46,18 @@ function cancelEdit() {
 }
 
 async function onSubmit() {
-    const ok = await store.updateCompany({
+    const result = await store.updateCompany({
         companyTradeName: form.value.companyTradeName?.trim() || null,
         companyAddress: form.value.companyAddress?.trim() || null,
         companyPhone: form.value.companyPhone?.trim() || null,
         companyEmail: form.value.companyEmail?.trim() || null,
         isActive: form.value.isActive,
     })
-    if (ok) {
+    if (result.ok) {
         isEditing.value = false
-        toast.add({
-            severity: 'success',
-            summary: 'Guardado',
-            detail: COMPANY_MESSAGES.SAVE_SUCCESS,
-            life: 3000,
-        })
+        showSuccess(COMPANY_MESSAGES.SAVE_SUCCESS)
+    } else {
+        showError(result.message ?? store.error)
     }
 }
 </script>

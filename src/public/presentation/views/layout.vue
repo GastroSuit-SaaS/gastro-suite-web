@@ -1,43 +1,46 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
+import { clearToolbarContext } from '../../../shared/presentation/composables/use-toolbar-context.js'
 import Sidebar from '../components/sidebar.vue'
 import Toolbar from '../components/toolbar.vue'
 import { getMenuItemsByRole } from '../constants/layout.constants-ui.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useOperationalBootstrap } from '../../../shared/composables/use-operational-bootstrap.js'
-import { useOperationalSocket } from '../../../shared/composables/use-operational-socket.js'
+import { useShellFacade } from '../../../shared/application/shell.facade.js'
+import { useOperationalBootstrap } from '../../../shared/presentation/composables/use-operational-bootstrap.js'
+import { useOperationalSocket } from '../../../shared/presentation/composables/use-operational-socket.js'
 import CashRegisterStatusBanner from '../../../shared/presentation/components/cash-register-status-banner.vue'
 import EmployeeLinkStatusBanner from '../../../shared/presentation/components/employee-link-status-banner.vue'
 import LowStockStatusBanner from '../../../shared/presentation/components/low-stock-status-banner.vue'
 import OfflineStatusBanner from '../../../shared/presentation/components/offline-status-banner.vue'
 import SubscriptionGraceBanner from '../../../shared/presentation/components/subscription-grace-banner.vue'
-import NotificationsBell from '../../../communication/presentation/components/notifications-bell.vue'
-import { useNotificationsBootstrap } from '../../../shared/composables/use-notifications-bootstrap.js'
-import { useCompanyStore } from '../../../company/application/company.store.js'
+import { useNotificationsBootstrap } from '../../../shared/presentation/composables/use-notifications-bootstrap.js'
+import { usePlatformNotificationsSync } from '../../../shared/presentation/composables/use-platform-notifications-sync.js'
+import { useInAppNotificationToasts } from '../../../shared/presentation/composables/use-in-app-notification-toasts.js'
 import { ROLES } from '../../../shared/presentation/constants/roles.constants.js'
 
 useOperationalBootstrap()
 useOperationalSocket()
 useNotificationsBootstrap()
+usePlatformNotificationsSync()
+useInAppNotificationToasts()
 
-const route    = useRoute()
-const iamStore = useIamStore()
-const companyStore = useCompanyStore()
+const route = useRoute()
+const shell = useShellFacade()
 const collapsed = ref(window.innerWidth < 768)
 const toggleSidebar = () => { collapsed.value = !collapsed.value }
 
 const filteredMenuItems = computed(() =>
     getMenuItemsByRole(
-        iamStore.userRole,
-        iamStore.hasBranchSelected,
-        companyStore.features,
-        companyStore.subscriptionSummary,
+        shell.userRole.value,
+        shell.hasBranchSelected.value,
+        shell.features.value,
+        shell.subscriptionSummary.value,
     ),
 )
 
 /** Rutas que fijan el viewport: paneles internos con scroll (POS). */
+const routerViewKey = computed(() => shell.activeBranchId.value ?? 'global')
+
 const isPosFullscreenLayout = computed(() =>
   route.name === 'pos-order'
   || route.name === 'pos-payment'
@@ -48,19 +51,19 @@ watch(() => route.fullPath, () => {
 })
 
 watch(
-  () => [iamStore.isAuthenticated, iamStore.userRole, iamStore.companyId],
+  () => [shell.isAuthenticated.value, shell.userRole.value, shell.companyId.value],
   ([authenticated, role]) => {
     if (authenticated && role && role !== ROLES.SYSTEM) {
-      companyStore.fetchSubscriptionSummary()
+      shell.fetchSubscriptionSummary()
     }
   },
   { immediate: true },
 )
 
 watch(
-  () => iamStore.isAuthenticated,
+  () => shell.isAuthenticated.value,
   (authenticated) => {
-    if (authenticated) iamStore.loadRolesCatalog()
+    if (authenticated) shell.loadRolesCatalog()
   },
   { immediate: true },
 )
@@ -103,7 +106,7 @@ watch(
           <cash-register-status-banner />
           <low-stock-status-banner />
           <offline-status-banner />
-          <router-view :key="iamStore.activeBranchId ?? 'global'" />
+          <router-view :key="routerViewKey" />
         </div>
       </div>
     </main>

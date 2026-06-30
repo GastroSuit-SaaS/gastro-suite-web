@@ -2,10 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
 import { TICKET_STATUS } from '../../domain/models/station-ticket.entity.js'
-import {
-    filterHistoryTickets,
-    historySummaryStats,
-} from '../utils/stations-history.utils.js'
 import DataManager from '../../../shared/presentation/components/data-manager.vue'
 import TicketHistoryDetailDialog from './ticket-history-detail-dialog.vue'
 
@@ -54,20 +50,18 @@ const historyFilterParams = computed(() => ({
 }))
 
 const historyRows = computed(() =>
-    filterHistoryTickets(store.ticketHistory, {
-        ...historyFilterParams.value,
-    }),
+    store.filterTicketHistory(historyFilterParams.value),
 )
 
 const stats = computed(() => {
-    const rows = filterHistoryTickets(store.ticketHistory, {
+    const rows = store.filterTicketHistory({
         status: historyFilterParams.value.status,
         stationId: historyFilterParams.value.stationId,
         dateRange: historyFilterParams.value.dateRange,
         specificDate: historyFilterParams.value.specificDate,
         search: '',
     })
-    return historySummaryStats(rows.map(r => r.ticket))
+    return store.ticketHistoryStats(rows.map(r => r.ticket))
 })
 
 const tableColumns = [

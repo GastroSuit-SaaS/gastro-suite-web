@@ -1,5 +1,5 @@
 import { Table, TABLE_STATUS, TABLE_SHAPE } from '../../domain/models/table.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 export class TableAssembler {
 

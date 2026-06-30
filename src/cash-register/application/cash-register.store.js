@@ -6,9 +6,21 @@ import { CashRegisterSessionAssembler } from '../infrastructure/assemblers/cash-
 import { CashRegisterSession, SESSION_STATUS } from '../domain/models/cash-register-session.entity.js';
 import { CashMovement, MOVEMENT_TYPE, MOVEMENT_CATEGORY } from '../domain/models/cash-movement.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorMessage, getApiErrorCode } from '../../shared/infrastructure/api-error.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
-import { movementMethodKey } from '../presentation/utils/cash-movement-display.js';
+import {
+    movementMethodKey,
+    movementOrderLabel,
+    movementPaymentMethodLabel,
+    movementCollectedBy,
+    movementTableContext,
+    movementDescriptionText,
+    canDeleteMovement,
+} from './cash-movement-display.js';
+import {
+    exportCashMovementsExcel,
+    buildSessionSummaryRows,
+} from './cash-register-excel.js';
 
 const api = new CashRegisterApi();
 
@@ -432,5 +444,15 @@ export const useCashRegisterStore = defineStore('cash-register', () => {
         fetchAll, refreshOpenSession, fetchCollectorSummary, openSession, closeSession, closeSessionError, handleOperationalEvent,
         // Actions — Movements
         addMovement, remove, getMovementsBySession,
+        // Display / export helpers (presentation consumes via store)
+        movementOrderLabel,
+        movementPaymentMethodLabel,
+        movementCollectedBy,
+        movementTableContext,
+        movementDescriptionText,
+        movementMethodKey,
+        canDeleteMovement,
+        exportCashMovementsExcel,
+        buildSessionSummaryRows,
     };
 });

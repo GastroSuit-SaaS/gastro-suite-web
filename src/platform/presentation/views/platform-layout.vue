@@ -1,11 +1,11 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router';
-import { useIamStore } from '../../../iam/application/iam.store.js';
+import { usePlatformStore } from '../../application/platform.store.js';
 
-const iamStore = useIamStore();
+const platformStore = usePlatformStore();
 
 function signOut() {
-    iamStore.logout();
+    platformStore.logout();
 }
 </script>
 

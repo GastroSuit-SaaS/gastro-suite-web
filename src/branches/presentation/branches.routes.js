@@ -1,4 +1,5 @@
 const branchManagement = () => import('./views/branch-management.vue');
+const selectBranch = () => import('./views/select-branch.vue');
 
 const branchesRoutes = [
     {
@@ -13,5 +14,12 @@ const branchesRoutes = [
         },
     },
 ];
+
+export const selectBranchRoute = {
+    path: '/select-branch',
+    name: 'select-branch',
+    component: selectBranch,
+    meta: { title: 'Seleccionar Sucursal' },
+};
 
 export default branchesRoutes;

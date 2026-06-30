@@ -1,6 +1,6 @@
 <script setup>
 import { computed, inject } from 'vue'
-import { MODULE_TAB_BAR_KEY } from '../../composables/use-module-tabs.js'
+import { MODULE_TAB_BAR_KEY } from '../composables/use-module-tabs.js'
 
 defineOptions({ inheritAttrs: false })
 

@@ -1,6 +1,6 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
-import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
-import { apiEnv } from '../../../shared/infrustructure/env.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrastructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrastructure/env.js';
 import { TableAssembler } from '../assemblers/table.assembler.js';
 
 export class TablesApi extends BaseApi {

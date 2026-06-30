@@ -1,4 +1,4 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
 
 export class PushTokensApi extends BaseApi {
     register(body) {

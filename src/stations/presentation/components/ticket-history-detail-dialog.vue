@@ -1,13 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+import { useStationsStore } from '../../application/stations.store.js'
 import { TICKET_STATUS_CONFIG } from '../constants/stations.constants-ui.js'
-import {
-    ticketDisplayRef,
-    ticketTableLabel,
-    ticketOrderRef,
-    formatHistoryDateTime,
-} from '../utils/stations-history.utils.js'
+
+const store = useStationsStore()
+const { ticketDisplayRef, ticketOrderRef, ticketTableLabel, formatHistoryDateTime } = store
 
 const visible = defineModel('visible', { type: Boolean, default: false })
 

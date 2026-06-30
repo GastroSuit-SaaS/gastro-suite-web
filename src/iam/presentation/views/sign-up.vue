@@ -6,11 +6,6 @@ import { IAM_ROUTES } from '../iam.routes.js'
 import { SIGN_UP_STEPS } from '../constants/iam.constants-ui.js'
 import { EmpresaRegistration } from '../../domain/models/empresa-registration.vo.js'
 import { UsuarioRegistration } from '../../domain/models/usuario-registration.vo.js'
-import {
-    loadSignUpDraft,
-    saveSignUpDraft,
-    clearSignUpDraft,
-} from '../../infrastructure/sign-up-draft.js'
 import IamBranding               from '../components/iam-branding.vue'
 import SignUpStepper             from '../components/sign-up-stepper.vue'
 import SignUpStepEmpresa         from '../components/sign-up-step-empresa.vue'
@@ -21,7 +16,7 @@ import SignUpStepFinalizado      from '../components/sign-up-step-finalizado.vue
 const router   = useRouter()
 const iamStore = useIamStore()
 
-const savedDraft = loadSignUpDraft()
+const savedDraft = iamStore.loadSignUpDraft()
 
 /** Estado compartido con los inputs — hidratado antes del primer render. */
 const formEmpresa = reactive(new EmpresaRegistration(savedDraft?.empresa ?? {}))
@@ -62,7 +57,7 @@ function snapshotUsuario(data) {
 }
 
 function persistDraft() {
-    saveSignUpDraft({
+    iamStore.saveSignUpDraft({
         currentStep: currentStep.value,
         empresa: snapshotEmpresa(formEmpresa),
         usuario: snapshotUsuario(formUsuario),
@@ -117,7 +112,7 @@ async function nextStep() {
             emailVerificationCode: verificationCode.value,
         })
         if (!ok) return
-        clearSignUpDraft()
+        iamStore.clearSignUpDraft()
     } else {
         persistDraft()
     }

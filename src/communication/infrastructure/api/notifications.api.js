@@ -1,4 +1,4 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
 
 export class NotificationsApi extends BaseApi {
     list(params) {
@@ -19,6 +19,14 @@ export class NotificationsApi extends BaseApi {
 
     deleteNotification(notificationId) {
         return this.http.delete(`/me/notifications/${notificationId}`);
+    }
+
+    deleteNotifications(ids) {
+        return this.http.delete('/me/notifications/bulk', { data: { ids } });
+    }
+
+    deleteAllNotifications() {
+        return this.http.delete('/me/notifications/all');
     }
 
     markAllAsRead() {

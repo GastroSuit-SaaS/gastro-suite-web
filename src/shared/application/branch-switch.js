@@ -1,6 +1,6 @@
-import { loadOutbox, saveOutbox } from '../infrustructure/offline/outbox-storage.js';
+import { loadOutbox, saveOutbox } from '../infrastructure/offline/outbox-storage.js';
 import { resetApplicationStores } from './reset-application-stores.js';
-import { resetOperationalSocketClient } from '../infrustructure/realtime/operational-socket.js';
+import { resetOperationalSocketClient } from '../infrastructure/realtime/operational-socket.js';
 
 export const BRANCH_CHANGED_EVENT = 'gastro:branch-changed';
 

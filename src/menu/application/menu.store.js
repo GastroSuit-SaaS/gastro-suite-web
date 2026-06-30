@@ -1,4 +1,4 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { MenuApi } from '../infrastructure/api/menu.api.js';
 import { MenuItemAssembler } from '../infrastructure/assemblers/menu-item.assembler.js';
@@ -6,18 +6,14 @@ import { CategoryAssembler } from '../infrastructure/assemblers/category.assembl
 import { MenuItem } from '../domain/models/menu-item.entity.js';
 import { Category } from '../domain/models/category.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
-import { isNetworkOnline } from '../../shared/infrustructure/offline/network.js';
-import { loadMenuReadCache, saveMenuReadCache } from '../../shared/infrustructure/offline/read-cache.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { storeFailure, storeFailureMessage, storeSuccess } from '../../shared/application/store-result.js';
+import { isNetworkOnline } from '../../shared/infrastructure/offline/network.js';
+import { loadMenuReadCache, saveMenuReadCache } from '../../shared/infrastructure/offline/read-cache.js';
 import { sortBySortOrder, formatCategoryOptionLabel } from '../domain/menu-sort.js';
+import { useMenuFacade } from './menu.facade.js';
 
 const api = new MenuApi();
-
-/** @returns {{ ok: true } | { ok: false, message: string }} */
-function fail(err, fallback, restore) {
-    restore();
-    return { ok: false, message: getApiErrorMessage(err, fallback) };
-}
 
 function isValidCategoryId(id) {
     if (id == null || id === '' || String(id) === 'null') return false;
@@ -44,6 +40,7 @@ async function uploadItemImageIfPresent(apiClient, itemId, imageFile) {
 }
 
 export const useMenuStore = defineStore('menu', () => {
+    const facade = useMenuFacade();
 
     const categoriesData = ref([]);
 
@@ -220,9 +217,9 @@ export const useMenuStore = defineStore('menu', () => {
                     imageWarning = upload.warning;
                 }
             }
-            return imageWarning ? { ok: true, imageWarning } : { ok: true };
+            return imageWarning ? storeSuccess({ imageWarning }) : storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo crear el producto', () => { items.value = snapshot; });
+            return storeFailure(e, 'No se pudo crear el producto', () => { items.value = snapshot; });
         }
     }
 
@@ -251,9 +248,9 @@ export const useMenuStore = defineStore('menu', () => {
                     imageWarning = upload.warning;
                 }
             }
-            return imageWarning ? { ok: true, imageWarning } : { ok: true };
+            return imageWarning ? storeSuccess({ imageWarning }) : storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo actualizar el producto', () => { items.value = snapshot; });
+            return storeFailure(e, 'No se pudo actualizar el producto', () => { items.value = snapshot; });
         }
     }
 
@@ -262,23 +259,23 @@ export const useMenuStore = defineStore('menu', () => {
         items.value = items.value.filter(i => i.id !== id);
         try {
             await api.deleteItem(id);
-            return { ok: true };
+            return storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo eliminar el producto', () => { items.value = snapshot; });
+            return storeFailure(e, 'No se pudo eliminar el producto', () => { items.value = snapshot; });
         }
     }
 
     async function setItemAvailability(id, isAvailable) {
         const item = items.value.find(i => i.id === id);
-        if (!item) return { ok: false, message: 'Producto no encontrado' };
+        if (!item) return storeFailureMessage('Producto no encontrado');
         const prev = item.isAvailable;
         item.isAvailable = isAvailable;
         try {
             await api.updateItem(id, MenuItemAssembler.toUpdateResource({ isAvailable }));
-            return { ok: true };
+            return storeSuccess();
         } catch (e) {
             item.isAvailable = prev;
-            return { ok: false, message: getApiErrorMessage(e, 'No se pudo cambiar la disponibilidad') };
+            return storeFailure(e, 'No se pudo cambiar la disponibilidad');
         }
     }
 
@@ -292,7 +289,7 @@ export const useMenuStore = defineStore('menu', () => {
         try {
             branchId = requireActiveBranchId();
         } catch (e) {
-            return { ok: false, message: e?.message ?? 'Selecciona una sucursal activa para continuar.' };
+            return storeFailureMessage(e?.message ?? 'Selecciona una sucursal activa para continuar.');
         }
         const optimisticId = `temp-${Date.now()}`;
         const snapshot = [...categoriesData.value];
@@ -310,19 +307,16 @@ export const useMenuStore = defineStore('menu', () => {
                 await fetchAll();
             }
             categoriesData.value = sortBySortOrder(categoriesData.value);
-            return { ok: true };
+            return storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo crear la categoría', () => { categoriesData.value = snapshot; });
+            return storeFailure(e, 'No se pudo crear la categoría', () => { categoriesData.value = snapshot; });
         }
     }
 
     async function updateCategory(id, data) {
         const categoryId = id ?? (data instanceof Category ? data.id : data?.id);
         if (!isValidCategoryId(categoryId)) {
-            return {
-                ok: false,
-                message: 'No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.',
-            };
+            return storeFailureMessage('No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.');
         }
         const category = data instanceof Category
             ? data
@@ -331,24 +325,28 @@ export const useMenuStore = defineStore('menu', () => {
         try {
             await api.updateCategory(categoryId, CategoryAssembler.toUpdateResource(category));
             await reloadCategories();
-            return { ok: true };
+            return storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo actualizar la categoría', () => { categoriesData.value = snapshot; });
+            return storeFailure(e, 'No se pudo actualizar la categoría', () => { categoriesData.value = snapshot; });
         }
     }
 
     async function removeCategory(id) {
         if (!isValidCategoryId(id)) {
-            return { ok: false, message: 'No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.' };
+            return storeFailureMessage('No se pudo identificar la categoría. Recarga el menú e intenta de nuevo.');
         }
         const snapshot = [...categoriesData.value];
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
         try {
             await api.deleteCategory(id);
-            return { ok: true };
+            return storeSuccess();
         } catch (e) {
-            return fail(e, 'No se pudo eliminar la categoría', () => { categoriesData.value = snapshot; });
+            return storeFailure(e, 'No se pudo eliminar la categoría', () => { categoriesData.value = snapshot; });
         }
+    }
+
+    async function bootstrapManagement() {
+        await Promise.all([fetchAll(), facade.fetchStationsIfNeeded().catch(() => {})]);
     }
 
     return {
@@ -356,5 +354,9 @@ export const useMenuStore = defineStore('menu', () => {
         totalItems, availableItems, unavailableItems, totalCategories, categories, categorySelectOptions, allCategories, filteredItems,
         fetchAll, hydrateFromCache, fetchById, create, update, remove,
         setItemAvailability, selectCategory, createCategory, updateCategory, removeCategory,
+        bootstrapManagement,
+        stationSelectOptions: facade.stationSelectOptions,
+        activeStations: facade.activeStations,
+        fetchStationsIfNeeded: facade.fetchStationsIfNeeded,
     };
 });

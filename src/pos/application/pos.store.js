@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { PosApi } from '../infrastructure/api/pos.api.js';
-import { SaleAssembler, isPersistedSaleId } from '../infrastructure/assemblers/sale.assembler.js';
+import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
+import { isPersistedSaleId } from '../domain/sale.persistence.js';
 import { Sale, SALE_STATUS, SALE_TYPE, DELIVERY_STATUS, SALE_TAX_RATE } from '../domain/models/sale.entity.js';
 import { SaleItem }          from '../domain/models/sale-item.entity.js';
 import { useTablesStore }    from '../../tables/application/tables.store.js';
@@ -11,12 +12,20 @@ import { usePaymentsStore }  from '../../payments/application/payments.store.js'
 import { useIamStore }       from '../../iam/application/iam.store.js';
 import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 import { useCompanyStore } from '../../company/application/company.store.js';
+import { usePosFacade } from './pos.facade.js';
+import {
+    ALL_ZONES,
+    TAKEAWAY_FILTER,
+    DELIVERY_FILTER,
+    buildZoneFilterOptions,
+    filterActiveOrders,
+    resolveNewOrderZoneId,
+    deliveryStatusLabel,
+} from './pos-hub-orders-filter.js';
 import { resolvePlanEntitlements } from '../../shared/presentation/constants/subscription-entitlements.constants.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
-import { debounce } from '../../shared/utils/debounce.js';
-import { StationTicketAssembler } from '../../stations/infrastructure/assemblers/station-ticket.assembler.js';
-import { PaymentAssembler } from '../../payments/infrastructure/assemblers/payment.assembler.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { debounce } from '../../shared/domain/debounce.js';
 import { Payment, PAYMENT_STATUS } from '../../payments/domain/models/payment.entity.js';
 import { TICKET_STATUS } from '../../stations/domain/models/station-ticket.entity.js';
 import {
@@ -29,8 +38,8 @@ import {
 import {
     loadPosOpsReadCache,
     savePosOpsReadCache,
-} from '../../shared/infrustructure/offline/read-cache.js';
-import { apiEnv } from '../../shared/infrustructure/env.js';
+} from '../../shared/infrastructure/offline/read-cache.js';
+import { apiEnv } from '../../shared/infrastructure/env.js';
 
 const api = new PosApi();
 const ITEM_SYNC_DEBOUNCE_MS = 450;
@@ -341,7 +350,7 @@ export const usePosStore = defineStore('pos', () => {
         try {
             const branchId = requireActiveBranchId();
             const response = await api.listKitchenTicketsBySale(branchId, sale.id);
-            const all = StationTicketAssembler.toEntitiesFromResponse(response);
+            const all = stationsStore.ticketsFromResponse(response);
             kitchenTicketsAll.value = all.filter(t => String(t.saleId) === String(sale.id));
         } catch {
             /* conservar último estado conocido */
@@ -986,7 +995,7 @@ export const usePosStore = defineStore('pos', () => {
 
             if (tickets?.length) {
                 _mergeKitchenTickets(
-                    tickets.map(r => StationTicketAssembler.toEntityFromResource(r)),
+                    tickets.map(r => stationsStore.ticketFromResource(r)),
                 );
             }
 
@@ -1203,7 +1212,7 @@ export const usePosStore = defineStore('pos', () => {
                 }
                 const response = await api.checkout(
                     saleId,
-                    PaymentAssembler.toCreateBffResource(paymentDraft),
+                    paymentsStore.toCheckoutBffResource(paymentDraft),
                 );
                 const checkout = SaleAssembler.fromCheckoutResponse(response);
                 payment = checkout.payment;
@@ -1366,7 +1375,7 @@ export const usePosStore = defineStore('pos', () => {
                 }
                 const response = await api.checkoutSplit(saleId, {
                     payments: paymentPayloads.map(p =>
-                        PaymentAssembler.toCreateBffResource(p.draft),
+                        paymentsStore.toCheckoutBffResource(p.draft),
                     ),
                 });
                 const result = SaleAssembler.fromSplitCheckoutResponse(response);
@@ -1394,6 +1403,31 @@ export const usePosStore = defineStore('pos', () => {
         return true;
     }
 
+    function menuItemName(menuItemId) {
+        if (!menuItemId) return null;
+        return menuStore.items.find((m) => m.id === menuItemId)?.name ?? null;
+    }
+
+    async function bootstrapTableFloorView() {
+        await Promise.all([
+            tablesStore.tables.length ? Promise.resolve() : tablesStore.fetchAll(),
+            sales.value.length ? Promise.resolve() : fetchAll(),
+        ]);
+    }
+
+    const tablesFloorLoading = computed(() => tablesStore.isLoading);
+    const tablesFloorError = computed(() => tablesStore.error);
+    const tablesSelectedZoneId = computed(() => tablesStore.selectedZoneId);
+    const tablesHasData = computed(() => tablesStore.tables.length > 0);
+
+    function selectTableZone(zoneId) {
+        tablesStore.selectZone(zoneId);
+    }
+
+    function fetchTablesFloor() {
+        return tablesStore.fetchAll();
+    }
+
     return {
         // State
         sales, currentSale, currentSaleIsRecovered, kitchenTickets, kitchenOrderStatus, isLoading, error,
@@ -1416,5 +1450,28 @@ export const usePosStore = defineStore('pos', () => {
         cancelCurrentSale, transferSale, confirmPayment, confirmSplitPayment, syncOfflineQueue,
         // Catálogo
         setCatalogCategory, setCatalogSearch,
+        // Facade
+        isPersistedSaleId,
+        bootstrapHubAlerts: (entitlements) => usePosFacade().bootstrapHubData(entitlements),
+        getHubAlerts: (options) => usePosFacade().hubAlerts(options),
+        ALL_ZONES,
+        TAKEAWAY_FILTER,
+        DELIVERY_FILTER,
+        buildZoneFilterOptions: (zoneList, orderList) =>
+            buildZoneFilterOptions(zoneList ?? zones.value, orderList ?? activeOrders.value),
+        filterActiveOrders: (zoneFilter) =>
+            filterActiveOrders(activeOrders.value, zoneFilter, tableById),
+        resolveNewOrderZoneId: (zoneFilter) =>
+            resolveNewOrderZoneId(zoneFilter, zones.value),
+        deliveryStatusLabel,
+        menuItemName,
+        bootstrapTableFloorView,
+        tablesFloorLoading,
+        tablesFloorError,
+        tablesSelectedZoneId,
+        tablesHasData,
+        selectTableZone,
+        fetchTablesFloor,
+        isNetworkOnline,
     };
 });

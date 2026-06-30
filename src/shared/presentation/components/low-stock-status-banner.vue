@@ -1,20 +1,18 @@
 <script setup>
 import { computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useInventoryStore } from '../../../inventory/application/inventory.store.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useShellFacade } from '../../application/shell.facade.js'
+import { useSubscriptionEntitlements } from '../composables/use-subscription-entitlements.js'
 import { hasRouteAccess } from '../constants/roles.constants.js'
 import { INVENTORY_MESSAGES } from '../../../inventory/presentation/constants/inventory.constants-ui.js'
 
-const iamStore = useIamStore()
-const inventoryStore = useInventoryStore()
+const shell = useShellFacade()
 const router = useRouter()
 const route = useRoute()
 const { entitlements } = useSubscriptionEntitlements()
 
 const canManageInventory = computed(() =>
-    hasRouteAccess(iamStore.userRole, '/inventory'),
+    hasRouteAccess(shell.userRole.value, '/inventory'),
 )
 
 const isRelevantRoute = computed(() =>
@@ -24,11 +22,11 @@ const isRelevantRoute = computed(() =>
 )
 
 const alertCount = computed(() =>
-    inventoryStore.lowStockProducts.length + inventoryStore.outOfStockProducts.length,
+    shell.lowStockProducts.value.length + shell.outOfStockProducts.value.length,
 )
 
 const show = computed(() =>
-    iamStore.hasBranchSelected
+    shell.hasBranchSelected.value
     && entitlements.value.hasInventory
     && canManageInventory.value
     && isRelevantRoute.value
@@ -41,10 +39,10 @@ const bannerMessage = computed(() =>
 )
 
 async function refreshInventory() {
-    if (!iamStore.hasBranchSelected || !canManageInventory.value) return
+    if (!shell.hasBranchSelected.value || !canManageInventory.value) return
     if (!isRelevantRoute.value) return
     try {
-        await inventoryStore.fetchAll()
+        await shell.fetchInventoryAll()
     } catch { /* el módulo inventario muestra error propio */ }
 }
 
@@ -53,7 +51,7 @@ function goToInventory() {
 }
 
 onMounted(refreshInventory)
-watch(() => iamStore.activeBranchId, refreshInventory)
+watch(() => shell.activeBranchId.value, refreshInventory)
 </script>
 
 <template>

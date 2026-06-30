@@ -1,6 +1,6 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
-import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
-import { apiEnv } from '../../../shared/infrustructure/env.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrastructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrastructure/env.js';
 
 export class UsersApi extends BaseApi {
     #crud;
@@ -12,6 +12,10 @@ export class UsersApi extends BaseApi {
 
     listByCompany(companyId, params) {
         return this.#crud.listAt(`/companies/${companyId}/employees`, params);
+    }
+
+    listByBranch(branchId, params) {
+        return this.#crud.listAt(`/branches/${branchId}/employees`, params);
     }
 
     getById(employeeId)      { return this.#crud.getById(employeeId); }

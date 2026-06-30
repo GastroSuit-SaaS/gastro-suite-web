@@ -1,20 +1,18 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useCashRegisterStore } from '../../../cash-register/application/cash-register.store.js';
-import { useIamStore } from '../../../iam/application/iam.store.js';
+import { useShellFacade } from '../../application/shell.facade.js';
 import { ROLES, hasRouteAccess } from '../constants/roles.constants.js';
 
-const cashStore = useCashRegisterStore();
-const iamStore  = useIamStore();
-const router    = useRouter();
-const route     = useRoute();
+const shell = useShellFacade();
+const router = useRouter();
+const route = useRoute();
 
 const show = computed(() => {
-    if (!iamStore.hasBranchSelected) return false;
-    if (cashStore.hasOpenSession) return false;
+    if (!shell.hasBranchSelected.value) return false;
+    if (shell.hasOpenSession.value) return false;
     if (route.path.startsWith('/cash-register')) return false;
-    const role = iamStore.userRole;
+    const role = shell.userRole.value;
     return role === ROLES.CASHIER
         || role === ROLES.BRANCH_ADMIN
         || role === ROLES.OWNER
@@ -22,7 +20,7 @@ const show = computed(() => {
 });
 
 const canOpenCashRegister = computed(() =>
-    hasRouteAccess(iamStore.userRole, '/cash-register'),
+    hasRouteAccess(shell.userRole.value, '/cash-register'),
 );
 
 function goToCashRegister() {

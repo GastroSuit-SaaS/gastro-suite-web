@@ -1,11 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useIamStore } from '../../../iam/application/iam.store.js'
+import { useShellFacade } from '../../application/shell.facade.js'
 import { requiresBranch } from '../constants/roles.constants.js'
 import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
-const iamStore = useIamStore()
+const shell = useShellFacade()
 const route = useRoute()
 const toast = useToast()
 const linking = ref(false)
@@ -19,42 +19,42 @@ const isOperationalRoute = computed(() =>
 )
 
 const visible = computed(() => {
-    if (!iamStore.isAuthenticated) return false
-    if (iamStore.employeeLinkStatus === 'missing_company' || iamStore.employeeLinkStatus === 'error') {
+    if (!shell.isAuthenticated.value) return false
+    if (shell.employeeLinkStatus.value === 'missing_company' || shell.employeeLinkStatus.value === 'error') {
         return isOperationalRoute.value || isReportsRoute.value
     }
-    if (!iamStore.hasEmployeeLink && (isOperationalRoute.value || isReportsRoute.value)) {
+    if (!shell.hasEmployeeLink.value && (isOperationalRoute.value || isReportsRoute.value)) {
         return true
     }
     return false
 })
 
 const bannerMessage = computed(() => {
-    if (iamStore.employeeLinkStatus === 'missing_company' || iamStore.employeeLinkStatus === 'error') {
-        return iamStore.employeeLinkMessage
+    if (shell.employeeLinkStatus.value === 'missing_company' || shell.employeeLinkStatus.value === 'error') {
+        return shell.employeeLinkMessage.value
     }
-    if (!iamStore.hasEmployeeLink) {
+    if (!shell.hasEmployeeLink.value) {
         return 'Tu usuario no está vinculado a un empleado. Cobros, caja y reportes pueden fallar hasta completar el vínculo.'
     }
     return ''
 })
 
 const severity = computed(() => {
-    if (iamStore.employeeLinkStatus === 'error') return 'error'
+    if (shell.employeeLinkStatus.value === 'error') return 'error'
     return 'warn'
 })
 
 const showLinkAction = computed(() =>
     visible.value
-    && !iamStore.hasEmployeeLink
-    && iamStore.employeeLinkStatus !== 'missing_company'
-    && iamStore.employeeLinkStatus !== 'error',
+    && !shell.hasEmployeeLink.value
+    && shell.employeeLinkStatus.value !== 'missing_company'
+    && shell.employeeLinkStatus.value !== 'error',
 )
 
 async function linkEmployeeNow() {
     linking.value = true
     try {
-        const result = await iamStore.ensureEmployeeLink()
+        const result = await shell.ensureEmployeeLink()
         if (result.ok) {
             toast.add({
                 severity: 'success',
@@ -66,14 +66,14 @@ async function linkEmployeeNow() {
             toast.add({
                 severity: 'warn',
                 summary: 'Empresa requerida',
-                detail: iamStore.employeeLinkMessage ?? 'Selecciona o registra una empresa antes de vincular.',
+                detail: shell.employeeLinkMessage.value ?? 'Selecciona o registra una empresa antes de vincular.',
                 life: 5000,
             })
         } else {
             toast.add({
                 severity: 'warn',
                 summary: 'No se pudo vincular',
-                detail: iamStore.employeeLinkMessage ?? 'Intenta de nuevo o contacta al administrador.',
+                detail: shell.employeeLinkMessage.value ?? 'Intenta de nuevo o contacta al administrador.',
                 life: 5000,
             })
         }

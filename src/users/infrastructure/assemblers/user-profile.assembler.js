@@ -1,5 +1,5 @@
 import { UserProfile } from '../../domain/models/user-profile.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 export class UserProfileAssembler {
 

@@ -1,4 +1,4 @@
-import { ROLES } from '../presentation/constants/roles.constants.js';
+import { ROLES } from '../domain/roles.js';
 
 /**
  * Ruta inicial tras login según rol operativo (SaaS restaurante).

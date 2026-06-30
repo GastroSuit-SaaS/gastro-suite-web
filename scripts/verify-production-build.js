@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ASSETS_DIR = path.resolve('dist/assets');
-/** Ruta de registro antigua — el frontend debe usar /auth/sign-up. */
-const FORBIDDEN = ['support/auth'];
+/** Rutas de registro obsoletas que no deben aparecer en el bundle de producción. */
+const FORBIDDEN = ['support/auth', '/auth/sign-up'];
 
 if (!fs.existsSync(ASSETS_DIR)) {
     console.error('[verify-production-build] No existe dist/assets. Ejecuta npm run build primero.');
@@ -32,7 +32,7 @@ if (violations.length > 0) {
     for (const v of violations) {
         console.error(`  - "${v.needle}" en dist/assets/${v.file}`);
     }
-    console.error('  Usa VITE_IAM_ENDPOINT=/auth y sign-up en /auth/sign-up.');
+    console.error('  Usa POST /auth/register-owner para el onboarding.');
     process.exit(1);
 }
 

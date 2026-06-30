@@ -4,18 +4,19 @@ import { InventoryApi } from '../infrastructure/api/inventory.api.js';
 import { ProductAssembler } from '../infrastructure/assemblers/product.assembler.js';
 import { InventoryCategoryAssembler } from '../infrastructure/assemblers/inventory-category.assembler.js';
 import { StockMovementAssembler } from '../infrastructure/assemblers/stock-movement.assembler.js';
-import { INVENTORY_MESSAGES } from '../presentation/constants/inventory.constants-ui.js';
 import { Product, STOCK_STATUS } from '../domain/models/product.entity.js';
 import { InventoryCategory } from '../domain/models/inventory-category.entity.js';
 import { StockMovement, MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../domain/models/stock-movement.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { storeSuccess, storeFailure } from '../../shared/application/store-result.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
+import { useInventoryFacade } from './inventory.facade.js';
 
 const api = new InventoryApi();
 
 export const useInventoryStore = defineStore('inventory', () => {
-
+    const facade = useInventoryFacade();
     const products        = ref([]);
     const categoriesData  = ref([]);
     const movements       = ref([]);
@@ -131,7 +132,7 @@ export const useInventoryStore = defineStore('inventory', () => {
             movements.value = StockMovementAssembler.toEntitiesFromResponse(movResponse);
             return true;
         } catch (e) {
-            error.value = getApiErrorMessage(e, INVENTORY_MESSAGES.ERROR_LOADING);
+            error.value = getApiErrorMessage(e, 'Error al cargar el inventario');
             return false;
         } finally {
             isLoading.value = false;
@@ -157,7 +158,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         const categoryId = ProductAssembler.resolveCategoryId(productData, categoriesData.value);
         if (!categoryId) {
             error.value = 'Selecciona una categoría de inventario válida.';
-            return false;
+            return storeFailure(new Error(error.value), error.value);
         }
 
         error.value = null;
@@ -174,10 +175,10 @@ export const useInventoryStore = defineStore('inventory', () => {
             } else {
                 await fetchAll();
             }
-            return true;
+            return storeSuccess();
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al crear el producto');
-            return false;
+            return storeFailure(e, 'No se pudo crear el producto');
         }
     }
 
@@ -200,11 +201,11 @@ export const useInventoryStore = defineStore('inventory', () => {
                     p.id === id ? new Product({ ...p, ...productData, id }) : p,
                 );
             }
-            return true;
+            return storeSuccess();
         } catch (e) {
             products.value = snapshot;
             error.value = getApiErrorMessage(e, 'Error al actualizar el producto');
-            return false;
+            return storeFailure(e, 'No se pudo actualizar el producto');
         }
     }
 
@@ -214,11 +215,11 @@ export const useInventoryStore = defineStore('inventory', () => {
         products.value = products.value.filter(p => p.id !== id);
         try {
             await api.deleteProduct(id);
-            return true;
+            return storeSuccess();
         } catch (e) {
             products.value = snapshot;
             error.value = getApiErrorMessage(e, 'Error al eliminar el producto');
-            return false;
+            return storeFailure(e, 'No se pudo eliminar el producto');
         }
     }
 
@@ -236,7 +237,7 @@ export const useInventoryStore = defineStore('inventory', () => {
             employeeId = iamStore.currentUser?.employeeId ?? null;
         }
         if (!employeeId) {
-            error.value = iamStore.employeeLinkMessage ?? INVENTORY_MESSAGES.EMPLOYEE_LINK_REQUIRED;
+            error.value = iamStore.employeeLinkMessage ?? 'Tu usuario debe estar vinculado a un empleado para registrar movimientos.';
             return null;
         }
         return employeeId;
@@ -336,11 +337,11 @@ export const useInventoryStore = defineStore('inventory', () => {
         try {
             await api.deleteMovement(id);
             await fetchAll();
-            return true;
+            return storeSuccess();
         } catch (e) {
             movements.value = snapshot;
             error.value = getApiErrorMessage(e, 'Error al eliminar movimiento');
-            return false;
+            return storeFailure(e, 'No se pudo eliminar el movimiento');
         }
     }
 
@@ -361,10 +362,10 @@ export const useInventoryStore = defineStore('inventory', () => {
             } else {
                 await fetchAll();
             }
-            return true;
+            return storeSuccess();
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al crear la categoría');
-            return false;
+            return storeFailure(e, 'No se pudo crear la categoría');
         }
     }
 
@@ -387,11 +388,11 @@ export const useInventoryStore = defineStore('inventory', () => {
                     c.id === id ? new InventoryCategory({ ...c, ...data, id }) : c,
                 );
             }
-            return true;
+            return storeSuccess();
         } catch (e) {
             categoriesData.value = snapshot;
             error.value = getApiErrorMessage(e, 'Error al actualizar la categoría');
-            return false;
+            return storeFailure(e, 'No se pudo actualizar la categoría');
         }
     }
 
@@ -401,11 +402,11 @@ export const useInventoryStore = defineStore('inventory', () => {
         categoriesData.value = categoriesData.value.filter(c => c.id !== id);
         try {
             await api.deleteCategory(id);
-            return true;
+            return storeSuccess();
         } catch (e) {
             categoriesData.value = snapshot;
             error.value = getApiErrorMessage(e, 'Error al eliminar la categoría');
-            return false;
+            return storeFailure(e, 'No se pudo eliminar la categoría');
         }
     }
 
@@ -419,5 +420,6 @@ export const useInventoryStore = defineStore('inventory', () => {
         totalMovements, entryMovements, exitMovements, filteredMovements,
         fetchAll, fetchById, create, update, remove, registerMovement, updateMovement, removeMovement,
         createCategory, updateCategory, removeCategory,
+        currentUser: facade.currentUser,
     };
 });

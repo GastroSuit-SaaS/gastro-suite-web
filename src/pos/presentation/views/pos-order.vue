@@ -5,12 +5,11 @@ import { useToast }            from 'primevue/usetoast'
 import { usePosStore }         from '../../application/pos.store.js'
 import { POS_ROUTES, posPaymentRoute } from '../constants/pos.constants-ui.js'
 import { SALE_STATUS } from '../../domain/models/sale.entity.js'
-import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
+import { setToolbarContext, clearToolbarContext } from '../../../shared/presentation/composables/use-toolbar-context.js'
 import TransferTableDialog from '../components/transfer-table-dialog.vue'
 import { TICKET_STATUS_CONFIG } from '../../../stations/presentation/constants/stations.constants-ui.js'
 import { DELIVERY_STATUS } from '../../domain/models/sale.entity.js'
-import { deliveryStatusLabel } from '../helpers/pos-hub-orders-filter.helpers.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const route         = useRoute()
 const router        = useRouter()
@@ -310,7 +309,7 @@ async function advanceDelivery(nextStatus) {
         toast.add({
             severity: 'success',
             summary: 'Estado actualizado',
-            detail: deliveryStatusLabel(nextStatus),
+            detail: posStore.deliveryStatusLabel(nextStatus),
             life: 3000,
         })
     } catch (e) {
@@ -411,7 +410,7 @@ watch(() => route.params.saleId, syncOrderToolbar, { immediate: true })
                                     <span class="context-badge__sep">·</span>
                                     <span class="context-badge__value context-badge__value--muted">{{ deliveryCustomerLine }}</span>
                                 </template>
-                                <span class="delivery-status-pill">{{ deliveryStatusLabel(sale?.deliveryStatus) }}</span>
+                                <span class="delivery-status-pill">{{ posStore.deliveryStatusLabel(sale?.deliveryStatus) }}</span>
                             </div>
                         </div>
                     </template>

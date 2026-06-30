@@ -1,4 +1,4 @@
-import { getApiErrorCode, getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorCode, getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
 
 const CODE_FALLBACKS = {
     PWD_RESET_NOT_FOUND: 'No existe una cuenta asociada a este correo o usuario.',

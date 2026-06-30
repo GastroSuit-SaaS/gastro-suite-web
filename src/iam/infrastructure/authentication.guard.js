@@ -1,10 +1,10 @@
 import { useIamStore } from '../application/iam.store.js';
 import { IAM_ROUTES } from '../presentation/iam.routes.js';
 import { PLATFORM_ROUTES } from '../../platform/presentation/platform.routes.js';
-import { hasRouteAccess, requiresBranch, ROLES } from '../../shared/presentation/constants/roles.constants.js';
+import { hasRouteAccess, requiresBranch, ROLES } from '../../shared/domain/roles.js';
 import { isRouteAllowedByPlan, resolvePlanEntitlements } from '../../shared/presentation/constants/subscription-entitlements.constants.js';
 import { useCompanyStore } from '../../company/application/company.store.js';
-import { SESSION_KEYS } from '../../shared/infrustructure/session-storage.js';
+import { SESSION_KEYS } from '../../shared/infrastructure/session-storage.js';
 
 /** Rutas que no requieren autenticación */
 const PUBLIC_PATHS = [

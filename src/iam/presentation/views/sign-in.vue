@@ -1,11 +1,11 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIamStore } from '../../application/iam.store.js';
 import { IAM_ROUTES } from '../iam.routes.js';
 import IamBranding from '../components/iam-branding.vue';
 import { resolvePostLoginPath } from '../../../shared/application/post-login-route.js';
-import { setLoginRevealPending } from '../../../shared/infrustructure/session-storage.js';
+import { setLoginRevealPending } from '../../../shared/infrastructure/session-storage.js';
 
 const router   = useRouter();
 const iamStore = useIamStore();

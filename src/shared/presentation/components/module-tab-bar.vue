@@ -1,7 +1,7 @@
 <script setup>
 import { useAttrs, computed } from 'vue'
-import { toolbarContext } from '../../composables/use-toolbar-context.js'
-import { provideModuleTabBar } from '../../composables/use-module-tabs.js'
+import { toolbarContext } from '../composables/use-toolbar-context.js'
+import { provideModuleTabBar } from '../composables/use-module-tabs.js'
 
 defineOptions({ inheritAttrs: false })
 

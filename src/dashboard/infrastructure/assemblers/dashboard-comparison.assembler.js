@@ -1,7 +1,8 @@
 import { DashboardComparison } from '../../domain/models/dashboard-comparison.entity.js';
+import { entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 export class DashboardComparisonAssembler {
-    static fromApiResponse(raw) {
+    static toEntityFromResource(raw) {
         if (!raw) return null;
         return new DashboardComparison({
             businessDate: raw.businessDate ?? null,
@@ -19,5 +20,22 @@ export class DashboardComparisonAssembler {
             topItems: raw.topItems ?? [],
             summary: raw.summary ?? {},
         });
+    }
+
+    static toEntitiesFromResponse(response) {
+        const entity = DashboardComparisonAssembler.toEntityFromResponse(response);
+        return entity ? [entity] : [];
+    }
+
+    static toEntityFromResponse(response) {
+        return entityFromResponse(response, DashboardComparisonAssembler.toEntityFromResource);
+    }
+
+    /** @deprecated use toEntityFromResponse */
+    static fromApiResponse(raw) {
+        if (!raw) return null;
+        return DashboardComparisonAssembler.toEntityFromResource(
+            raw?.data && typeof raw.data === 'object' ? raw.data : raw,
+        );
     }
 }

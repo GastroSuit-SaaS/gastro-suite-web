@@ -1,33 +1,24 @@
 <script setup>
 import { reactive, watch, computed } from 'vue'
 import { useUsersStore } from '../../application/users.store.js'
-import { useBranchesStore } from '../../../branches/application/branches.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { buildUserRoleOptions, TIPOS_DOCUMENTO } from '../constants/users.constants-ui.js'
+import { TIPOS_DOCUMENTO } from '../constants/users.constants-ui.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
+    edit:    { type: Boolean, default: false },
     user:    { type: Object,  default: null  },
 })
 
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['update:visible', 'user-saved'])
 
-const store       = useUsersStore()
-const branchStore = useBranchesStore()
-const iamStore    = useIamStore()
+const store = useUsersStore()
 const { entitlements } = useSubscriptionEntitlements()
 
-const assignableRolesForPlan = computed(() =>
-    iamStore.assignableRoles.filter(
-        (role) => entitlements.value.hasKitchen || role !== 'COOK',
-    ),
-)
+const roleOptions = computed(() => store.roleOptionsForPlan(entitlements.value))
 
-const roleOptions = computed(() => buildUserRoleOptions(assignableRolesForPlan.value))
-
-const isEditing = computed(() => !!props.user?.id)
+const isEditing = computed(() => props.edit)
 
 const form = reactive({
     username:        '',
@@ -90,13 +81,11 @@ watch(() => form.role, (newRole) => {
     }
 })
 
-const branchOptions = computed(() =>
-    branchStore.items.filter(b => b.isActive).map(b => ({ value: b.id, label: b.nombre }))
-)
+const branchOptions = computed(() => store.branchOptions)
 
 const selectedBranchLabel = computed(() => {
-    const found = branchStore.items.find(b => b.id === form.sucursalId)
-    return found?.nombre ?? ''
+    const found = store.branchOptions.find(b => b.value === form.sucursalId)
+    return found?.label ?? ''
 })
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -127,20 +116,20 @@ function validate() {
 }
 
 function onCancel() {
-    emit('close')
+    emit('update:visible', false)
 }
 
-async function onSave() {
+function onSave() {
     if (!validate()) return
 
     const payload = {
-        username:        form.username,
-        nombres:         form.nombres,
-        apellidos:       form.apellidos,
-        email:           form.email,
-        telefono:        form.telefono,
+        username:        form.username.trim(),
+        nombres:         form.nombres.trim(),
+        apellidos:       form.apellidos.trim(),
+        email:           form.email.trim(),
+        telefono:        form.telefono.trim(),
         tipoDocumento:   form.tipoDocumento,
-        numeroDocumento: form.numeroDocumento,
+        numeroDocumento: form.numeroDocumento.trim(),
         role:            form.role,
         sucursalId:      form.sucursalId,
         sucursalNombre:  selectedBranchLabel.value,
@@ -151,28 +140,7 @@ async function onSave() {
         payload.password = form.password
     }
 
-    if (isEditing.value) {
-        await store.update(props.user.id, payload)
-    } else {
-        await store.create(payload)
-    }
-
-    // Si el rol es BRANCH_ADMIN y tiene sucursal, actualizar el encargado de la sucursal
-    if (form.role === 'BRANCH_ADMIN' && form.sucursalId) {
-        const fullName = `${form.nombres} ${form.apellidos}`.trim()
-        const savedUser = store.users.find(u =>
-            u.username === form.username && u.sucursalId === form.sucursalId
-        )
-        const userId = isEditing.value ? props.user.id : savedUser?.id
-        if (userId) {
-            await branchStore.update(form.sucursalId, {
-                encargadoId: userId,
-                encargadoNombre: fullName,
-            })
-        }
-    }
-
-    emit('saved')
+    emit('user-saved', payload)
 }
 </script>
 

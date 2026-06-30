@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useInventoryStore } from '../../application/inventory.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
 import { STOCK_STATUS_LABELS, STOCK_STATUS_COLORS } from '../constants/inventory.constants-ui.js'
 import CreateAndEditProduct           from './create-and-edit-product.vue'
 import CreateAndEditInventoryCategory from './create-and-edit-inventory-category.vue'
@@ -9,10 +9,10 @@ import RegisterStockMovement          from './register-stock-movement.vue'
 import ModuleStateFeedback            from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar                   from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab                      from '../../../shared/presentation/components/module-tab.vue'
-import { useNotification } from '../../../shared/composables/use-notification.js'
+import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue'
+import DataManager from '../../../shared/presentation/components/data-manager.vue'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
 import { INVENTORY_MESSAGES } from '../constants/inventory.constants-ui.js'
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = useInventoryStore()
 const { showSuccess, showError } = useNotification()
@@ -28,20 +28,25 @@ const showDialog   = ref(false)
 const editingItem  = ref(null)
 const selectedStatus = ref(null)
 
-const {
-    page: productPage,
-    pageSize: productPageSize,
-    totalPages: productTotalPages,
-    paginatedItems: paginatedProducts,
-    rangeStart: productRangeStart,
-    rangeEnd: productRangeEnd,
-    totalItems: productTotalItems,
-    resetPage: resetProductPage,
-} = useTablePagination(computed(() => store.filteredProducts))
-
 const categoryFilterOptions = computed(() => store.categorySelectOptions)
 
 const canCreateProduct = computed(() => store.categorySelectOptions.length > 0)
+
+const productTableColumns = [
+    { field: 'name', header: 'Producto', sortable: true, template: 'prod-name', style: 'min-width: 180px' },
+    { field: 'sku', header: 'SKU', sortable: true, style: 'min-width: 100px' },
+    { field: 'category', header: 'Categoría', sortable: true, style: 'min-width: 120px' },
+    { field: 'stock', header: 'Stock', sortable: true, template: 'prod-stock', style: 'min-width: 90px' },
+    { field: 'stockStatus', header: 'Estado', sortable: true, template: 'prod-status', style: 'min-width: 110px' },
+    { field: 'cost', header: 'Costo', sortable: true, template: 'prod-cost', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'price', header: 'Precio', sortable: true, template: 'prod-price', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'minStock', header: 'Mín / Máx', sortable: false, template: 'prod-minmax', style: 'min-width: 90px' },
+    { field: 'actions', header: '', sortable: false, template: 'prod-actions', style: 'min-width: 5rem' },
+]
+
+function productRowClass() {
+    return 'inv-row--clickable'
+}
 
 /** Overlays al body para quedar sobre tabs sticky */
 import { OVERLAY_APPEND_TARGET as OVERLAY_TARGET } from '../../../shared/presentation/constants/overlay.constants-ui.js'
@@ -49,13 +54,11 @@ import { OVERLAY_APPEND_TARGET as OVERLAY_TARGET } from '../../../shared/present
 function toggleStatus(status) {
     selectedStatus.value = selectedStatus.value === status ? null : status
     store.filterStatus = selectedStatus.value
-    resetProductPage()
 }
 
 function clearStatus() {
     selectedStatus.value = null
     store.filterStatus = null
-    resetProductPage()
 }
 
 function openCreate() {
@@ -72,22 +75,24 @@ function onDelete(product) {
     confirmDelete({
         target: product.name,
         accept: async () => {
-            const ok = await store.remove(product.id)
-            if (ok) showSuccess(INVENTORY_MESSAGES.PRODUCT_DELETED)
-            else if (store.error) showError(store.error)
+            const result = await store.remove(product.id)
+            if (result.ok) showSuccess(INVENTORY_MESSAGES.PRODUCT_DELETED)
+            else showError(result.message ?? store.error)
         },
     })
 }
 
 async function onSaved(data) {
-    const ok = editingItem.value
+    const isEdit = !!editingItem.value
+    const result = isEdit
         ? await store.update(editingItem.value.id, data)
         : await store.create(data)
-    if (ok) {
-        showSuccess(editingItem.value ? INVENTORY_MESSAGES.PRODUCT_UPDATED : INVENTORY_MESSAGES.PRODUCT_CREATED)
+    if (result.ok) {
+        showDialog.value = false
         editingItem.value = null
-    } else if (store.error) {
-        showError(store.error)
+        showSuccess(isEdit ? INVENTORY_MESSAGES.PRODUCT_UPDATED : INVENTORY_MESSAGES.PRODUCT_CREATED)
+    } else {
+        showError(result.message ?? store.error)
     }
 }
 
@@ -121,39 +126,30 @@ function onDeleteCategory(cat) {
     confirmDelete({
         target: cat.name,
         accept: async () => {
-            const ok = await store.removeCategory(cat.id)
-            if (ok) showSuccess(INVENTORY_MESSAGES.CATEGORY_DELETED)
-            else if (store.error) showError(store.error)
+            const result = await store.removeCategory(cat.id)
+            if (result.ok) showSuccess(INVENTORY_MESSAGES.CATEGORY_DELETED)
+            else showError(result.message ?? store.error)
         },
     })
 }
 
 async function onCategorySaved(data) {
-    const ok = editingCategory.value
+    const isEdit = !!editingCategory.value
+    const result = isEdit
         ? await store.updateCategory(editingCategory.value.id, data)
         : await store.createCategory(data)
-    if (ok) {
-        showSuccess(editingCategory.value ? INVENTORY_MESSAGES.CATEGORY_UPDATED : INVENTORY_MESSAGES.CATEGORY_CREATED)
+    if (result.ok) {
+        showCategoryDialog.value = false
         editingCategory.value = null
-    } else if (store.error) {
-        showError(store.error)
+        showSuccess(isEdit ? INVENTORY_MESSAGES.CATEGORY_UPDATED : INVENTORY_MESSAGES.CATEGORY_CREATED)
+    } else {
+        showError(result.message ?? store.error)
     }
 }
 
 // ── Movements state ──────────────────────────────────────
 const showMovementDialog = ref(false)
 const editingMovement    = ref(null)
-
-const {
-    page: movementPage,
-    pageSize: movementPageSize,
-    totalPages: movementTotalPages,
-    paginatedItems: paginatedMovements,
-    rangeStart: movementRangeStart,
-    rangeEnd: movementRangeEnd,
-    totalItems: movementTotalItems,
-    resetPage: resetMovementPage,
-} = useTablePagination(computed(() => store.filteredMovements))
 
 const MOVEMENT_TYPE_LABELS = {
     purchase:   'Compra',
@@ -187,6 +183,19 @@ const movementDirFilterOptions = [
     { label: 'Salidas',  value: 'out' },
 ]
 
+const movementTableColumns = [
+    { field: 'createdAt', header: 'Fecha', sortable: true, template: 'mov-date', style: 'min-width: 130px' },
+    { field: 'productName', header: 'Producto', sortable: true, template: 'mov-product', style: 'min-width: 160px' },
+    { field: 'isEntry', header: 'Dir.', sortable: true, template: 'mov-direction', style: 'min-width: 100px' },
+    { field: 'type', header: 'Motivo', sortable: true, template: 'mov-type', style: 'min-width: 120px' },
+    { field: 'quantity', header: 'Cantidad', sortable: true, template: 'mov-qty', style: 'min-width: 90px', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'previousStock', header: 'Stock ant.', sortable: true, template: 'mov-prev', style: 'min-width: 90px', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'newStock', header: 'Stock nuevo', sortable: true, template: 'mov-new', style: 'min-width: 100px', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'notes', header: 'Nota', sortable: false, template: 'mov-notes', style: 'min-width: 140px' },
+    { field: 'userName', header: 'Registrado por', sortable: true, style: 'min-width: 120px' },
+    { field: 'actions', header: '', sortable: false, template: 'mov-actions', style: 'min-width: 5rem' },
+]
+
 function openRegisterMovement() {
     editingMovement.value = null
     showMovementDialog.value = true
@@ -205,9 +214,9 @@ function onDeleteMovement(movement) {
     confirmDelete({
         target: `${movement.productName} (${movement.quantity})`,
         accept: async () => {
-            const ok = await store.removeMovement(movement.id)
-            if (ok) showSuccess(INVENTORY_MESSAGES.MOVEMENT_DELETED)
-            else if (store.error) showError(store.error)
+            const result = await store.removeMovement(movement.id)
+            if (result.ok) showSuccess(INVENTORY_MESSAGES.MOVEMENT_DELETED)
+            else showError(result.message ?? store.error)
         },
     })
 }
@@ -295,129 +304,130 @@ function formatDate(d) {
                 </button>
             </div>
 
-            <!-- ── Filtros ─────────────────────────────────────────── -->
-            <div class="inv-toolbar">
-                <pv-icon-field class="inv-toolbar__search">
-                    <pv-input-icon class="pi pi-search" />
-                    <pv-input-text
-                        v-model="store.searchQuery"
-                        placeholder="Buscar por nombre o SKU..."
-                        class="w-full"
-                        size="small"
-                        @input="resetProductPage()"
-                    />
-                </pv-icon-field>
-
-                <pv-select
-                    v-model="store.filterCategory"
-                    :options="categoryFilterOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="CATEGORÍA"
-                    showClear
-                    :append-to="OVERLAY_TARGET"
-                    size="small"
-                    class="inv-toolbar__select"
-                    @change="resetProductPage()"
-                />
-
-                <pv-button
-                    label="Nuevo producto"
-                    icon="pi pi-plus"
-                    size="small"
-                    :disabled="!canCreateProduct"
-                    v-tooltip.top="!canCreateProduct ? 'Crea al menos una categoría en la pestaña Categorías' : undefined"
-                    @click="openCreate"
-                />
-            </div>
-
-            <!-- ── Empty ───────────────────────────────────────────── -->
-            <div v-if="store.filteredProducts.length === 0" class="inv-empty inv-panel">
-                <i class="pi pi-inbox inv-empty__icon"></i>
-                <span class="inv-empty__title">No se encontraron productos</span>
-                <span class="inv-empty__sub">
-                    {{ store.products.length === 0
-                        ? 'Crea categorías y luego agrega tu primer producto de bodega.'
-                        : 'Prueba otros filtros o términos de búsqueda.' }}
-                </span>
-                <pv-button
-                    v-if="store.products.length === 0 && canCreateProduct"
-                    label="Nuevo producto"
-                    icon="pi pi-plus"
-                    size="small"
-                    @click="openCreate"
-                />
-                <pv-button
-                    v-else-if="store.products.length === 0"
-                    label="Ir a categorías"
-                    icon="pi pi-tag"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    @click="activeTab = 'categories'"
-                />
-            </div>
-
-            <!-- ── Tabla de productos ──────────────────────────────── -->
-            <div v-else class="inv-table-wrap">
-                <table class="inv-table">
-                    <thead>
-                        <tr>
-                            <th>Producto</th>
-                            <th>SKU</th>
-                            <th>Categoría</th>
-                            <th>Stock</th>
-                            <th>Estado</th>
-                            <th style="text-align:right">Costo</th>
-                            <th style="text-align:right">Precio</th>
-                            <th>Mín / Máx</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="p in paginatedProducts"
-                            :key="p.id"
-                            class="inv-row"
-                            @click="openEdit(p)">
-                            <td>
-                                <div class="flex flex-column">
-                                    <span class="font-semibold text-color">{{ p.name }}</span>
-                                    <span v-if="p.description" class="text-xs text-color-secondary" style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ p.description }}</span>
-                                </div>
-                            </td>
-                            <td class="td-sku">{{ p.sku }}</td>
-                            <td>{{ p.category || '—' }}</td>
-                            <td :style="{ color: getStockStatusColor(p), fontWeight: 600 }">
-                                {{ p.stock }} {{ p.unit }}
-                            </td>
-                            <td>
-                                <span class="badge"
-                                      :style="{ background: getStockStatusColor(p) + '22', color: getStockStatusColor(p), border: '1px solid ' + getStockStatusColor(p) + '66' }">
-                                    {{ getStockStatusLabel(p) }}
-                                </span>
-                            </td>
-                            <td class="td-amount">{{ formatCurrency(p.cost) }}</td>
-                            <td class="td-amount td-price">{{ formatCurrency(p.price) }}</td>
-                            <td class="td-minmax">{{ p.minStock }} / {{ p.maxStock ?? '∞' }}</td>
-                            <td class="td-actions">
-                                <pv-button icon="pi pi-pencil" text rounded size="small" severity="info" @click.stop="openEdit(p)" />
-                                <pv-button icon="pi pi-trash" text rounded size="small" severity="danger" @click.stop="onDelete(p)" />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <table-pagination-bar
-                v-if="store.filteredProducts.length > 0"
-                v-model:page="productPage"
-                v-model:page-size="productPageSize"
-                :total-pages="productTotalPages"
-                :range-start="productRangeStart"
-                :range-end="productRangeEnd"
-                :total-items="productTotalItems"
+            <data-manager
+                class="inv-products-manager"
+                :items="store.products"
+                :filtered-items="store.filteredProducts"
+                :columns="productTableColumns"
+                :title="{ singular: 'producto', plural: 'productos' }"
+                :loading="store.isLoading"
+                :dynamic="true"
+                :global-filter-value="store.searchQuery"
+                :row-class="productRowClass"
+                search-placeholder="Buscar por nombre o SKU..."
+                :inline-toolbar="true"
+                new-button-label="Nuevo producto"
+                :new-button-disabled="!canCreateProduct"
+                new-button-tooltip="Crea al menos una categoría en la pestaña Categorías"
+                :show-selection="false"
+                :show-export="false"
+                :show-actions="false"
+                empty-icon="pi-inbox"
+                empty-title="No se encontraron productos"
+                :empty-subtitle="store.products.length === 0
+                    ? 'Crea categorías y luego agrega tu primer producto de bodega.'
+                    : 'Prueba otros filtros o términos de búsqueda.'"
                 item-label="productos"
-            />
+                :rows="12"
+                @new-item-requested-manager="openCreate"
+                @global-filter-change="store.searchQuery = $event"
+                @view-item-requested-manager="openEdit"
+            >
+                <template #empty-actions>
+                    <pv-button
+                        v-if="store.products.length === 0 && canCreateProduct"
+                        label="Nuevo producto"
+                        icon="pi pi-plus"
+                        size="small"
+                        @click="openCreate"
+                    />
+                    <pv-button
+                        v-else-if="store.products.length === 0"
+                        label="Ir a categorías"
+                        icon="pi pi-tag"
+                        size="small"
+                        severity="secondary"
+                        outlined
+                        @click="activeTab = 'categories'"
+                    />
+                </template>
+
+                <template #filters>
+                    <pv-select
+                        v-model="store.filterCategory"
+                        :options="categoryFilterOptions"
+                        option-label="label"
+                        option-value="value"
+                        placeholder="Categoría"
+                        show-clear
+                        :append-to="OVERLAY_TARGET"
+                        size="small"
+                        class="inv-toolbar__select"
+                    />
+                </template>
+
+                <template #prod-name="{ data: p }">
+                    <div class="flex flex-column">
+                        <span class="font-semibold text-color">{{ p.name }}</span>
+                        <span
+                            v-if="p.description"
+                            class="text-xs text-color-secondary inv-prod-desc"
+                        >{{ p.description }}</span>
+                    </div>
+                </template>
+
+                <template #prod-stock="{ data: p }">
+                    <span :style="{ color: getStockStatusColor(p), fontWeight: 600 }">
+                        {{ p.stock }} {{ p.unit }}
+                    </span>
+                </template>
+
+                <template #prod-status="{ data: p }">
+                    <span
+                        class="badge"
+                        :style="{
+                            background: getStockStatusColor(p) + '22',
+                            color: getStockStatusColor(p),
+                            border: '1px solid ' + getStockStatusColor(p) + '66',
+                        }"
+                    >
+                        {{ getStockStatusLabel(p) }}
+                    </span>
+                </template>
+
+                <template #prod-cost="{ data: p }">
+                    <span class="td-amount">{{ formatCurrency(p.cost) }}</span>
+                </template>
+
+                <template #prod-price="{ data: p }">
+                    <span class="td-amount td-price">{{ formatCurrency(p.price) }}</span>
+                </template>
+
+                <template #prod-minmax="{ data: p }">
+                    <span class="td-minmax">{{ p.minStock }} / {{ p.maxStock ?? '∞' }}</span>
+                </template>
+
+                <template #prod-actions="{ data: p }">
+                    <div class="inv-row-actions">
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--edit"
+                            title="Editar"
+                            @click.stop="openEdit(p)"
+                        >
+                            <i class="pi pi-pencil" />
+                        </button>
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--delete"
+                            title="Eliminar"
+                            @click.stop="onDelete(p)"
+                        >
+                            <i class="pi pi-trash" />
+                        </button>
+                    </div>
+                </template>
+            </data-manager>
         </div>
         </div>
 
@@ -472,12 +482,14 @@ function formatDate(d) {
                     </div>
                 </div>
             </div>
-            <div v-else class="inv-empty inv-panel">
-                <i class="pi pi-tag inv-empty__icon"></i>
-                <span class="inv-empty__title">No hay categorías configuradas</span>
-                <span class="inv-empty__sub">Crea categorías para organizar los productos del inventario.</span>
+            <module-empty-state
+                v-else
+                icon="pi-tag"
+                title="No hay categorías configuradas"
+                subtitle="Crea categorías para organizar los productos del inventario."
+            >
                 <pv-button label="Nueva categoría" icon="pi pi-plus" size="small" @click="openCreateCategory" />
-            </div>
+            </module-empty-state>
         </div>
         </div>
 
@@ -502,131 +514,134 @@ function formatDate(d) {
                 </div>
             </div>
 
-            <!-- Filtros movimientos -->
-            <div class="inv-toolbar">
-                <pv-icon-field class="inv-toolbar__search">
-                    <pv-input-icon class="pi pi-search" />
-                    <pv-input-text
-                        v-model="store.movementSearch"
-                        placeholder="Buscar producto, SKU, registrado por, nota..."
-                        class="w-full"
-                        size="small"
-                        @input="resetMovementPage()"
-                    />
-                </pv-icon-field>
-
-                <pv-select
-                    v-model="store.movementFilterType"
-                    :options="movementTypeFilterOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="MOTIVO"
-                    showClear
-                    :append-to="OVERLAY_TARGET"
-                    size="small"
-                    class="inv-toolbar__select"
-                    @change="resetMovementPage()"
-                />
-
-                <pv-select
-                    v-model="store.movementFilterDirection"
-                    :options="movementDirFilterOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="DIRECCIÓN"
-                    showClear
-                    :append-to="OVERLAY_TARGET"
-                    size="small"
-                    class="inv-toolbar__select"
-                    @change="resetMovementPage()"
-                />
-
-                <pv-button label="Registrar movimiento" icon="pi pi-plus" size="small" @click="openRegisterMovement" />
-            </div>
-
-            <!-- Empty -->
-            <div v-if="store.filteredMovements.length === 0" class="inv-empty inv-panel">
-                <i class="pi pi-arrow-right-arrow-left inv-empty__icon"></i>
-                <span class="inv-empty__title">No hay movimientos registrados</span>
-                <span class="inv-empty__sub">Registra entradas y salidas para llevar el kardex de bodega.</span>
-                <pv-button
-                    v-if="store.products.length > 0"
-                    label="Registrar movimiento"
-                    icon="pi pi-plus"
-                    size="small"
-                    @click="openRegisterMovement"
-                />
-            </div>
-
-            <!-- Tabla movimientos -->
-            <div v-else class="inv-table-wrap">
-                <table class="inv-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Producto</th>
-                            <th>Dir.</th>
-                            <th>Motivo</th>
-                            <th style="text-align:right">Cantidad</th>
-                            <th style="text-align:right">Stock ant.</th>
-                            <th style="text-align:right">Stock nuevo</th>
-                            <th>Nota</th>
-                            <th>Registrado por</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="m in paginatedMovements"
-                            :key="m.id"
-                            class="inv-row inv-row--readonly">
-                            <td class="td-date">{{ formatDate(m.createdAt) }}</td>
-                            <td>
-                                <div class="flex flex-column">
-                                    <span class="font-semibold text-color">{{ m.productName }}</span>
-                                    <span class="text-xs text-color-secondary">{{ m.productSku }}</span>
-                                </div>
-                            </td>
-                            <td>
-                                <span :class="['dir-badge', m.isEntry ? 'dir-badge--in' : 'dir-badge--out']">
-                                    <i :class="['pi', m.isEntry ? 'pi-arrow-down' : 'pi-arrow-up']"></i>
-                                    {{ m.isEntry ? 'Entrada' : 'Salida' }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge" :style="{ background: (MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280') + '18', color: MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280', border: '1px solid ' + (MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280') + '44' }">
-                                    {{ MOVEMENT_TYPE_LABELS[m.type] ?? m.type }}
-                                </span>
-                            </td>
-                            <td class="td-amount" :style="{ color: m.isEntry ? '#059669' : '#dc2626' }">
-                                {{ m.isEntry ? '+' : '-' }}{{ m.quantity }}
-                            </td>
-                            <td class="td-amount" style="color:#6b7280">{{ m.previousStock }}</td>
-                            <td class="td-amount font-bold">{{ m.newStock }}</td>
-                            <td class="td-notes">{{ m.notes || '—' }}</td>
-                            <td class="td-user">
-                                <span class="font-medium text-color">{{ m.userName || '—' }}</span>
-                            </td>
-                            <td class="td-actions">
-                                <template v-if="isPersistedMovement(m)">
-                                    <pv-button icon="pi pi-pencil" text rounded size="small" severity="info" @click.stop="openEditMovement(m)" />
-                                    <pv-button icon="pi pi-trash" text rounded size="small" severity="danger" @click.stop="onDeleteMovement(m)" />
-                                </template>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <table-pagination-bar
-                v-if="store.filteredMovements.length > 0"
-                v-model:page="movementPage"
-                v-model:page-size="movementPageSize"
-                :total-pages="movementTotalPages"
-                :range-start="movementRangeStart"
-                :range-end="movementRangeEnd"
-                :total-items="movementTotalItems"
+            <data-manager
+                class="inv-movements-manager"
+                :items="store.movements"
+                :filtered-items="store.filteredMovements"
+                :columns="movementTableColumns"
+                :title="{ singular: 'movimiento', plural: 'movimientos' }"
+                :loading="store.isLoading"
+                :dynamic="true"
+                :global-filter-value="store.movementSearch"
+                search-placeholder="Buscar producto, SKU, registrado por, nota..."
+                :inline-toolbar="true"
+                new-button-label="Registrar movimiento"
+                :show-selection="false"
+                :show-export="false"
+                :show-actions="false"
+                empty-icon="pi-arrow-right-arrow-left"
+                empty-title="No hay movimientos registrados"
+                empty-subtitle="Registra entradas y salidas para llevar el kardex de bodega."
                 item-label="movimientos"
-            />
+                :rows="15"
+                @new-item-requested-manager="openRegisterMovement"
+                @global-filter-change="store.movementSearch = $event"
+            >
+                <template #empty-actions>
+                    <pv-button
+                        v-if="store.products.length > 0"
+                        label="Registrar movimiento"
+                        icon="pi pi-plus"
+                        size="small"
+                        @click="openRegisterMovement"
+                    />
+                </template>
+
+                <template #filters>
+                    <pv-select
+                        v-model="store.movementFilterType"
+                        :options="movementTypeFilterOptions"
+                        option-label="label"
+                        option-value="value"
+                        placeholder="Motivo"
+                        show-clear
+                        :append-to="OVERLAY_TARGET"
+                        size="small"
+                        class="inv-toolbar__select"
+                    />
+                    <pv-select
+                        v-model="store.movementFilterDirection"
+                        :options="movementDirFilterOptions"
+                        option-label="label"
+                        option-value="value"
+                        placeholder="Dirección"
+                        show-clear
+                        :append-to="OVERLAY_TARGET"
+                        size="small"
+                        class="inv-toolbar__select"
+                    />
+                </template>
+
+                <template #mov-date="{ data: m }">
+                    <span class="td-date">{{ formatDate(m.createdAt) }}</span>
+                </template>
+
+                <template #mov-product="{ data: m }">
+                    <div class="flex flex-column">
+                        <span class="font-semibold text-color">{{ m.productName }}</span>
+                        <span class="text-xs text-color-secondary">{{ m.productSku }}</span>
+                    </div>
+                </template>
+
+                <template #mov-direction="{ data: m }">
+                    <span :class="['dir-badge', m.isEntry ? 'dir-badge--in' : 'dir-badge--out']">
+                        <i :class="['pi', m.isEntry ? 'pi-arrow-down' : 'pi-arrow-up']"></i>
+                        {{ m.isEntry ? 'Entrada' : 'Salida' }}
+                    </span>
+                </template>
+
+                <template #mov-type="{ data: m }">
+                    <span
+                        class="badge"
+                        :style="{
+                            background: (MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280') + '18',
+                            color: MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280',
+                            border: '1px solid ' + (MOVEMENT_TYPE_COLORS[m.type] ?? '#6b7280') + '44',
+                        }"
+                    >
+                        {{ MOVEMENT_TYPE_LABELS[m.type] ?? m.type }}
+                    </span>
+                </template>
+
+                <template #mov-qty="{ data: m }">
+                    <span class="td-amount" :style="{ color: m.isEntry ? '#059669' : '#dc2626' }">
+                        {{ m.isEntry ? '+' : '-' }}{{ m.quantity }}
+                    </span>
+                </template>
+
+                <template #mov-prev="{ data: m }">
+                    <span class="td-amount" style="color:#6b7280">{{ m.previousStock }}</span>
+                </template>
+
+                <template #mov-new="{ data: m }">
+                    <span class="td-amount font-bold">{{ m.newStock }}</span>
+                </template>
+
+                <template #mov-notes="{ data: m }">
+                    <span class="td-notes">{{ m.notes || '—' }}</span>
+                </template>
+
+                <template #mov-actions="{ data: m }">
+                    <div v-if="isPersistedMovement(m)" class="inv-row-actions">
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--edit"
+                            title="Editar"
+                            @click.stop="openEditMovement(m)"
+                        >
+                            <i class="pi pi-pencil" />
+                        </button>
+                        <button
+                            type="button"
+                            class="dm-action-btn dm-action-btn--delete"
+                            title="Eliminar"
+                            @click.stop="onDeleteMovement(m)"
+                        >
+                            <i class="pi pi-trash" />
+                        </button>
+                    </div>
+                </template>
+            </data-manager>
         </div>
         </div>
 
@@ -730,76 +745,29 @@ function formatDate(d) {
     color: #6b7280;
 }
 
-.inv-panel {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-}
 
-.inv-empty__icon {
-    font-size: 2.25rem;
-    color: #d1d5db;
-}
-
-/* ── Empty state ─────────────────────────────────────────────────────────── */
-.inv-empty {
+.inv-movements-manager {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.625rem;
-    color: #9ca3af;
-    padding: 3rem 2rem;
-    text-align: center;
-    min-height: 220px;
-}
-.inv-empty__title { font-size: 1rem; font-weight: 600; color: #374151; }
-.inv-empty__sub   { font-size: 0.875rem; color: #6b7280; max-width: 28rem; line-height: 1.45; }
-
-/* ── Tabla ───────────────────────────────────────────────────────────────── */
-.inv-table-wrap {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    overflow: hidden;
+    min-height: 0;
 }
 
-
-
-.inv-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.83rem;
+.inv-products-manager {
+    flex: 1;
+    min-height: 0;
 }
 
-.inv-table thead tr {
-    background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.inv-table th {
-    padding: 0.7rem 0.85rem;
-    text-align: left;
-    font-size: 0.73rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+.inv-prod-desc {
+    max-width: 220px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.inv-row {
-    border-bottom: 1px solid #f3f4f6;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.inv-row:hover { background: #fafafe; }
-
-.inv-table td {
-    padding: 0.7rem 0.85rem;
-    color: #374151;
-    vertical-align: middle;
+.inv-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
 }
 
 .td-sku     { font-family: monospace; font-size: 0.78rem; color: #6b7280; }

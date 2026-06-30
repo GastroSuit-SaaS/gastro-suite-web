@@ -1,11 +1,10 @@
-import { apiEnv } from '../../shared/infrustructure/env.js';
-
 const platformHome = () => import('./views/platform-home.vue');
 const platformPlans = () => import('./views/platform-plans.vue');
 const platformCompanies = () => import('./views/platform-companies.vue');
 const platformAdmins = () => import('./views/platform-admins.vue');
 const platformRequests = () => import('./views/platform-subscription-requests.vue');
 const platformBootstrap = () => import('./views/platform-bootstrap.vue');
+const platformAuditLog = () => import('./views/platform-audit-log.vue');
 
 export const PLATFORM_ROUTES = Object.freeze({
     ROOT: '/platform',
@@ -72,7 +71,7 @@ const platformChildRoutes = [
     {
         path: 'audit',
         name: 'platform-audit',
-        component: () => import('./views/platform-audit-log.vue'),
+        component: platformAuditLog,
         meta: {
             title: 'Auditoría',
             titleModule: 'Auditoría de plataforma',
@@ -82,16 +81,19 @@ const platformChildRoutes = [
     },
 ];
 
-const bootstrapRoute = apiEnv.platformBootstrapEnabled
-    ? [{
-        path: PLATFORM_ROUTES.BOOTSTRAP,
-        name: 'platform-bootstrap',
-        component: platformBootstrap,
-        meta: { title: 'Bootstrap', requiresAuth: false },
-    }]
-    : [];
+/** Rutas públicas de bootstrap — resolver en router/index.js con apiEnv. */
+export function buildPlatformBootstrapRoutes(platformBootstrapEnabled) {
+    return platformBootstrapEnabled
+        ? [{
+            path: PLATFORM_ROUTES.BOOTSTRAP,
+            name: 'platform-bootstrap',
+            component: platformBootstrap,
+            meta: { title: 'Bootstrap', requiresAuth: false },
+        }]
+        : [];
+}
 
 /** Rutas hijas bajo layout.vue — el padre se registra en router/index.js */
 export const platformLayoutChildren = platformChildRoutes;
 
-export default [...bootstrapRoute];
+export default buildPlatformBootstrapRoutes(false);

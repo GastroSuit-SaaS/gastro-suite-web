@@ -1,9 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { toolbarContext } from '../../../shared/composables/use-toolbar-context.js'
+import { useShellFacade } from '../../../shared/application/shell.facade.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { toolbarContext } from '../../../shared/presentation/composables/use-toolbar-context.js'
 import BranchSwitcher from './branch-switcher.vue'
 import NotificationsBell from '../../../communication/presentation/components/notifications-bell.vue'
 
@@ -33,13 +33,14 @@ const props = defineProps({
 const emit = defineEmits(['back'])
 
 const router    = useRouter()
-const iamStore  = useIamStore()
+const shell = useShellFacade()
+const hasBranchSelected = shell.hasBranchSelected
 const { showConfirm } = useConfirmDialog()
 
 const userMenu = ref()
 
-const username = computed(() => iamStore.currentUser?.username || 'Usuario')
-const userRole = computed(() => iamStore.currentUser?.primaryRole || 'Usuario')
+const username = computed(() => shell.currentUser.value?.username || 'Usuario')
+const userRole = computed(() => shell.currentUser.value?.primaryRole || 'Usuario')
 
 const menuItems = ref([
     {
@@ -104,7 +105,7 @@ const handleSignOut = async () => {
         rejectLabel: 'Cancelar',
     })
     if (!confirmed) return
-    await iamStore.logout()
+    await shell.logout()
     router.push({ name: 'sign-in' })
 }
 
@@ -157,9 +158,9 @@ function chipStyle(chip) {
         </div>
 
         <!-- Branch switcher (visible cuando hay sucursal activa) -->
-        <BranchSwitcher v-if="iamStore.hasBranchSelected" class="hidden md:flex" />
+        <BranchSwitcher v-if="hasBranchSelected" class="hidden md:flex" />
 
-        <NotificationsBell v-if="!iamStore.isSystem" class="hidden md:flex" />
+        <NotificationsBell class="hidden md:flex" />
 
         <!-- Slot for extra action buttons -->
         <slot name="actions" />

@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useShellFacade } from '../../../shared/application/shell.facade.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
 
 const props = defineProps({
   menuItems: {
@@ -19,11 +19,11 @@ const emit = defineEmits(['toggle'])
 
 const route    = useRoute()
 const router   = useRouter()
-const iamStore = useIamStore()
+const shell = useShellFacade()
 const { showConfirm } = useConfirmDialog()
 
-const username = computed(() => iamStore.currentUser?.username || 'Usuario')
-const userRole = computed(() => iamStore.currentUser?.roles?.[0] || 'Usuario')
+const username = computed(() => shell.currentUser.value?.username || 'Usuario')
+const userRole = computed(() => shell.currentUser.value?.roles?.[0] || 'Usuario')
 
 /** Ruta del ítem de menú más específica que coincide (evita que /platform marque Inicio en todas las subrutas). */
 const activeMenuPath = computed(() => {
@@ -54,7 +54,7 @@ const handleSignOut = async () => {
     rejectLabel: 'Cancelar',
   })
   if (!confirmed) return
-  await iamStore.logout()
+  await shell.logout()
   router.push({ name: 'sign-in' })
 }
 </script>

@@ -3,11 +3,17 @@ defineProps({
     icon: { type: String, default: 'pi-inbox' },
     title: { type: String, required: true },
     subtitle: { type: String, default: '' },
+    /** card = borde y fondo; plain = solo contenido centrado (tabs, listados internos) */
+    variant: {
+        type: String,
+        default: 'card',
+        validator: (value) => ['card', 'plain'].includes(value),
+    },
 });
 </script>
 
 <template>
-  <div class="gs-empty">
+  <div :class="['gs-empty', variant === 'plain' && 'gs-empty--plain']">
     <i :class="['pi', icon, 'gs-empty__icon']"></i>
     <span class="gs-empty__title">{{ title }}</span>
     <span v-if="subtitle" class="gs-empty__sub">{{ subtitle }}</span>
@@ -28,6 +34,14 @@ defineProps({
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
+}
+
+.gs-empty--plain {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  min-height: 180px;
+  padding: 2rem 1rem;
 }
 
 .gs-empty__icon {

@@ -1,11 +1,8 @@
 import { OperationalMetrics } from '../../domain/models/dashboard-metric.entity.js';
-import { entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
-/**
- * Mapeo 1:1 del contrato API → dominio frontend.
- */
 export class DashboardMetricAssembler {
-    static fromApiResource(resource) {
+    static toEntityFromResource(resource) {
         if (!resource) return null;
         return new OperationalMetrics({
             businessDate: resource.businessDate ?? null,
@@ -18,7 +15,22 @@ export class DashboardMetricAssembler {
         });
     }
 
+    static toEntitiesFromResponse(response) {
+        const entity = DashboardMetricAssembler.toEntityFromResponse(response);
+        return entity ? [entity] : [];
+    }
+
+    static toEntityFromResponse(response) {
+        return entityFromResponse(response, DashboardMetricAssembler.toEntityFromResource);
+    }
+
+    /** @deprecated use toEntityFromResource */
+    static fromApiResource(resource) {
+        return DashboardMetricAssembler.toEntityFromResource(resource);
+    }
+
+    /** @deprecated use toEntityFromResponse */
     static fromApiResponse(response) {
-        return entityFromResponse(response, DashboardMetricAssembler.fromApiResource);
+        return DashboardMetricAssembler.toEntityFromResponse(response);
     }
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { USER_ROLE_CONFIG } from '../constants/users.constants-ui.js'
+import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
@@ -18,80 +19,64 @@ function close() { emit('update:visible', false) }
 </script>
 
 <template>
-    <pv-dialog
+    <CreateAndEdit
         :visible="visible"
-        modal
-        :closable="true"
-        :style="{ width: '480px' }"
-        class="p-fluid ce-dialog"
-        @update:visible="close"
+        view-only
+        entity-name="Detalle del Usuario"
+        header-title-override="Detalle del Usuario"
+        size="standard"
+        @canceled-shared="close"
     >
-        <template #header>
-            <h2 class="m-0 font-bold" style="font-size: 1.1rem; color: #111827;">Detalle del Usuario</h2>
-        </template>
-
-        <template #closebutton="{ closeCallback }">
-            <button class="ce-close-btn" @click="closeCallback" aria-label="Cerrar">
-                <i class="pi pi-times" />
-            </button>
-        </template>
-
-        <div v-if="user" class="ud">
-            <!-- Profile hero -->
-            <div class="ud-hero">
-                <div class="ud-avatar" :style="{ background: roleConfig.bg, color: roleConfig.color }">
-                    {{ user.initials }}
+        <template #content>
+            <div v-if="user" class="ud">
+                <div class="ud-hero">
+                    <div class="ud-avatar" :style="{ background: roleConfig.bg, color: roleConfig.color }">
+                        {{ user.initials }}
+                    </div>
+                    <div class="ud-name">{{ user.fullName }}</div>
+                    <div class="ud-username">@{{ user.username }}</div>
+                    <div class="ud-badges">
+                        <span class="ud-role-badge" :style="{ background: roleConfig.bg, color: roleConfig.color }">
+                            <i :class="['pi', roleConfig.icon]"></i>
+                            {{ roleConfig.label }}
+                        </span>
+                        <span :class="['ud-status-badge', user.isActive ? 'ud-status-badge--on' : 'ud-status-badge--off']">
+                            <i :class="['pi', user.isActive ? 'pi-check-circle' : 'pi-times-circle']" style="font-size: 0.6rem;"></i>
+                            {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                        </span>
+                    </div>
                 </div>
-                <div class="ud-name">{{ user.fullName }}</div>
-                <div class="ud-username">@{{ user.username }}</div>
-                <div class="ud-badges">
-                    <span class="ud-role-badge" :style="{ background: roleConfig.bg, color: roleConfig.color }">
-                        <i :class="['pi', roleConfig.icon]"></i>
-                        {{ roleConfig.label }}
-                    </span>
-                    <span :class="['ud-status-badge', user.isActive ? 'ud-status-badge--on' : 'ud-status-badge--off']">
-                        <i :class="['pi', user.isActive ? 'pi-check-circle' : 'pi-times-circle']" style="font-size: 0.6rem;"></i>
-                        {{ user.isActive ? 'Activo' : 'Inactivo' }}
-                    </span>
+
+                <div class="ud-grid">
+                    <div class="ud-card">
+                        <i class="pi pi-envelope"></i>
+                        <span class="ud-card-label">Email</span>
+                        <span class="ud-card-value">{{ user.email }}</span>
+                    </div>
+                    <div class="ud-card">
+                        <i class="pi pi-phone"></i>
+                        <span class="ud-card-label">Teléfono</span>
+                        <span class="ud-card-value">{{ user.telefono || '—' }}</span>
+                    </div>
+                    <div class="ud-card">
+                        <i class="pi pi-id-card"></i>
+                        <span class="ud-card-label">Documento</span>
+                        <span class="ud-card-value">{{ user.tipoDocumento }} {{ user.numeroDocumento }}</span>
+                    </div>
+                    <div class="ud-card">
+                        <i class="pi pi-building"></i>
+                        <span class="ud-card-label">Sucursal</span>
+                        <span class="ud-card-value">{{ user.sucursalNombre || 'Sin sucursal' }}</span>
+                    </div>
+                    <div v-if="user.createdAt" class="ud-card ud-card--full">
+                        <i class="pi pi-calendar"></i>
+                        <span class="ud-card-label">Fecha de creación</span>
+                        <span class="ud-card-value">{{ new Date(user.createdAt).toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' }) }}</span>
+                    </div>
                 </div>
             </div>
-
-            <!-- Info grid -->
-            <div class="ud-grid">
-                <div class="ud-card">
-                    <i class="pi pi-envelope"></i>
-                    <span class="ud-card-label">Email</span>
-                    <span class="ud-card-value">{{ user.email }}</span>
-                </div>
-                <div class="ud-card">
-                    <i class="pi pi-phone"></i>
-                    <span class="ud-card-label">Teléfono</span>
-                    <span class="ud-card-value">{{ user.telefono || '—' }}</span>
-                </div>
-                <div class="ud-card">
-                    <i class="pi pi-id-card"></i>
-                    <span class="ud-card-label">Documento</span>
-                    <span class="ud-card-value">{{ user.tipoDocumento }} {{ user.numeroDocumento }}</span>
-                </div>
-                <div class="ud-card">
-                    <i class="pi pi-building"></i>
-                    <span class="ud-card-label">Sucursal</span>
-                    <span class="ud-card-value">{{ user.sucursalNombre || 'Sin sucursal' }}</span>
-                </div>
-                <div v-if="user.createdAt" class="ud-card ud-card--full">
-                    <i class="pi pi-calendar"></i>
-                    <span class="ud-card-label">Fecha de creación</span>
-                    <span class="ud-card-value">{{ new Date(user.createdAt).toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' }) }}</span>
-                </div>
-            </div>
-        </div>
-
-        <template #footer>
-            <div class="flex justify-content-end w-full">
-                <pv-button label="Cerrar" outlined severity="secondary" size="small" @click="close" />
-            </div>
         </template>
-    </pv-dialog>
+    </CreateAndEdit>
 </template>
 
 <style scoped>
@@ -101,7 +86,6 @@ function close() { emit('update:visible', false) }
     gap: 1.25rem;
 }
 
-/* ---- Hero (centered profile) ---- */
 .ud-hero {
     display: flex;
     flex-direction: column;
@@ -166,7 +150,6 @@ function close() { emit('update:visible', false) }
 .ud-status-badge--on  { background: #dcfce7; color: #15803d; }
 .ud-status-badge--off { background: #fee2e2; color: #b91c1c; }
 
-/* ---- Info grid ---- */
 .ud-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

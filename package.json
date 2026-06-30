@@ -9,6 +9,8 @@
     "sync:firebase-sw": "node scripts/sync-firebase-sw.mjs",
     "deploy:pages": "npm run build && npx wrangler pages deploy dist --project-name=gastro-suite-web",
     "build:only": "vite build",
+    "audit:architecture": "node scripts/audit-architecture.mjs",
+    "verify:modules": "node scripts/verify-modules-compliance.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

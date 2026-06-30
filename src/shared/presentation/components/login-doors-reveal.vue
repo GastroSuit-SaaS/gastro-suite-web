@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { consumeLoginRevealPending } from '../../infrustructure/session-storage.js'
+import { consumeLoginRevealPending } from '../../infrastructure/session-storage.js'
 
 const route = useRoute()
 const visible = ref(false)

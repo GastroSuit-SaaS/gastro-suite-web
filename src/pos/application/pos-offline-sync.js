@@ -1,7 +1,8 @@
-import { appendOutbox, loadOutbox, removeOutboxEntry, saveOutbox } from '../../shared/infrustructure/offline/outbox-storage.js';
-import { isNetworkOnline, notifyOutboxChanged } from '../../shared/infrustructure/offline/network.js';
-import { SaleAssembler, isPersistedSaleId } from '../infrastructure/assemblers/sale.assembler.js';
-import { StationTicketAssembler } from '../../stations/infrastructure/assemblers/station-ticket.assembler.js';
+import { appendOutbox, loadOutbox, removeOutboxEntry, saveOutbox } from '../../shared/infrastructure/offline/outbox-storage.js';
+import { isNetworkOnline, notifyOutboxChanged } from '../../shared/infrastructure/offline/network.js';
+import { SaleAssembler } from '../infrastructure/assemblers/sale.assembler.js';
+import { isPersistedSaleId } from '../domain/sale.persistence.js';
+import { useStationsStore } from '../../stations/application/stations.store.js';
 
 export { isNetworkOnline };
 
@@ -104,7 +105,7 @@ export async function replayOfflineOutbox(deps) {
                 if (saved) deps.applySaleToStore(saved, saleId);
                 if (tickets?.length && deps.mergeKitchenTickets) {
                     deps.mergeKitchenTickets(
-                        tickets.map(r => StationTicketAssembler.toEntityFromResource(r)),
+                        tickets.map(r => useStationsStore().ticketFromResource(r)),
                     );
                 }
                 if (deps.refreshKitchenTickets) {

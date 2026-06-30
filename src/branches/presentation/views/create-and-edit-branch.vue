@@ -1,29 +1,23 @@
 <script setup>
 import { reactive, watch, computed, onMounted } from 'vue'
 import { useBranchesStore } from '../../application/branches.store.js'
-import { useUsersStore } from '../../../users/application/users.store.js'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
+    edit:    { type: Boolean, default: false },
     branch:  { type: Object,  default: null  },
 })
 
-const emit = defineEmits(['close', 'saved'])
-const store      = useBranchesStore()
-const usersStore = useUsersStore()
+const emit = defineEmits(['update:visible', 'branch-saved'])
 
-const isEdit = computed(() => !!props.branch?.id)
+const store = useBranchesStore()
 
 onMounted(() => {
-    if (usersStore.users.length === 0) usersStore.fetchAll()
+    store.ensureUsersLoaded()
 })
 
-const managerCandidates = computed(() =>
-    usersStore.activeUsers
-        .filter(u => ['OWNER', 'BRANCH_ADMIN'].includes(u.role))
-        .map(u => ({ label: `${u.fullName} (${u.role === 'OWNER' ? 'Dueño' : 'Admin. Sucursal'})`, value: u.id, fullName: u.fullName }))
-)
+const managerCandidates = computed(() => store.managerCandidates)
 
 const form = reactive({
     codigo:          '',
@@ -53,7 +47,7 @@ watch(() => props.visible, (val) => {
         form.isActive     = props.branch?.isActive     ?? true
         form.posBillableRequiresSent = posBillableToForm(props.branch?.posBillableRequiresSent ?? null)
     }
-}, { immediate: true })
+})
 
 /** PrimeVue Select no compara bien `null` como option-value; usamos sentinela. */
 const POS_BILLABLE_INHERIT = '__inherit__'
@@ -76,42 +70,34 @@ function posBillableFromForm(formValue) {
     return null
 }
 
-const canSave = computed(() =>
-    form.nombre.trim() && form.codigo.trim()
-)
-
 function resolveEncargadoNombre() {
     const match = managerCandidates.value.find(c => c.value === form.encargadoId)
     return match?.fullName ?? ''
 }
 
 function onCancel() {
-    emit('close')
+    emit('update:visible', false)
 }
 
-async function onSave() {
-    if (!canSave.value) return
-    const payload = {
+function onSave() {
+    if (!form.nombre.trim() || !form.codigo.trim()) return
+    emit('branch-saved', {
         ...form,
+        nombre: form.nombre.trim(),
+        codigo: form.codigo.trim(),
         posBillableRequiresSent: posBillableFromForm(form.posBillableRequiresSent),
         encargadoNombre: resolveEncargadoNombre(),
-    }
-    if (isEdit.value) {
-        await store.update(props.branch.id, payload)
-    } else {
-        await store.create(payload)
-    }
-    emit('saved')
+    })
 }
 </script>
 
 <template>
     <CreateAndEdit
         :visible="visible"
-        :edit="isEdit"
+        :edit="edit"
         entity-name="Sucursal"
         size="standard"
-        :custom-button-label="isEdit ? 'Actualizar Sucursal' : 'Crear Sucursal'"
+        :custom-button-label="edit ? 'Actualizar Sucursal' : 'Crear Sucursal'"
         @canceled-shared="onCancel"
         @saved-shared="onSave"
     >
@@ -143,7 +129,7 @@ async function onSave() {
                 </div>
 
                 <!-- ── Sección: Encargado (solo edición) ──────── -->
-                <div v-if="isEdit" class="ceb-section">
+                <div v-if="edit" class="ceb-section">
                     <h4 class="ceb-section__title">
                         <i class="pi pi-user"></i>
                         Encargado de Sucursal

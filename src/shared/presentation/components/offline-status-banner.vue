@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
-import { useNetworkStatus } from '../../composables/use-network-status.js';
-import { outboxCount } from '../../infrustructure/offline/outbox-storage.js';
+import { useNetworkStatus } from '../composables/use-network-status.js';
+import { outboxCount } from '../../infrastructure/offline/outbox-storage.js';
 import { ref, onMounted, onUnmounted } from 'vue';
 
 const { isOnline } = useNetworkStatus();

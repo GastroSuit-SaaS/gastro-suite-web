@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+import ColoredEntityFormFields from '../../../shared/presentation/components/colored-entity-form-fields.vue'
 
 const props = defineProps({
     visible:         { type: Boolean, default: false },
@@ -57,76 +58,18 @@ const onSave = () => {
         @saved-shared="onSave"
     >
         <template #content>
-            <div class="flex flex-column gap-4 pt-3">
-
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">
-                        Nombre de la Categoría <span class="text-red-500">*</span>
-                    </label>
-                    <pv-input-text
-                        v-model="form.name"
-                        placeholder="Ej: Entradas, Platos Principales, Postres"
-                    />
-                </div>
-
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Descripción</label>
-                    <pv-textarea
-                        v-model="form.description"
-                        placeholder="Opcional (mín. 5 caracteres si la envías)"
-                        :rows="3"
-                        auto-resize
-                    />
-                </div>
-
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">
-                        Orden de aparición <span class="text-red-500">*</span>
-                    </label>
-                    <pv-input-number
-                        v-model="form.sortOrder"
-                        :min="1"
-                        :max="999"
-                        :use-grouping="false"
-                        class="w-full"
-                    />
-                    <span class="text-xs" style="color: #6b7280;">
-                        Posición en desplegables, POS y listado (1 = primero). Si eliges un orden ya usado, las categorías intercambian posición.
-                    </span>
-                </div>
-
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Color Identificador</label>
-                    <div class="flex align-items-center gap-2">
-                        <pv-color-picker v-model="form.color" format="hex" append-to="body" />
-                        <pv-input-text
-                            :value="'#' + form.color.toUpperCase()"
-                            class="flex-1"
-                            @input="form.color = $event.target.value.replace('#', '')"
-                        />
-                    </div>
-                </div>
-
-                <div class="flex align-items-center gap-3">
-                    <pv-toggle-switch v-model="form.isActive" input-id="cat-active" />
-                    <div class="flex flex-column gap-0">
-                        <label for="cat-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
-                            Categoría activa
-                        </label>
-                        <span class="text-xs" style="color: #6b7280;">
-                            {{ form.isActive ? 'Visible en el menú del POS' : 'Oculta en el menú del POS' }}
-                        </span>
-                    </div>
-                </div>
-
-            </div>
+            <ColoredEntityFormFields
+                :model="form"
+                name-label="Nombre de la Categoría"
+                name-placeholder="Ej: Entradas, Platos Principales, Postres"
+                description-placeholder="Opcional (mín. 5 caracteres si la envías)"
+                show-sort-order
+                sort-order-hint="Posición en desplegables, POS y listado (1 = primero). Si eliges un orden ya usado, las categorías intercambian posición."
+                active-input-id="cat-active"
+                active-label="Categoría activa"
+                active-hint-on="Visible en el menú del POS"
+                active-hint-off="Oculta en el menú del POS"
+            />
         </template>
     </CreateAndEdit>
 </template>
-
-<style scoped>
-code {
-    font-size: 0.7rem;
-    color: #6b7280;
-}
-</style>

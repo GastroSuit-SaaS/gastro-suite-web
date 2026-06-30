@@ -2,8 +2,9 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTablesStore } from '../../application/tables.store.js'
-import { usePosStore }    from '../../../pos/application/pos.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js'
 import { TABLE_STATUS } from '../../domain/models/table.entity.js'
 import { posOrderRoute }  from '../../../pos/presentation/constants/pos.constants-ui.js'
 import CreateAndEditZone       from './create-and-edit-zone.vue'
@@ -14,12 +15,13 @@ import ModuleStateFeedback     from '../../../shared/presentation/components/mod
 import ModuleTabBar            from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab               from '../../../shared/presentation/components/module-tab.vue'
 import TableFloorPanel         from '../components/table-floor-panel.vue'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import ModuleEmptyState        from '../../../shared/presentation/components/module-empty-state.vue'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const store    = useTablesStore()
-const posStore = usePosStore()
 const router   = useRouter()
 const { confirmDelete } = useConfirmDialog()
+const { showSuccess, showError } = useNotification()
 const { entitlements } = useSubscriptionEntitlements()
 
 onMounted(() => {
@@ -56,10 +58,13 @@ function openEditZone(zone) {
 function onDeleteZone(zone) {
     const hasOccupied = store.tables.some(t => t.zoneId === zone.id && t.isOccupied)
     if (hasOccupied) {
-        // Cannot delete a zone that still has occupied tables
         return
     }
-    confirmDelete('la zona', zone.name, () => store.removeZone(zone.id))
+    confirmDelete('la zona', zone.name, async () => {
+        const result = await store.removeZone(zone.id)
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted('Zona'))
+        else showError(result.message)
+    })
 }
 
 function openEditTable(table) {
@@ -79,41 +84,53 @@ function openAssignTable(table) {
 
 async function onAssignConfirm({ guests }) {
     const table = assigningTable.value
-    const sale = await posStore.openSaleForTable(table.id, table.zoneId, guests)
+    const sale = await store.openPosOrderForTable(table.id, table.zoneId, guests)
     if (sale?.id) router.push(posOrderRoute(sale.id))
     assigningTable.value = null
 }
 
 async function openOrderForTable(table) {
-    const sale = await posStore.openSaleForTable(table.id, table.zoneId, table.seatedGuests)
+    const sale = await store.openPosOrderForTable(table.id, table.zoneId, table.seatedGuests)
     if (sale?.id) router.push(posOrderRoute(sale.id))
 }
 
 function onDeleteTable(table) {
     if (table.isOccupied) {
-        // Cannot delete a table with an active order
         return
     }
-    confirmDelete('la mesa', `Mesa ${table.number}`, () => store.remove(table.id))
+    confirmDelete('la mesa', `Mesa ${table.number}`, async () => {
+        const result = await store.remove(table.id)
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted('Mesa'))
+        else showError(result.message)
+    })
 }
 
-function onZoneSaved(data) {
-    if (editingZone.value) {
-        store.updateZone({ ...editingZone.value, ...data })
+async function onZoneSaved(data) {
+    const isEdit = !!editingZone.value
+    const result = isEdit
+        ? await store.updateZone({ ...editingZone.value, ...data })
+        : await store.createZone(data)
+    if (result.ok) {
+        showZoneDialog.value = false
+        editingZone.value = null
+        showSuccess(isEdit ? CRUD_MESSAGES.updated('Zona') : CRUD_MESSAGES.created('Zona'))
     } else {
-        store.createZone(data)
+        showError(result.message)
     }
-    editingZone.value = null
 }
 
-function onTableSaved(table) {
-    if (editingTable.value) {
-        store.update(editingTable.value.id, table)
+async function onTableSaved(table) {
+    const isEdit = !!editingTable.value
+    const result = isEdit
+        ? await store.update(editingTable.value.id, table)
+        : await store.create(table)
+    if (result.ok) {
+        showTableDialog.value = false
+        editingTable.value = null
+        showSuccess(isEdit ? CRUD_MESSAGES.updated('Mesa') : CRUD_MESSAGES.created('Mesa'))
     } else {
-        store.create(table)
+        showError(result.message)
     }
-    editingTable.value    = null
-    showTableDialog.value = false
 }
 
 watch(showTableDialog, (visible) => {
@@ -218,10 +235,12 @@ function clearTableReservation(tableId) {
                     </div>
                 </div>
             </div>
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-4">
-                <i class="pi pi-map-marker text-3xl text-color-secondary"></i>
-                <span class="text-color-secondary">No hay zonas configuradas</span>
-            </div>
+            <module-empty-state
+                v-else
+                icon="pi-map-marker"
+                title="No hay zonas configuradas"
+                variant="plain"
+            />
 
         </div>
 

@@ -1,25 +1,26 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useMenuStore } from '../../application/menu.store.js'
-import { useStationsStore } from '../../../stations/application/stations.store.js'
 import { nextSortOrder, formatCategoryOptionLabel } from '../../domain/menu-sort.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { useNotification } from '../../../shared/composables/use-notification.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
 import CreateAndEditCategory    from './create-and-edit-category.vue'
 import CreateAndEditMenuItem     from './create-and-edit-menu-item.vue'
 import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar              from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab                 from '../../../shared/presentation/components/module-tab.vue'
 import TablePaginationBar        from '../../../shared/presentation/components/table-pagination-bar.vue'
-import { useTablePagination }    from '../../../shared/composables/use-table-pagination.js'
+import ModuleEmptyState          from '../../../shared/presentation/components/module-empty-state.vue'
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js'
+import { MENU_ENTITY_NAMES, MENU_TOGGLE_MESSAGES } from '../constants/menu.constants-ui.js'
+import { useTablePagination }    from '../../../shared/presentation/composables/use-table-pagination.js'
 
 const store = useMenuStore()
-const stationsStore = useStationsStore()
 const { confirmDelete } = useConfirmDialog()
 const { showError, showSuccess } = useNotification()
 
 onMounted(() => {
-    Promise.all([store.fetchAll(), stationsStore.fetchStations()]).catch(() => {})
+    store.bootstrapManagement().catch(() => {})
 })
 
 const selectedAvailability = ref(null) // null | true | false
@@ -82,7 +83,7 @@ function openEditItem(item) {
 function onDeleteItem(item) {
     confirmDelete('el producto', item.name, async () => {
         const result = await store.remove(item.id)
-        if (result.ok) showSuccess('Producto eliminado correctamente')
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted(MENU_ENTITY_NAMES.PRODUCT))
         else showError(result.message)
     })
 }
@@ -95,7 +96,7 @@ async function onItemSaved(data) {
     if (result.ok) {
         showItemDialog.value = false
         editingItem.value = null
-        showSuccess(isEdit ? 'Producto actualizado' : 'Producto creado')
+        showSuccess(isEdit ? CRUD_MESSAGES.updated(MENU_ENTITY_NAMES.PRODUCT) : CRUD_MESSAGES.created(MENU_ENTITY_NAMES.PRODUCT))
         if (result.imageWarning) {
             showError(result.imageWarning)
         }
@@ -124,7 +125,7 @@ function openEditCategory(cat) {
 function onDeleteCategory(cat) {
     confirmDelete('la categoría', cat.name, async () => {
         const result = await store.removeCategory(cat.id)
-        if (result.ok) showSuccess('Categoría eliminada correctamente')
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted(MENU_ENTITY_NAMES.CATEGORY))
         else showError(result.message)
     })
 }
@@ -142,7 +143,7 @@ async function onCategorySaved(data) {
     if (result.ok) {
         showCategoryDialog.value = false
         editingCategory.value = null
-        showSuccess(isEdit ? 'Categoría actualizada' : 'Categoría creada')
+        showSuccess(isEdit ? CRUD_MESSAGES.updated(MENU_ENTITY_NAMES.CATEGORY) : CRUD_MESSAGES.created(MENU_ENTITY_NAMES.CATEGORY))
     } else {
         showError(result.message)
     }
@@ -166,7 +167,7 @@ async function onToggleCategoryActive(cat) {
         sortOrder: cat.sortOrder,
     })
     if (result.ok) {
-        showSuccess(cat.isActive ? 'Categoría desactivada' : 'Categoría activada')
+        showSuccess(cat.isActive ? MENU_TOGGLE_MESSAGES.CATEGORY_DEACTIVATED : MENU_TOGGLE_MESSAGES.CATEGORY_ACTIVATED)
     } else {
         showError(result.message)
     }
@@ -317,10 +318,12 @@ async function onToggleCategoryActive(cat) {
                 :total-items="itemsTotalItems"
                 item-label="productos"
             />
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-3 p-6">
-                <i class="pi pi-inbox text-color-secondary" style="font-size: 3rem;"></i>
-                <span class="text-color-secondary">No se encontraron productos</span>
-            </div>
+            <module-empty-state
+                v-else
+                icon="pi-inbox"
+                title="No se encontraron productos"
+                variant="plain"
+            />
 
         </div>
 
@@ -375,10 +378,12 @@ async function onToggleCategoryActive(cat) {
                     </div>
                 </div>
             </div>
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-6">
-                <i class="pi pi-tag text-4xl text-color-secondary"></i>
-                <span class="text-color-secondary">No hay categorías configuradas</span>
-            </div>
+            <module-empty-state
+                v-else
+                icon="pi-tag"
+                title="No hay categorías configuradas"
+                variant="plain"
+            />
 
         </div>
 

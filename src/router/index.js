@@ -10,10 +10,10 @@ import reportsRoutes        from "../reports/presentation/reports.routes.js";
 import usersRoutes          from "../users/presentation/users.routes.js";
 import menuRoutes           from "../menu/presentation/menu.routes.js";
 import cashRegisterRoutes   from "../cash-register/presentation/cash-register.routes.js";
-import branchesRoutes       from "../branches/presentation/branches.routes.js";
+import branchesRoutes, { selectBranchRoute } from "../branches/presentation/branches.routes.js";
 import companyRoutes        from "../company/presentation/company.routes.js";
-import platformRoutes, { platformLayoutChildren } from "../platform/presentation/platform.routes.js";
-import { apiEnv } from "../shared/infrustructure/env.js";
+import { platformLayoutChildren, buildPlatformBootstrapRoutes } from "../platform/presentation/platform.routes.js";
+import { apiEnv } from "../shared/infrastructure/env.js";
 import { authenticationGuard } from "../iam/infrastructure/authentication.guard.js";
 
 const layout = () => import('../public/presentation/views/layout.vue');
@@ -29,7 +29,7 @@ const routes = [
     ...iamRoutes,
 
     // Platform bootstrap (público, sin layout)
-    ...platformRoutes,
+    ...buildPlatformBootstrapRoutes(apiEnv.platformBootstrapEnabled),
 
     ...(apiEnv.platformEnabled ? [{
         path: '/platform',
@@ -111,12 +111,7 @@ const routes = [
         children: companyRoutes,
         meta: { title: 'Empresa' },
     },
-    {
-        path: '/select-branch',
-        name: 'select-branch',
-        component: () => import('../branches/presentation/views/select-branch.vue'),
-        meta: { title: 'Seleccionar Sucursal' },
-    },
+    selectBranchRoute,
 
     {
         path: '/:pathMatch(.*)*',

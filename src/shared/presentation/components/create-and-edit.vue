@@ -29,7 +29,7 @@ const props = defineProps({
   size: {
     type: String,
     default: 'default',
-    validator: (value) => ['default', 'standard', 'large'].includes(value)
+    validator: (value) => ['default', 'standard', 'wide', 'large'].includes(value)
   },
   customButtonLabel: {
     type: String,
@@ -74,6 +74,7 @@ const dialogStyle = computed(() => {
   const styles = {
     default: { width: '400px' },
     standard: { width: '600px' },
+    wide: { width: '560px' },
     large: { width: '900px' }
   }
   return styles[props.size] || styles.default
@@ -122,31 +123,33 @@ const onSaveRequested = () => {
     <slot name="content"></slot>
 
     <template #footer>
-      <div class="flex justify-content-end align-items-center gap-2 w-full">
-        <template v-if="viewOnly">
-          <pv-button
-            type="button"
-            label="Cerrar"
-            size="small"
-            @click="onCancelRequested"
-          />
-        </template>
-        <template v-else>
-          <pv-button
-            type="button"
-            label="Cancelar"
-            text
-            size="small"
-            @click="onCancelRequested"
-          />
-          <pv-button
-            type="button"
-            :label="submitLabel"
-            size="small"
-            @click="onSaveRequested"
-          />
-        </template>
-      </div>
+      <slot name="footer">
+        <div class="flex justify-content-end align-items-center gap-2 w-full">
+          <template v-if="viewOnly">
+            <pv-button
+              type="button"
+              label="Cerrar"
+              size="small"
+              @click="onCancelRequested"
+            />
+          </template>
+          <template v-else>
+            <pv-button
+              type="button"
+              label="Cancelar"
+              text
+              size="small"
+              @click="onCancelRequested"
+            />
+            <pv-button
+              type="button"
+              :label="submitLabel"
+              size="small"
+              @click="onSaveRequested"
+            />
+          </template>
+        </div>
+      </slot>
     </template>
   </pv-dialog>
 </template>

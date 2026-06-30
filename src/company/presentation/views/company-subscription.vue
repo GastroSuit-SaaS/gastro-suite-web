@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useCompanyStore } from '../../application/company.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
 import {
     ACCESS_STATE_LABELS,
     BILLING_PERIOD_OPTIONS,
@@ -16,7 +15,6 @@ import {
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store = useCompanyStore()
-const iamStore = useIamStore()
 const toast = useToast()
 
 const billingPeriod = ref('MENSUAL')
@@ -185,13 +183,13 @@ async function submitPlanRequest() {
     }
 
     const renewal = isRenewalFlow()
-    const ok = await store.choosePlan(
+    const result = await store.choosePlan(
         plan.subscriptionId,
         billingPeriod.value,
         ref,
         ownerNotes.value?.trim() ?? '',
     )
-    if (ok) {
+    if (result.ok) {
         paymentDialogVisible.value = false
         selectedPlan.value = null
         toast.add({
@@ -291,7 +289,7 @@ async function submitPlanRequest() {
             <div class="surface-card plan-sidebar__card">
               <h3 class="section-title">Uso vs límites</h3>
               <p class="section-hint">
-                <template v-if="iamStore.hasBranchSelected">
+                <template v-if="store.hasBranchSelected">
                   {{ COMPANY_MESSAGES.BRANCH_USAGE_HINT }}
                 </template>
                 <template v-else>

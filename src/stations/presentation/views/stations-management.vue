@@ -1,20 +1,22 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useStationsStore } from '../../application/stations.store.js'
-import { useMenuStore } from '../../../menu/application/menu.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js'
 import { TICKET_STATUS_CONFIG, TICKET_COLUMNS } from '../constants/stations.constants-ui.js'
 import CreateAndEditStation      from './create-and-edit-station.vue'
 import ModuleStateFeedback       from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar              from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab                 from '../../../shared/presentation/components/module-tab.vue'
 import StationsHistoryPanel      from '../components/stations-history-panel.vue'
-import { setToolbarContext, clearToolbarContext } from '../../../shared/composables/use-toolbar-context.js'
-import { ticketDisplayRef, ticketOrderRef } from '../utils/stations-history.utils.js'
+import ModuleEmptyState            from '../../../shared/presentation/components/module-empty-state.vue'
+import { setToolbarContext, clearToolbarContext } from '../../../shared/presentation/composables/use-toolbar-context.js'
 
 const store = useStationsStore()
-const menuStore = useMenuStore()
+const { ticketDisplayRef, ticketOrderRef } = store
 const { confirmDelete } = useConfirmDialog()
+const { showSuccess, showError } = useNotification()
 
 const activeTab         = ref('display')   // 'display' | 'stations'
 const showStationDialog = ref(false)
@@ -104,7 +106,7 @@ let _timerInterval = null
 let _syncInterval  = null
 onMounted(() => {
     store.fetchAll()
-    menuStore.fetchAll().catch(() => {})
+    store.ensureMenuLoaded()
     _timerInterval = setInterval(() => { now.value = Date.now() }, 30_000)
     // Sincroniza tickets con el servidor (otras pantallas / pestañas de cocina)
     _syncInterval = setInterval(() => store.fetchTicketsSilent(), 60_000)
@@ -161,7 +163,7 @@ const hasAnyTickets  = computed(() => searchedTickets.value.length > 0)
 const hasAnyFocused  = computed(() => focusedTickets.value.length > 0)
 
 function menuItemCountForStation(stationId) {
-    return menuStore.items.filter(i => i.isAvailable && i.stationId === stationId).length
+    return store.availableMenuItemsCount(stationId)
 }
 
 // ── Station CRUD ──────────────────────────────────────────────────────────
@@ -175,17 +177,26 @@ function openEditStation(station) {
     showStationDialog.value = true
 }
 
-function onStationSaved(data) {
-    if (editingStation.value) {
-        store.updateStation(editingStation.value.id, data)
+async function onStationSaved(data) {
+    const isEdit = !!editingStation.value
+    const result = isEdit
+        ? await store.updateStation(editingStation.value.id, data)
+        : await store.createStation(data)
+    if (result.ok) {
+        showStationDialog.value = false
+        editingStation.value = null
+        showSuccess(isEdit ? CRUD_MESSAGES.updated('Estación') : CRUD_MESSAGES.created('Estación'))
     } else {
-        store.createStation(data)
+        showError(result.message)
     }
-    editingStation.value = null
 }
 
 function onDeleteStation(station) {
-    confirmDelete('la estación', station.name, () => store.removeStation(station.id))
+    confirmDelete('la estación', station.name, async () => {
+        const result = await store.removeStation(station.id)
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted('Estación'))
+        else showError(result.message)
+    })
 }
 
 // ── Cancel ticket dialog ──────────────────────────────────────────────────
@@ -813,10 +824,12 @@ function urgencyBorderColor(ticket) {
                 </div>
             </div>
 
-            <div v-else class="flex flex-column align-items-center justify-content-center gap-2 py-6">
-                <i class="pi pi-bolt text-4xl text-color-secondary"></i>
-                <span class="text-color-secondary">No hay estaciones configuradas</span>
-            </div>
+            <module-empty-state
+                v-else
+                icon="pi-bolt"
+                title="No hay estaciones configuradas"
+                variant="plain"
+            />
         </div>
 
         <!-- ══════════════════ TAB: HISTORIAL ════════════════════════════ -->

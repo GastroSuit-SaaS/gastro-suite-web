@@ -2,18 +2,17 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBranchesStore } from '../../application/branches.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useUsersStore } from '../../../users/application/users.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js'
+import { useBranchSwitch } from '../../../shared/presentation/composables/use-branch-switch.js'
 import CreateAndEditBranch from './create-and-edit-branch.vue'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 
 const store      = useBranchesStore()
-const iamStore   = useIamStore()
-const usersStore = useUsersStore()
 const router     = useRouter()
 const { confirmDelete } = useConfirmDialog()
+const { showSuccess, showError } = useNotification()
 const { switchToBranch } = useBranchSwitch()
 
 const showDialog    = ref(false)
@@ -22,16 +21,11 @@ const searchQuery   = ref('')
 const statusFilter  = ref('all')
 
 onMounted(() => {
-    store.fetchAll()
-    if (usersStore.users.length === 0) usersStore.fetchAll()
+    store.bootstrapManagement()
 })
 
 function getEncargadoDisplay(branch) {
-    if (branch.encargadoId) {
-        const user = usersStore.users.find(u => u.id === branch.encargadoId)
-        if (user) return user.fullName
-    }
-    return branch.encargadoNombre || '—'
+    return store.encargadoDisplayForBranch(branch)
 }
 
 const filteredBranches = computed(() => {
@@ -52,7 +46,7 @@ const filteredBranches = computed(() => {
 const totalBranches    = computed(() => store.items.length)
 const activeBranches   = computed(() => store.items.filter(b => b.isActive).length)
 const inactiveBranches = computed(() => store.items.filter(b => !b.isActive).length)
-const activeBranchId   = computed(() => iamStore.activeBranchId)
+const activeBranchId   = computed(() => store.activeBranchId)
 
 function setFilter(filter) {
     statusFilter.value = statusFilter.value === filter ? 'all' : filter
@@ -69,12 +63,25 @@ function openEdit(branch) {
 }
 
 function onDelete(branch) {
-    confirmDelete('la sucursal', branch.nombre, () => store.remove(branch.id))
+    confirmDelete('la sucursal', branch.nombre, async () => {
+        const result = await store.remove(branch.id)
+        if (result.ok) showSuccess(CRUD_MESSAGES.deleted('Sucursal'))
+        else showError(result.message)
+    })
 }
 
-function onDialogSaved() {
-    showDialog.value = false
-    editingBranch.value = null
+async function onBranchSaved(data) {
+    const isEdit = !!editingBranch.value
+    const result = isEdit
+        ? await store.update(editingBranch.value.id, data)
+        : await store.create(data)
+    if (result.ok) {
+        showDialog.value = false
+        editingBranch.value = null
+        showSuccess(isEdit ? CRUD_MESSAGES.updated('Sucursal') : CRUD_MESSAGES.created('Sucursal'))
+    } else {
+        showError(result.message)
+    }
 }
 
 async function selectBranch(branch) {
@@ -244,11 +251,10 @@ function clearSearch() {
 
         <!-- Dialog -->
         <CreateAndEditBranch
-            v-if="showDialog"
-            :visible="showDialog"
+            v-model:visible="showDialog"
+            :edit="!!editingBranch"
             :branch="editingBranch"
-            @close="showDialog = false"
-            @saved="onDialogSaved"
+            @branch-saved="onBranchSaved"
         />
     </div>
 </template>

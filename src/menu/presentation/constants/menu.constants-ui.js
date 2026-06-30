@@ -1,3 +1,13 @@
+export const MENU_ENTITY_NAMES = Object.freeze({
+    PRODUCT: 'Producto',
+    CATEGORY: 'Categoría',
+});
+
+export const MENU_TOGGLE_MESSAGES = Object.freeze({
+    CATEGORY_ACTIVATED: 'Categoría activada',
+    CATEGORY_DEACTIVATED: 'Categoría desactivada',
+});
+
 export const MENU_ROUTES = {
     HOME: '/menu',
 };

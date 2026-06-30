@@ -1,5 +1,5 @@
 import { CashMovement, MOVEMENT_TYPE, MOVEMENT_CATEGORY } from '../../domain/models/cash-movement.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 const TYPE_API_TO_WEB = {
     INCOME:  MOVEMENT_TYPE.INCOME,

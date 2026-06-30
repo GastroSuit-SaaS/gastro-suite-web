@@ -10,12 +10,10 @@ import {
     PAYMENTS_MESSAGES,
 } from '../constants/payments.constants-ui.js'
 import ModuleStateFeedback           from '../../../shared/presentation/components/module-state-feedback.vue'
-import { formatSaleOrderHash, formatSaleOrderLabel } from '../../../shared/utils/order-display.js'
-import { exportPaymentsExcel } from '../utils/payments-excel.js'
-import { useNotification } from '../../../shared/composables/use-notification.js'
+import DataManager from '../../../shared/presentation/components/data-manager.vue'
+import { formatSaleOrderHash, formatSaleOrderLabel } from '../../../shared/domain/order-display.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
 import { paymentNetCollected } from '../../domain/payment-net.js'
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = usePaymentsStore()
 const { showSuccess, showError } = useNotification()
@@ -45,16 +43,33 @@ watch(
     },
 )
 
-const {
-    page: currentPage,
-    pageSize,
-    totalPages,
-    paginatedItems: paginatedPayments,
-    rangeStart,
-    rangeEnd,
-    totalItems: paymentsTotalItems,
-    resetPage: resetPaymentsPage,
-} = useTablePagination(computed(() => store.filteredPayments))
+const paymentTableColumns = computed(() => [
+    { field: 'processedAt', header: store.showAll ? 'Fecha' : 'Hora', sortable: true, template: 'pay-time', style: 'min-width: 110px' },
+    { field: 'saleDisplayNumber', header: 'Orden', sortable: true, template: 'pay-order', style: 'min-width: 90px' },
+    { field: 'collectedByDisplayName', header: 'Cobrado por', sortable: true, style: 'min-width: 120px' },
+    { field: 'tableNumber', header: 'Mesa / Zona', sortable: true, template: 'pay-table', style: 'min-width: 120px' },
+    { field: 'method', header: 'Método', sortable: true, template: 'pay-method', style: 'min-width: 100px' },
+    { field: 'receiptType', header: 'Comprobante', sortable: true, template: 'pay-receipt', style: 'min-width: 110px' },
+    { field: 'status', header: 'Estado', sortable: true, template: 'pay-status', style: 'min-width: 100px' },
+    { field: 'total', header: 'Total', sortable: true, template: 'pay-total', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'amountReceived', header: 'Recibido', sortable: true, template: 'pay-received', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'change', header: 'Vuelto', sortable: true, template: 'pay-change', bodyStyle: 'text-align: right', headerStyle: 'text-align: right' },
+    { field: 'actions', header: '', sortable: false, template: 'pay-actions', style: 'min-width: 3rem' },
+])
+
+const paymentsEmptyTitle = computed(() =>
+    store.showAll ? 'Sin pagos en el historial' : 'Sin pagos registrados hoy',
+)
+
+const paymentsEmptySubtitle = computed(() =>
+    store.showAll
+        ? 'Prueba otros filtros o vuelve a la vista de hoy.'
+        : 'Los pagos procesados desde el POS aparecerán aquí.',
+)
+
+function paymentRowClass() {
+    return 'pay-row--clickable'
+}
 
 // ── Detalle en popup ─────────────────────────────────────────────────────
 const detailPayment = ref(null)
@@ -187,7 +202,7 @@ function exportFilteredPaymentsExcel() {
     try {
         const scope = store.showAll ? 'historial' : 'hoy'
         const date = new Date().toISOString().slice(0, 10)
-        exportPaymentsExcel(store.filteredPayments, { filename: `pagos_${scope}_${date}` })
+        store.exportFilteredPaymentsExcel({ filename: `pagos_${scope}_${date}` })
         showSuccess('Listado exportado a Excel')
     } catch {
         showError('No se pudo exportar a Excel')
@@ -244,173 +259,158 @@ const receiptOptions = [
             </div>
         </div>
 
-        <!-- ══ Filtros ════════════════════════════════════════════════════ -->
-        <div class="flex align-items-center flex-wrap gap-3">
-            <!-- Búsqueda -->
-            <pv-icon-field class="flex-1" style="min-width: 200px">
-                <pv-input-icon class="pi pi-search" />
-                <pv-input-text
-                    :modelValue="store.searchQuery"
-                    @update:modelValue="store.setSearchQuery($event); resetPaymentsPage()"
-                    placeholder="Buscar por mesa, orden, DNI, RUC..."
-                    class="w-full"
-                    size="small"
-                />
-            </pv-icon-field>
-
-            <pv-select
-                :modelValue="store.filterMethod"
-                @update:modelValue="store.setFilterMethod($event); resetPaymentsPage()"
-                :options="methodOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="MÉTODO"
-                size="small"
-                style="min-width: 150px"
-            />
-
-            <pv-select
-                :modelValue="store.filterReceipt"
-                @update:modelValue="store.setFilterReceipt($event); resetPaymentsPage()"
-                :options="receiptOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="COMPROBANTE"
-                size="small"
-                style="min-width: 170px"
-            />
-
-            <!-- Hoy / Historial -->
-            <pv-button
-                :label="store.showAll ? 'Historial completo' : 'Solo hoy'"
-                icon="pi pi-history"
-                :outlined="!store.showAll"
-                size="small"
-                severity="secondary"
-                @click="store.setShowAll(!store.showAll); resetPaymentsPage()"
-            />
-
-            <pv-button
-                label="Exportar Excel"
-                icon="pi pi-file-excel"
-                size="small"
-                severity="success"
-                outlined
-                :disabled="store.filteredPayments.length === 0"
-                @click="exportFilteredPaymentsExcel"
-            />
-        </div>
-
-        <!-- ══ Empty ═══════════════════════════════════════════════════════════ -->
-        <div v-if="store.filteredPayments.length === 0" class="state-msg">
-            <i class="pi pi-receipt" style="font-size:2rem;color:#d1d5db"></i>
-            <span class="state-msg__title">Sin pagos registrados hoy</span>
-            <span class="state-msg__sub">Los pagos procesados desde el POS aparecerán aquí</span>
-        </div>
-
-        <!-- ══ Tabla de pagos ═════════════════════════════════════════════ -->
-        <div v-else class="pay-table-wrap">
-            <table class="pay-table">
-                <thead>
-                    <tr>
-                        <th>{{ store.showAll ? 'Fecha' : 'Hora' }}</th>
-                        <th>Orden</th>
-                        <th>Cobrado por</th>
-                        <th>Mesa / Zona</th>
-                        <th>Método</th>
-                        <th>Comprobante</th>
-                        <th>Estado</th>
-                        <th style="text-align:right">Total</th>
-                        <th style="text-align:right">Recibido</th>
-                        <th style="text-align:right">Vuelto</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
-                        v-for="p in paginatedPayments"
-                        :key="p.id"
-                        class="pay-row"
-                        @click="openDetail(p)"
-                    >
-                            <td class="td-time">
-                                <template v-if="store.showAll">
-                                    <span class="td-date">{{ formatDate(p.processedAt) }}</span>
-                                    <span class="td-hour">{{ formatTime(p.processedAt) }}</span>
-                                </template>
-                                <template v-else>{{ formatTime(p.processedAt) }}</template>
-                            </td>
-                            <td class="td-order">
-                                {{ formatSaleOrderHash(p.saleDisplayNumber) }}
-                                <span v-if="p.isSplit" class="badge badge--split" title="Pago dividido">
-                                    <i class="pi pi-users" style="font-size:0.6rem"></i>
-                                    {{ p.splitIndex + 1 }}/{{ p.splitCount }}
-                                </span>
-                            </td>
-                            <td class="td-cashier">
-                                {{ p.collectedByDisplayName || '—' }}
-                            </td>
-                            <td class="td-table">
-                                <span v-if="p.tableNumber">Mesa {{ p.tableNumber }}</span>
-                                <span v-else class="td-na">—</span>
-                                <span v-if="p.zoneName" class="td-zone"> · {{ p.zoneName }}</span>
-                            </td>
-                            <td>
-                                <span
-                                    class="badge"
-                                    :style="{ background: METHOD_COLORS[p.method] + '22', color: METHOD_COLORS[p.method], border: '1px solid ' + METHOD_COLORS[p.method] + '66' }"
-                                >
-                                    {{ METHOD_LABELS[p.method] ?? p.method }}
-                                </span>
-                            </td>
-                            <td>
-                                <span
-                                    class="badge"
-                                    :style="{ background: RECEIPT_COLORS[p.receiptType] + '22', color: RECEIPT_COLORS[p.receiptType], border: '1px solid ' + RECEIPT_COLORS[p.receiptType] + '66' }"
-                                >
-                                    {{ RECEIPT_LABELS[p.receiptType] ?? p.receiptType }}
-                                </span>
-                            </td>
-                            <td>
-                                <span
-                                    v-if="PAYMENT_STATUS_CONFIG[p.status]"
-                                    class="badge"
-                                    :style="{ background: PAYMENT_STATUS_CONFIG[p.status].bg, color: PAYMENT_STATUS_CONFIG[p.status].color, border: '1px solid ' + PAYMENT_STATUS_CONFIG[p.status].color + '66' }"
-                                >
-                                    {{ PAYMENT_STATUS_CONFIG[p.status].label }}
-                                </span>
-                            </td>
-                            <td class="td-amount">
-                                <template v-if="p.refundedAmount > 0">
-                                    <span class="td-amount-net">S/ {{ paymentNetCollected(p).toFixed(2) }}</span>
-                                    <span class="td-amount-gross">S/ {{ p.total.toFixed(2) }}</span>
-                                </template>
-                                <template v-else>S/ {{ p.total.toFixed(2) }}</template>
-                            </td>
-                            <td class="td-amount">S/ {{ p.amountReceived.toFixed(2) }}</td>
-                            <td class="td-amount td-change">
-                                <span v-if="p.change > 0">S/ {{ p.change.toFixed(2) }}</span>
-                                <span v-else class="td-na">—</span>
-                            </td>
-                            <td class="td-expand">
-                                <i class="pi pi-eye"></i>
-                            </td>
-                        </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Paginación -->
-        <table-pagination-bar
-            v-if="store.filteredPayments.length > 0"
-            v-model:page="currentPage"
-            v-model:page-size="pageSize"
-            :total-pages="totalPages"
-            :range-start="rangeStart"
-            :range-end="rangeEnd"
-            :total-items="paymentsTotalItems"
+        <!-- ══ Listado de pagos ═══════════════════════════════════════════ -->
+        <data-manager
+            class="pay-table-manager"
+            :items="store.payments"
+            :filtered-items="store.filteredPayments"
+            :columns="paymentTableColumns"
+            :title="{ singular: 'pago', plural: 'pagos' }"
+            :loading="store.isLoading"
+            :dynamic="true"
+            :global-filter-value="store.searchQuery"
+            :row-class="paymentRowClass"
+            search-placeholder="Buscar por mesa, orden, DNI, RUC..."
+            :show-new="false"
+            :show-export="false"
+            :show-selection="false"
+            :show-actions="false"
+            empty-icon="pi-receipt"
+            :empty-title="paymentsEmptyTitle"
+            :empty-subtitle="paymentsEmptySubtitle"
             item-label="pagos"
-        />
+            :rows="15"
+            @global-filter-change="store.setSearchQuery($event)"
+            @view-item-requested-manager="openDetail"
+        >
+            <template #filters>
+                <pv-select
+                    :model-value="store.filterMethod"
+                    :options="methodOptions"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Método"
+                    size="small"
+                    class="pay-filter-select"
+                    @update:model-value="store.setFilterMethod($event)"
+                />
+                <pv-select
+                    :model-value="store.filterReceipt"
+                    :options="receiptOptions"
+                    option-label="label"
+                    option-value="value"
+                    placeholder="Comprobante"
+                    size="small"
+                    class="pay-filter-select pay-filter-select--wide"
+                    @update:model-value="store.setFilterReceipt($event)"
+                />
+                <pv-button
+                    :label="store.showAll ? 'Historial completo' : 'Solo hoy'"
+                    icon="pi pi-history"
+                    :outlined="!store.showAll"
+                    size="small"
+                    severity="secondary"
+                    @click="store.setShowAll(!store.showAll)"
+                />
+                <pv-button
+                    label="Exportar Excel"
+                    icon="pi pi-file-excel"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    :disabled="store.filteredPayments.length === 0"
+                    @click="exportFilteredPaymentsExcel"
+                />
+            </template>
+
+            <template #pay-time="{ data: p }">
+                <div class="td-time">
+                    <template v-if="store.showAll">
+                        <span class="td-date">{{ formatDate(p.processedAt) }}</span>
+                        <span class="td-hour">{{ formatTime(p.processedAt) }}</span>
+                    </template>
+                    <template v-else>{{ formatTime(p.processedAt) }}</template>
+                </div>
+            </template>
+
+            <template #pay-order="{ data: p }">
+                <span class="td-order">
+                    {{ formatSaleOrderHash(p.saleDisplayNumber) }}
+                    <span v-if="p.isSplit" class="badge badge--split" title="Pago dividido">
+                        <i class="pi pi-users" style="font-size:0.6rem"></i>
+                        {{ p.splitIndex + 1 }}/{{ p.splitCount }}
+                    </span>
+                </span>
+            </template>
+
+            <template #pay-table="{ data: p }">
+                <span class="td-table">
+                    <span v-if="p.tableNumber">Mesa {{ p.tableNumber }}</span>
+                    <span v-else class="td-na">—</span>
+                    <span v-if="p.zoneName" class="td-zone"> · {{ p.zoneName }}</span>
+                </span>
+            </template>
+
+            <template #pay-method="{ data: p }">
+                <span
+                    class="badge"
+                    :style="{ background: METHOD_COLORS[p.method] + '22', color: METHOD_COLORS[p.method], border: '1px solid ' + METHOD_COLORS[p.method] + '66' }"
+                >
+                    {{ METHOD_LABELS[p.method] ?? p.method }}
+                </span>
+            </template>
+
+            <template #pay-receipt="{ data: p }">
+                <span
+                    class="badge"
+                    :style="{ background: RECEIPT_COLORS[p.receiptType] + '22', color: RECEIPT_COLORS[p.receiptType], border: '1px solid ' + RECEIPT_COLORS[p.receiptType] + '66' }"
+                >
+                    {{ RECEIPT_LABELS[p.receiptType] ?? p.receiptType }}
+                </span>
+            </template>
+
+            <template #pay-status="{ data: p }">
+                <span
+                    v-if="PAYMENT_STATUS_CONFIG[p.status]"
+                    class="badge"
+                    :style="{ background: PAYMENT_STATUS_CONFIG[p.status].bg, color: PAYMENT_STATUS_CONFIG[p.status].color, border: '1px solid ' + PAYMENT_STATUS_CONFIG[p.status].color + '66' }"
+                >
+                    {{ PAYMENT_STATUS_CONFIG[p.status].label }}
+                </span>
+            </template>
+
+            <template #pay-total="{ data: p }">
+                <span class="td-amount">
+                    <template v-if="p.refundedAmount > 0">
+                        <span class="td-amount-net">S/ {{ paymentNetCollected(p).toFixed(2) }}</span>
+                        <span class="td-amount-gross">S/ {{ p.total.toFixed(2) }}</span>
+                    </template>
+                    <template v-else>S/ {{ p.total.toFixed(2) }}</template>
+                </span>
+            </template>
+
+            <template #pay-received="{ data: p }">
+                <span class="td-amount">S/ {{ p.amountReceived.toFixed(2) }}</span>
+            </template>
+
+            <template #pay-change="{ data: p }">
+                <span class="td-amount td-change">
+                    <span v-if="p.change > 0">S/ {{ p.change.toFixed(2) }}</span>
+                    <span v-else class="td-na">—</span>
+                </span>
+            </template>
+
+            <template #pay-actions="{ data: p }">
+                <button
+                    type="button"
+                    class="dm-action-btn dm-action-btn--view"
+                    title="Ver detalle del pago"
+                    @click.stop="openDetail(p)"
+                >
+                    <i class="pi pi-eye" />
+                </button>
+            </template>
+        </data-manager>
 
     </div>
     </module-state-feedback>
@@ -659,61 +659,18 @@ const receiptOptions = [
 
 /* ── (Filtros ahora usan pv-select / PrimeFlex, sin CSS custom) ────────── */
 
-/* ── Estados ─────────────────────────────────────────────────────────────── */
-.state-msg {
+/* ── DataManager listado ───────────────────────────────────────────────── */
+.pay-table-manager {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    color: #9ca3af;
-    padding: 3rem;
-}
-.state-msg__title { font-size: 1rem; font-weight: 600; color: #6b7280; }
-.state-msg__sub   { font-size: 0.83rem; }
-
-/* ── Tabla ───────────────────────────────────────────────────────────────── */
-.pay-table-wrap {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    overflow-x: auto;
+    min-height: 0;
 }
 
-.pay-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.83rem;
+.pay-filter-select {
+    min-width: 150px;
 }
 
-.pay-table thead tr {
-    background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.pay-table th {
-    padding: 0.7rem 0.85rem;
-    text-align: left;
-    font-size: 0.73rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-.pay-row {
-    border-bottom: 1px solid #f3f4f6;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.pay-row:hover { background: #fafafe; }
-
-.pay-table td {
-    padding: 0.7rem 0.85rem;
-    color: #374151;
-    vertical-align: middle;
+.pay-filter-select--wide {
+    min-width: 170px;
 }
 
 .td-time   { color: #6b7280; white-space: nowrap; }

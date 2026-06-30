@@ -1,17 +1,24 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { PlatformApi } from '../infrastructure/api/platform.api.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { PlatformPlanAssembler } from '../infrastructure/assemblers/platform-plan.assembler.js';
+import { PlatformCompanyOverviewAssembler } from '../infrastructure/assemblers/platform-company-overview.assembler.js';
+import { SubscriptionRequestAssembler } from '../infrastructure/assemblers/subscription-request.assembler.js';
+import { PlatformAdminAssembler } from '../infrastructure/assemblers/platform-admin.assembler.js';
+import { AuditLogEntryAssembler } from '../infrastructure/assemblers/audit-log-entry.assembler.js';
+import { PlatformDashboardAssembler } from '../infrastructure/assemblers/platform-dashboard.assembler.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { usePlatformFacade } from './platform.facade.js';
 
 const api = new PlatformApi();
 
 export const usePlatformStore = defineStore('platform', () => {
+    const facade = usePlatformFacade();
     const isLoading = ref(false);
     const error = ref(null);
     const actionError = ref(null);
     const bootstrapStatus = ref(null);
     const admins = ref([]);
-    const companies = ref([]);
     const companyOverviews = ref([]);
     const pendingRequests = ref([]);
     const dashboard = ref(null);
@@ -21,9 +28,9 @@ export const usePlatformStore = defineStore('platform', () => {
     async function fetchBootstrapStatus() {
         error.value = null;
         try {
-            const { data } = await api.getBootstrapStatus();
-            bootstrapStatus.value = data;
-            return data;
+            const response = await api.getBootstrapStatus();
+            bootstrapStatus.value = response?.data ?? null;
+            return bootstrapStatus.value;
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo consultar bootstrap.');
             throw e;
@@ -34,8 +41,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.bootstrap(payload);
-            return data;
+            const response = await api.bootstrap(payload);
+            return PlatformAdminAssembler.toEntityFromResponse(response) ?? response?.data;
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo crear super admin.');
             throw e;
@@ -48,8 +55,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.getDashboard();
-            dashboard.value = data;
+            const response = await api.getDashboard();
+            dashboard.value = PlatformDashboardAssembler.toEntityFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo cargar el panel.');
             throw e;
@@ -62,8 +69,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.listAdmins();
-            admins.value = data ?? [];
+            const response = await api.listAdmins();
+            admins.value = PlatformAdminAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudieron cargar administradores.');
             throw e;
@@ -76,25 +83,11 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.createAdmin(payload);
+            const response = await api.createAdmin(payload);
             await loadAdmins();
-            return data;
+            return PlatformAdminAssembler.toEntityFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo crear administrador.');
-            throw e;
-        } finally {
-            isLoading.value = false;
-        }
-    }
-
-    async function loadCompanies() {
-        isLoading.value = true;
-        error.value = null;
-        try {
-            const { data } = await api.listCompanies();
-            companies.value = data ?? [];
-        } catch (e) {
-            error.value = getApiErrorMessage(e, 'No se pudieron cargar empresas.');
             throw e;
         } finally {
             isLoading.value = false;
@@ -105,8 +98,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.listCompanyOverviews();
-            companyOverviews.value = data ?? [];
+            const response = await api.listCompanyOverviews();
+            companyOverviews.value = PlatformCompanyOverviewAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudieron cargar empresas.');
             throw e;
@@ -119,8 +112,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.listPendingSubscriptionRequests();
-            pendingRequests.value = data ?? [];
+            const response = await api.listPendingSubscriptionRequests();
+            pendingRequests.value = SubscriptionRequestAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudieron cargar solicitudes.');
             throw e;
@@ -160,26 +153,26 @@ export const usePlatformStore = defineStore('platform', () => {
     }
 
     async function reloadPendingRequests() {
-        const { data } = await api.listPendingSubscriptionRequests();
-        pendingRequests.value = data ?? [];
+        const response = await api.listPendingSubscriptionRequests();
+        pendingRequests.value = SubscriptionRequestAssembler.toEntitiesFromResponse(response);
     }
 
     async function reloadCompanyOverviews() {
-        const { data } = await api.listCompanyOverviews();
-        companyOverviews.value = data ?? [];
+        const response = await api.listCompanyOverviews();
+        companyOverviews.value = PlatformCompanyOverviewAssembler.toEntitiesFromResponse(response);
     }
 
     async function reloadDashboard() {
-        const { data } = await api.getDashboard();
-        dashboard.value = data;
+        const response = await api.getDashboard();
+        dashboard.value = PlatformDashboardAssembler.toEntityFromResponse(response);
     }
 
     async function loadAuditLogs() {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.listAuditLogs();
-            auditLogs.value = data ?? [];
+            const response = await api.listAuditLogs();
+            auditLogs.value = AuditLogEntryAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudo cargar la auditoría.');
             throw e;
@@ -192,8 +185,8 @@ export const usePlatformStore = defineStore('platform', () => {
         isLoading.value = true;
         error.value = null;
         try {
-            const { data } = await api.listSubscriptionPlans();
-            plans.value = data ?? [];
+            const response = await api.listSubscriptionPlans();
+            plans.value = PlatformPlanAssembler.toEntitiesFromResponse(response);
         } catch (e) {
             error.value = getApiErrorMessage(e, 'No se pudieron cargar planes.');
             throw e;
@@ -221,12 +214,70 @@ export const usePlatformStore = defineStore('platform', () => {
         }
     }
 
+    async function assignCompanySubscription(payload) {
+        isLoading.value = true;
+        actionError.value = null;
+        try {
+            const response = await api.assignCompanySubscription(payload);
+            await Promise.all([
+                reloadCompanyOverviews(),
+                reloadDashboard(),
+                loadAuditLogs(),
+            ]);
+            return response?.data ?? null;
+        } catch (e) {
+            actionError.value = getApiErrorMessage(e, 'No se pudo asignar la suscripción.');
+            throw e;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function updateCompanySubscription(companyId, payload) {
+        isLoading.value = true;
+        actionError.value = null;
+        try {
+            const response = await api.updateCompanySubscription(companyId, payload);
+            await Promise.all([
+                reloadCompanyOverviews(),
+                reloadDashboard(),
+                loadAuditLogs(),
+            ]);
+            return response?.data ?? null;
+        } catch (e) {
+            actionError.value = getApiErrorMessage(e, 'No se pudo actualizar la suscripción.');
+            throw e;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function revokeCompanySubscription(companyId) {
+        isLoading.value = true;
+        actionError.value = null;
+        try {
+            await api.deleteCompanySubscription(companyId);
+            await Promise.all([
+                reloadCompanyOverviews(),
+                reloadDashboard(),
+                loadAuditLogs(),
+            ]);
+        } catch (e) {
+            actionError.value = getApiErrorMessage(e, 'No se pudo revocar la suscripción.');
+            throw e;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
     return {
-        isLoading, error, actionError, bootstrapStatus, admins, companies, companyOverviews,
+        isLoading, error, actionError, bootstrapStatus, admins, companyOverviews,
         pendingRequests, dashboard, plans, auditLogs,
         fetchBootstrapStatus, bootstrapSuperAdmin, loadDashboard, loadAdmins,
-        createAdmin, loadCompanies, loadCompanyOverviews, loadPendingRequests,
+        createAdmin, loadCompanyOverviews, loadPendingRequests,
         approveRequest, rejectRequest, reloadPendingRequests, reloadCompanyOverviews,
         reloadDashboard, loadPlans, savePlan, loadAuditLogs,
+        assignCompanySubscription, updateCompanySubscription, revokeCompanySubscription,
+        logout: facade.logout,
     };
 });

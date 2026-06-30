@@ -1,5 +1,5 @@
-import { getApiErrorCode, getApiErrorMessage, getApiErrorStep } from '../../shared/infrustructure/api-error.js';
-import { appLogger } from '../../shared/infrustructure/app-logger.js';
+import { getApiErrorCode, getApiErrorMessage, getApiErrorStep } from '../../shared/infrastructure/api-error.js';
+import { appLogger } from '../../shared/infrastructure/app-logger.js';
 
 const LOG_SCOPE = 'IAM:Register';
 

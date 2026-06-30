@@ -2,38 +2,24 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCashRegisterStore } from '../../application/cash-register.store.js'
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
-import { useDateFormatter }  from '../../../shared/composables/use-date-formatter.js'
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js'
+import { useDateFormatter }  from '../../../shared/presentation/composables/use-date-formatter.js'
 import {
     CASH_REGISTER_LABELS as L,
     SESSION_STATUS_CONFIG,
-    MOVEMENT_TYPE_CONFIG,
-    MOVEMENT_CATEGORY_CONFIG,
     MOVEMENT_FILTER_CATEGORY_OPTIONS,
     MOVEMENT_FILTER_TYPE_OPTIONS,
     MOVEMENT_FILTER_METHOD_OPTIONS,
 } from '../constants/cash-register.constants-ui.js'
-import { METHOD_COLORS } from '../../../payments/presentation/constants/payments.constants-ui.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import ModuleTabBar from '../../../shared/presentation/components/module-tab-bar.vue'
 import ModuleTab from '../../../shared/presentation/components/module-tab.vue'
+import SessionMovementsTable from '../components/session-movements-table.vue'
 import OpenSessionDialog    from './open-session-dialog.vue'
 import CloseSessionDialog   from './close-session-dialog.vue'
 import CreateMovementDialog from './create-movement-dialog.vue'
-import {
-    movementOrderLabel,
-    movementPaymentMethodLabel,
-    movementCollectedBy,
-    movementDescriptionText,
-    movementMethodKey,
-    canDeleteMovement,
-} from '../utils/cash-movement-display.js'
-import {
-    exportCashMovementsExcel,
-    buildSessionSummaryRows,
-} from '../utils/cash-register-excel.js'
-import { useNotification } from '../../../shared/composables/use-notification.js'
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js'
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js'
+import { useTablePagination } from '../../../shared/presentation/composables/use-table-pagination.js'
 import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue'
 
 const store = useCashRegisterStore()
@@ -47,21 +33,6 @@ function formatDateTime(dt) {
     const d = new Date(dt)
     if (isNaN(d)) return dt
     return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-/** Hora compacta en tabla de movimientos (mismo día → solo hora). */
-function formatMovementTime(dt) {
-    if (!dt) return '—'
-    const d = new Date(dt)
-    if (isNaN(d.getTime())) return String(dt)
-    const now = new Date()
-    const sameDay = d.toDateString() === now.toDateString()
-    if (sameDay) {
-        return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-    }
-    return d.toLocaleString('es-PE', {
-        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-    })
 }
 
 function formatUserAudit(userId) {
@@ -112,7 +83,7 @@ async function onMovementSaved(payload) {
 // ── Delete Movement ───────────────────────────────────────────────────────
 function onDeleteMovement(mov) {
     confirmDelete({
-        target:  movementDescriptionText(mov),
+        target:  store.movementDescriptionText(mov),
         accept:  () => store.remove(mov.id),
     })
 }
@@ -120,14 +91,6 @@ function onDeleteMovement(mov) {
 function goToPayment(mov) {
     if (!mov?.paymentId) return
     router.push({ name: 'payments-management', query: { paymentId: mov.paymentId } })
-}
-
-function methodDotColor(mov) {
-    const key = (mov?.paymentMethod || '').toLowerCase()
-    if (key && METHOD_COLORS[key]) return METHOD_COLORS[key]
-    if (mov?.category === 'venta') return '#10b981'
-    if (mov?.category === 'venta_digital') return '#8b5cf6'
-    return '#9ca3af'
 }
 
 const filterCategory = ref(null)
@@ -147,15 +110,15 @@ const filteredCurrentMovements = computed(() => {
         list = list.filter(m => m.type === filterType.value)
     }
     if (filterMethod.value) {
-        list = list.filter(m => movementMethodKey(m) === filterMethod.value)
+        list = list.filter(m => store.movementMethodKey(m) === filterMethod.value)
     }
     if (filterSearch.value.trim()) {
         const q = filterSearch.value.trim().toLowerCase()
         list = list.filter(m =>
-            movementDescriptionText(m).toLowerCase().includes(q)
-            || movementOrderLabel(m).toLowerCase().includes(q)
-            || movementPaymentMethodLabel(m).toLowerCase().includes(q)
-            || movementCollectedBy(m).toLowerCase().includes(q)
+            store.movementDescriptionText(m).toLowerCase().includes(q)
+            || store.movementOrderLabel(m).toLowerCase().includes(q)
+            || store.movementPaymentMethodLabel(m).toLowerCase().includes(q)
+            || store.movementCollectedBy(m).toLowerCase().includes(q)
             || String(m.saleDisplayNumber ?? '').includes(q)
             || (m.tableNumber && String(m.tableNumber).includes(q)),
         )
@@ -180,16 +143,17 @@ const movementFilterSummary = computed(() => {
     return `${total} movimiento${total !== 1 ? 's' : ''}`
 })
 
-const {
-    page: movPage,
-    pageSize: movPageSize,
-    totalPages: movTotalPages,
-    paginatedItems: paginatedMovements,
-    rangeStart: movRangeStart,
-    rangeEnd: movRangeEnd,
-    totalItems: movTotalItems,
-    resetPage: resetMovPage,
-} = useTablePagination(filteredCurrentMovements)
+const movementEmptyTitle = computed(() =>
+    store.currentSessionMovements.length === 0
+        ? 'Sin movimientos en este turno'
+        : 'Ningún resultado',
+)
+
+const movementEmptySubtitle = computed(() =>
+    store.currentSessionMovements.length === 0
+        ? 'Los cobros del POS y los movimientos manuales aparecerán aquí.'
+        : 'Prueba con otros filtros o limpia la búsqueda.',
+)
 
 const {
     page: histPage,
@@ -202,20 +166,9 @@ const {
     resetPage: resetHistPage,
 } = useTablePagination(computed(() => store.closedSessions))
 
-watch([filterCategory, filterType, filterMethod, filterSearch], () => {
-    resetMovPage()
-})
-
 watch(activeTab, () => {
-    resetMovPage()
     resetHistPage()
 })
-
-const showMovementsPagination = computed(() =>
-    activeTab.value === 'current'
-    && store.hasOpenSession
-    && filteredCurrentMovements.value.length > 0,
-)
 
 const showHistoryPagination = computed(() =>
     activeTab.value === 'history'
@@ -241,10 +194,10 @@ function exportCurrentMovementsExcel() {
         ? filteredCurrentMovements.value
         : store.currentSessionMovements
     try {
-        exportCashMovementsExcel({
+        store.exportCashMovementsExcel({
             movements,
             filename: exportFilename('caja_movimientos'),
-            summaryRows: buildSessionSummaryRows(store.currentSession, store.currentSessionMovements),
+            summaryRows: store.buildSessionSummaryRows(store.currentSession, store.currentSessionMovements),
         })
         showSuccess('Exportación Excel generada')
     } catch {
@@ -255,10 +208,10 @@ function exportCurrentMovementsExcel() {
 function exportHistorySessionExcel(session) {
     const movements = store.getMovementsBySession(session.id)
     try {
-        exportCashMovementsExcel({
+        store.exportCashMovementsExcel({
             movements,
             filename: exportFilename(`caja_${session.shiftName || session.id}`),
-            summaryRows: buildSessionSummaryRows(session, movements),
+            summaryRows: store.buildSessionSummaryRows(session, movements),
         })
         showSuccess('Turno exportado a Excel')
     } catch {
@@ -270,12 +223,6 @@ function toggleSessionDetail(sessionId) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function categoryLabel(cat) {
-    return MOVEMENT_CATEGORY_CONFIG[cat]?.label ?? cat
-}
-function categoryIcon(cat) {
-    return MOVEMENT_CATEGORY_CONFIG[cat]?.icon ?? 'pi pi-circle'
-}
 function fmtCurrency(n) {
     return `S/ ${(n ?? 0).toFixed(2)}`
 }
@@ -492,130 +439,83 @@ const shiftDigitalMethods = computed(() => [
                 </template>
             </module-tab-bar>
 
-            <div v-if="activeTab === 'current' && store.hasOpenSession" class="cr-panel__filters">
-                <pv-icon-field class="cr-panel__search">
-                    <pv-input-icon class="pi pi-search" />
-                    <pv-input-text v-model="filterSearch"
-                                  placeholder="Buscar orden, mesa, detalle…"
-                                  class="w-full"
-                                  size="small" />
-                </pv-icon-field>
-                <pv-select v-model="filterCategory"
-                           :options="MOVEMENT_FILTER_CATEGORY_OPTIONS"
-                           option-label="label"
-                           option-value="value"
-                           :placeholder="L.FILTER_CATEGORY"
-                           show-clear
-                           class="cr-panel__select"
-                           size="small" />
-                <pv-select v-model="filterType"
-                           :options="MOVEMENT_FILTER_TYPE_OPTIONS"
-                           option-label="label"
-                           option-value="value"
-                           :placeholder="L.FILTER_TYPE"
-                           show-clear
-                           class="cr-panel__select"
-                           size="small" />
-                <pv-select v-model="filterMethod"
-                           :options="MOVEMENT_FILTER_METHOD_OPTIONS"
-                           option-label="label"
-                           option-value="value"
-                           :placeholder="L.FILTER_METHOD"
-                           show-clear
-                           class="cr-panel__select"
-                           size="small" />
-                <pv-button v-if="hasActiveFilters"
-                           :label="L.CLEAR_FILTERS"
-                           icon="pi pi-filter-slash"
-                           size="small"
-                           severity="secondary"
-                           text
-                           @click="clearMovementFilters" />
-            </div>
-
             <div class="cr-panel__body">
-        <div v-if="activeTab === 'current' && store.hasOpenSession">
-            <div v-if="store.currentSessionMovements.length === 0" class="cr-state-msg">
-                <i class="pi pi-inbox"></i>
-                <span class="cr-state-msg__title">Sin movimientos en este turno</span>
-                <span class="cr-state-msg__sub">Los cobros del POS y los movimientos manuales aparecerán aquí.</span>
-                <pv-button :label="L.NEW_MOVEMENT" icon="pi pi-plus" size="small" @click="showMovementDialog = true" />
-            </div>
-            <div v-else-if="filteredCurrentMovements.length === 0" class="cr-state-msg">
-                <i class="pi pi-filter"></i>
-                <span class="cr-state-msg__title">Ningún resultado</span>
-                <span class="cr-state-msg__sub">Prueba con otros filtros o limpia la búsqueda.</span>
-                <pv-button :label="L.CLEAR_FILTERS" icon="pi pi-filter-slash" size="small" severity="secondary" outlined @click="clearMovementFilters" />
-            </div>
-            <div v-else-if="filteredCurrentMovements.length > 0" class="cr-table-wrap">
-                <table class="cr-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>{{ L.ORDER }}</th>
-                            <th>Categoría</th>
-                            <th>{{ L.PAYMENT_METHOD }}</th>
-                            <th>{{ L.DETAIL }}</th>
-                            <th>Tipo</th>
-                            <th style="text-align:right">Monto</th>
-                            <th>{{ L.COLLECTED_BY }}</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="mov in paginatedMovements"
-                            :key="mov.id"
-                            class="cr-row">
-                            <td class="td-time" :title="formatDateTime(mov.createdAt)">{{ formatMovementTime(mov.createdAt) }}</td>
-                            <td class="td-order font-semibold text-color">
-                                {{ movementOrderLabel(mov) }}
-                            </td>
-                            <td>
-                                <span class="cr-cat-badge" :class="`cr-cat-badge--${mov.category}`">
-                                    <i :class="categoryIcon(mov.category)" aria-hidden="true" />
-                                    {{ categoryLabel(mov.category) }}
-                                </span>
-                            </td>
-                            <td>
-                                <span v-if="movementPaymentMethodLabel(mov)" class="method-pill">
-                                    <span class="method-dot" :style="{ background: methodDotColor(mov) }"></span>
-                                    {{ movementPaymentMethodLabel(mov) }}
-                                </span>
-                                <span v-else class="text-color-secondary">—</span>
-                            </td>
-                            <td class="font-medium text-color td-detail">
-                                {{ movementDescriptionText(mov) }}
-                            </td>
-                            <td>
-                                <span class="badge"
-                                      :style="mov.type === 'income'
-                                          ? 'background:#dcfce7;color:#16a34a;border:1px solid #16a34a66'
-                                          : 'background:#fee2e2;color:#dc2626;border:1px solid #dc262666'">
-                                    {{ MOVEMENT_TYPE_CONFIG[mov.type]?.label ?? mov.type }}
-                                </span>
-                            </td>
-                            <td class="td-amount" :style="mov.type === 'income' ? 'color:#16a34a' : 'color:#dc2626'">
-                                {{ mov.type === 'expense' ? '−' : '+' }} {{ fmtCurrency(mov.amount) }}
-                            </td>
-                            <td class="td-user">{{ movementCollectedBy(mov) }}</td>
-                            <td class="td-action">
-                                <pv-button v-if="mov.paymentId"
-                                           v-tooltip.top="L.VIEW_PAYMENT"
-                                           icon="pi pi-external-link"
-                                           severity="secondary"
-                                           text rounded size="small"
-                                           @click.stop="goToPayment(mov)" />
-                                <pv-button v-if="canDeleteMovement(mov)"
-                                           icon="pi pi-trash"
-                                           severity="danger"
-                                           text rounded size="small"
-                                           @click.stop="onDeleteMovement(mov)" />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <session-movements-table
+            v-if="activeTab === 'current' && store.hasOpenSession"
+            :items="store.currentSessionMovements"
+            :filtered-items="filteredCurrentMovements"
+            :loading="store.isLoading"
+            :global-filter-value="filterSearch"
+            :inline-toolbar="true"
+            :empty-title="movementEmptyTitle"
+            :empty-subtitle="movementEmptySubtitle"
+            :empty-icon="store.currentSessionMovements.length === 0 ? 'pi-inbox' : 'pi-filter'"
+            @new-item-requested-manager="showMovementDialog = true"
+            @global-filter-change="filterSearch = $event"
+            @view-payment="goToPayment"
+            @delete-movement="onDeleteMovement"
+        >
+            <template #empty-actions>
+                <pv-button
+                    v-if="store.currentSessionMovements.length === 0"
+                    :label="L.NEW_MOVEMENT"
+                    icon="pi pi-plus"
+                    size="small"
+                    @click="showMovementDialog = true"
+                />
+                <pv-button
+                    v-else-if="hasActiveFilters"
+                    :label="L.CLEAR_FILTERS"
+                    icon="pi pi-filter-slash"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    @click="clearMovementFilters"
+                />
+            </template>
+
+            <template #filters>
+                <pv-select
+                    v-model="filterCategory"
+                    :options="MOVEMENT_FILTER_CATEGORY_OPTIONS"
+                    option-label="label"
+                    option-value="value"
+                    :placeholder="L.FILTER_CATEGORY"
+                    show-clear
+                    class="cr-panel__select"
+                    size="small"
+                />
+                <pv-select
+                    v-model="filterType"
+                    :options="MOVEMENT_FILTER_TYPE_OPTIONS"
+                    option-label="label"
+                    option-value="value"
+                    :placeholder="L.FILTER_TYPE"
+                    show-clear
+                    class="cr-panel__select"
+                    size="small"
+                />
+                <pv-select
+                    v-model="filterMethod"
+                    :options="MOVEMENT_FILTER_METHOD_OPTIONS"
+                    option-label="label"
+                    option-value="value"
+                    :placeholder="L.FILTER_METHOD"
+                    show-clear
+                    class="cr-panel__select"
+                    size="small"
+                />
+                <pv-button
+                    v-if="hasActiveFilters"
+                    :label="L.CLEAR_FILTERS"
+                    icon="pi pi-filter-slash"
+                    size="small"
+                    severity="secondary"
+                    text
+                    @click="clearMovementFilters"
+                />
+            </template>
+        </session-movements-table>
 
         <div v-else-if="activeTab === 'current' && !store.hasOpenSession" class="cr-state-msg">
             <i class="pi pi-lock"></i>
@@ -677,7 +577,7 @@ const shiftDigitalMethods = computed(() => [
                     </div>
 
                     <!-- Expanded detail -->
-                    <div v-if="expandedSession === session.id" class="mt-3 pt-3 border-top-1 surface-border">
+                    <div v-if="expandedSession === session.id" class="mt-3 pt-3 border-top-1 surface-border" @click.stop>
                         <div class="grid">
                             <div class="col-12 md:col-6">
                                 <p class="text-xs text-color-secondary uppercase font-medium mt-0 mb-2">Rendición de Caja</p>
@@ -737,69 +637,21 @@ const shiftDigitalMethods = computed(() => [
 
                         <!-- Movimientos del turno cerrado -->
                         <p class="text-xs text-color-secondary uppercase font-medium mt-3 mb-2">Movimientos del turno</p>
-                        <div class="cr-table-wrap">
-                            <table class="cr-table">
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>{{ L.ORDER }}</th>
-                                        <th>Categoría</th>
-                                        <th>{{ L.PAYMENT_METHOD }}</th>
-                                        <th>{{ L.DETAIL }}</th>
-                                        <th>Tipo</th>
-                                        <th style="text-align:right">Monto</th>
-                                        <th>{{ L.COLLECTED_BY }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="mov in store.getMovementsBySession(session.id)"
-                                        :key="mov.id"
-                                        class="cr-row">
-                                        <td class="td-time" :title="formatDateTime(mov.createdAt)">{{ formatMovementTime(mov.createdAt) }}</td>
-                                        <td class="td-order font-semibold text-color">{{ movementOrderLabel(mov) }}</td>
-                                        <td>
-                                            <span class="cr-cat-badge" :class="`cr-cat-badge--${mov.category}`">
-                                                <i :class="categoryIcon(mov.category)" aria-hidden="true" />
-                                                {{ categoryLabel(mov.category) }}
-                                            </span>
-                                        </td>
-                                        <td>{{ movementPaymentMethodLabel(mov) || '—' }}</td>
-                                        <td class="text-color">{{ movementDescriptionText(mov) }}</td>
-                                        <td>
-                                            <span class="badge"
-                                                  :style="mov.type === 'income'
-                                                      ? 'background:#dcfce7;color:#16a34a;border:1px solid #16a34a66'
-                                                      : 'background:#fee2e2;color:#dc2626;border:1px solid #dc262666'">
-                                                {{ MOVEMENT_TYPE_CONFIG[mov.type]?.label ?? mov.type }}
-                                            </span>
-                                        </td>
-                                        <td class="td-amount" :style="mov.type === 'income' ? 'color:#16a34a' : 'color:#dc2626'">
-                                            {{ mov.type === 'expense' ? '−' : '+' }} {{ fmtCurrency(mov.amount) }}
-                                        </td>
-                                        <td class="td-user">{{ movementCollectedBy(mov) }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        <session-movements-table
+                            embedded
+                            :items="store.getMovementsBySession(session.id)"
+                            :show-toolbar="false"
+                            :show-actions="false"
+                            empty-title="Sin movimientos en este turno"
+                            @view-payment="goToPayment"
+                        />
                     </div>
                 </div>
             </div>
         </div>
             </div>
 
-            <footer v-if="showMovementsPagination" class="cr-panel__footer">
-                <table-pagination-bar
-                    v-model:page="movPage"
-                    v-model:page-size="movPageSize"
-                    :total-pages="movTotalPages"
-                    :range-start="movRangeStart"
-                    :range-end="movRangeEnd"
-                    :total-items="movTotalItems"
-                    item-label="movimientos"
-                />
-            </footer>
-
-            <footer v-else-if="showHistoryPagination" class="cr-panel__footer">
+            <footer v-if="showHistoryPagination" class="cr-panel__footer">
                 <table-pagination-bar
                     v-model:page="histPage"
                     v-model:page-size="histPageSize"
@@ -1217,13 +1069,14 @@ const shiftDigitalMethods = computed(() => [
 
 .cr-panel__body {
     padding: 0.5rem 0.75rem;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .cr-panel__footer {
     flex-shrink: 0;
-    padding: 0.55rem 0.85rem;
-    border-top: 1px solid #e5e7eb;
-    background: #fafafa;
 }
 
 .cr-state-msg {
@@ -1251,102 +1104,5 @@ const shiftDigitalMethods = computed(() => [
     color: #9ca3af;
     max-width: 22rem;
     margin-bottom: 0.25rem;
-}
-
-.cr-cat-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    background: #f1f5f9;
-    color: #475569;
-    border: 1px solid #e2e8f0;
-    white-space: nowrap;
-}
-
-.cr-cat-badge .pi { font-size: 0.7rem; }
-
-.cr-cat-badge--venta { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
-.cr-cat-badge--venta_digital { background: #ede9fe; color: #6d28d9; border-color: #ddd6fe; }
-.cr-cat-badge--apertura { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
-.cr-cat-badge--reembolso { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
-.cr-cat-badge--PROPIA { background: #fce7f3; color: #be185d; border-color: #fbcfe8; }
-
-.method-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.cr-table-wrap {
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    overflow-x: auto;
-}
-
-.cr-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.83rem;
-}
-
-.cr-table thead tr {
-    background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
-}
-
-.cr-table th {
-    padding: 0.7rem 0.85rem;
-    text-align: left;
-    font-size: 0.73rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-.cr-row {
-    border-bottom: 1px solid #f3f4f6;
-    transition: background 0.1s;
-}
-.cr-row:hover { background: #fafafe; }
-
-.cr-table td {
-    padding: 0.7rem 0.85rem;
-    color: #374151;
-    vertical-align: middle;
-}
-
-.td-time   { color: #6b7280; white-space: nowrap; }
-.td-order  { white-space: nowrap; }
-.td-amount { text-align: right; font-weight: 600; white-space: nowrap; }
-.td-user   { color: #6b7280; max-width: 10rem; }
-.td-action { width: 4.5rem; text-align: center; white-space: nowrap; }
-
-.td-detail {
-    max-width: 14rem;
-    line-height: 1.35;
-}
-
-.method-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-
-.badge {
-    display: inline-flex;
-    padding: 0.15rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
 }
 </style>

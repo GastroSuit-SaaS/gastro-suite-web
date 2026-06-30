@@ -1,13 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useBranchesStore } from '../../../branches/application/branches.store.js'
-import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
+import { useBranchSwitch } from '../../../shared/presentation/composables/use-branch-switch.js'
 
 const router   = useRouter()
 const route    = useRoute()
-const iamStore = useIamStore()
 const branchesStore = useBranchesStore()
 const { switchToBranch } = useBranchSwitch()
 

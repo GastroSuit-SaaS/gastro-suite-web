@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+import ColoredEntityFormFields from '../../../shared/presentation/components/colored-entity-form-fields.vue'
 
 const props = defineProps({
     visible: { type: Boolean, default: false },
@@ -17,7 +18,6 @@ const form = reactive({
     isActive:    true,
 })
 
-// Reset form each time the dialog opens
 watch(() => props.visible, (val) => {
     if (val) {
         form.name        = props.zone?.name        ?? ''
@@ -30,9 +30,14 @@ watch(() => props.visible, (val) => {
 const onCancel = () => emit('update:visible', false)
 
 const onSave = () => {
-    if (!form.name.trim()) return
-    emit('zone-saved', { name: form.name, description: form.description, color: '#' + form.color, isActive: form.isActive })
-    emit('update:visible', false)
+    const name = form.name.trim()
+    if (!name) return
+    emit('zone-saved', {
+        name,
+        description: form.description.trim(),
+        color: '#' + form.color.replace(/^#/, ''),
+        isActive: form.isActive,
+    })
 }
 </script>
 
@@ -46,56 +51,17 @@ const onSave = () => {
         @saved-shared="onSave"
     >
         <template #content>
-            <div class="flex flex-column gap-4 pt-3">
-
-                <!-- Nombre de la Zona -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">
-                        Nombre de la Zona <span class="text-red-500">*</span>
-                    </label>
-                    <pv-input-text
-                        v-model="form.name"
-                        placeholder="Ej: Salón Principal, Terraza, VIP"
-                    />
-                </div>
-
-                <!-- Descripción -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Descripción</label>
-                    <pv-textarea
-                        v-model="form.description"
-                        placeholder="Descripción opcional de la zona"
-                        :rows="3"
-                        auto-resize
-                    />
-                </div>
-
-                <!-- Color Identificador -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Color Identificador</label>
-                    <div class="flex align-items-center gap-2">
-                        <pv-color-picker v-model="form.color" format="hex" append-to="body" />
-                        <pv-input-text
-                            :value="'#' + form.color.toUpperCase()"
-                            class="flex-1"
-                            @input="form.color = $event.target.value.replace('#', '')"
-                        />
-                    </div>
-                </div>
-
-                <!-- Zona activa -->
-                <div class="flex align-items-center justify-content-between p-3 border-round-lg" style="background: var(--surface-ground);">
-                    <div class="flex flex-column gap-1">
-                        <span class="text-sm font-medium" style="color: #374151;">Zona activa</span>
-                        <span class="text-xs text-color-secondary">Las zonas inactivas no aparecen en el plano del salón</span>
-                    </div>
-                    <pv-input-switch v-model="form.isActive" />
-                </div>
-
-            </div>
+            <ColoredEntityFormFields
+                :model="form"
+                name-label="Nombre de la Zona"
+                name-placeholder="Ej: Salón Principal, Terraza, VIP"
+                description-placeholder="Descripción opcional de la zona"
+                active-layout="card"
+                active-input-id="zone-active"
+                active-label="Zona activa"
+                active-hint-on="Visible en el plano del salón"
+                active-hint-off="Oculta en el plano del salón"
+            />
         </template>
     </CreateAndEdit>
 </template>
-
-<style scoped>
-</style>

@@ -190,44 +190,37 @@
     padding: 0.75rem 1rem 1rem;
 }
 
-/* ── DataManager en área de contenido clara (Historial, etc.) ─────────────── */
-.content-area .gs-data-manager {
-    background: var(--module-surface-bg) !important;
-    border: 1px solid var(--module-surface-border) !important;
-    box-shadow: var(--shadow-sm) !important;
-    color: #111827;
+/* ── Búsqueda unificada (Usuarios, Menú, DataManager, etc.) ─────────────── */
+.search-wrapper {
+    position: relative;
 }
 
-.content-area .gs-data-manager .p-datatable {
+.search-wrapper__icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 0.85rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.search-wrapper__input {
+    width: 100%;
+}
+
+/* ── DataManager — layout en módulos (tabla estilizada en el componente) ─ */
+.content-area .gs-data-manager--module {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.content-area .gs-data-manager--card {
     background: var(--module-surface-bg);
-    border-radius: var(--radius-lg);
-}
-
-.content-area .gs-data-manager .p-datatable-thead > tr > th {
-    background: #f1f5f9 !important;
-    color: #334155 !important;
-    border-bottom: 1px solid var(--module-surface-border) !important;
-    font-weight: var(--font-weight-semibold);
-}
-
-.content-area .gs-data-manager .p-datatable-tbody > tr {
-    background: var(--module-surface-bg) !important;
-    color: #1f2937 !important;
-}
-
-.content-area .gs-data-manager .p-datatable-tbody > tr:hover {
-    background: #f8fafc !important;
-}
-
-.content-area .gs-data-manager .p-datatable-tbody > tr > td {
-    border-bottom: 1px solid #f1f5f9 !important;
-    color: #374151 !important;
-}
-
-.content-area .gs-data-manager .p-paginator {
-    background: #f8fafc !important;
-    border-top: 1px solid var(--module-surface-border) !important;
-    color: #475569 !important;
+    border: 1px solid var(--module-surface-border);
+    box-shadow: var(--shadow-sm);
 }
 
 /* ── Stat chips — resumen compacto (Mesas, Inventario, Pagos, POS, Reportes) ─ */

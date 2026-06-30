@@ -3,25 +3,17 @@ import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { usePosStore } from '../../application/pos.store.js'
-import { isPersistedSaleId } from '../../infrastructure/assemblers/sale.assembler.js'
 import { posOrderRoute, posPaymentRoute, posTablesRoute, formatTableLabel } from '../constants/pos.constants-ui.js'
-import {
-    ALL_ZONES,
-    buildZoneFilterOptions,
-    filterActiveOrders,
-    resolveNewOrderZoneId,
-    deliveryStatusLabel,
-} from '../helpers/pos-hub-orders-filter.helpers.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
 import PosHubAlertsPanel from '../components/pos-hub-alerts-panel.vue'
-import { readDefaultTablePageSize, persistTablePageSize } from '../../../shared/composables/use-table-pagination.js'
+import { readDefaultTablePageSize, persistTablePageSize } from '../../../shared/presentation/composables/use-table-pagination.js'
 
 const router = useRouter()
 const toast = useToast()
 const posStore = usePosStore()
 
-const zoneFilter = ref(ALL_ZONES)
+const zoneFilter = ref(posStore.ALL_ZONES)
 const showTakeawayDialog = ref(false)
 const takeawayName = ref('')
 const showDeliveryDialog = ref(false)
@@ -36,15 +28,11 @@ function resolveOrdersPageSize() {
 
 const ordersPageSize = ref(resolveOrdersPageSize())
 
-const zoneFilterOptions = computed(() =>
-    buildZoneFilterOptions(posStore.zones, posStore.activeOrders),
-)
+const zoneFilterOptions = computed(() => posStore.buildZoneFilterOptions())
 
 const showOrdersZoneFilter = computed(() => zoneFilterOptions.value.length > 1)
 
-const filteredOrders = computed(() =>
-    filterActiveOrders(posStore.activeOrders, zoneFilter.value, posStore.tableById),
-)
+const filteredOrders = computed(() => posStore.filterActiveOrders(zoneFilter.value))
 
 const paginatedOrders = computed(() =>
     filteredOrders.value.slice(ordersFirst.value, ordersFirst.value + ordersPageSize.value),
@@ -74,7 +62,7 @@ function onOrdersPage(event) {
 }
 
 function startNewOrder() {
-    const zoneId = resolveNewOrderZoneId(zoneFilter.value, posStore.zones)
+    const zoneId = posStore.resolveNewOrderZoneId(zoneFilter.value)
     if (!posStore.zones.length) {
         toast.add({
             severity: 'warn',
@@ -100,7 +88,7 @@ async function openOrder(order) {
             await posStore.openSaleForTable(order.tableId, order.zoneId)
         }
         const saleId = posStore.currentSale?.id ?? order.id
-        if (!isPersistedSaleId(saleId)) {
+        if (!posStore.isPersistedSaleId(saleId)) {
             toast.add({
                 severity: 'warn',
                 summary: 'Orden no sincronizada',

@@ -1,4 +1,4 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
 
 /** GET /api/v1/branches/{branchId}/dashboard/metrics */
 export class DashboardApi extends BaseApi {

@@ -1,5 +1,5 @@
 import { Reservation, RESERVATION_STATUS } from '../../domain/models/reservation.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 const STATUS_FROM_API = Object.freeze({
     CONFIRMED: RESERVATION_STATUS.CONFIRMED,

@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import CreateAndEdit from '../../../shared/presentation/components/create-and-edit.vue'
+import ColoredEntityFormFields from '../../../shared/presentation/components/colored-entity-form-fields.vue'
 
 const props = defineProps({
     visible:  { type: Boolean, default: false },
@@ -29,9 +30,14 @@ watch(() => props.visible, (val) => {
 const onCancel = () => emit('update:visible', false)
 
 const onSave = () => {
-    if (!form.name.trim()) return
-    emit('category-saved', { name: form.name.trim(), description: form.description.trim(), color: '#' + form.color, isActive: form.isActive })
-    emit('update:visible', false)
+    const name = form.name.trim()
+    if (!name) return
+    emit('category-saved', {
+        name,
+        description: form.description.trim(),
+        color: '#' + form.color.replace(/^#/, ''),
+        isActive: form.isActive,
+    })
 }
 </script>
 
@@ -45,57 +51,16 @@ const onSave = () => {
         @saved-shared="onSave"
     >
         <template #content>
-            <div class="flex flex-column gap-4 pt-3">
-
-                <!-- Nombre -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">
-                        Nombre de la Categoría <span class="text-red-500">*</span>
-                    </label>
-                    <pv-input-text
-                        v-model="form.name"
-                        placeholder="Ej: Carnes, Lácteos, Bebidas"
-                    />
-                </div>
-
-                <!-- Descripción -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Descripción</label>
-                    <pv-textarea
-                        v-model="form.description"
-                        placeholder="Descripción opcional de la categoría"
-                        :rows="3"
-                        auto-resize
-                    />
-                </div>
-
-                <!-- Color Identificador -->
-                <div class="flex flex-column gap-2">
-                    <label class="text-sm font-medium" style="color: #374151;">Color Identificador</label>
-                    <div class="flex align-items-center gap-2">
-                        <pv-color-picker v-model="form.color" format="hex" append-to="body" />
-                        <pv-input-text
-                            :value="'#' + form.color.toUpperCase()"
-                            class="flex-1"
-                            @input="form.color = $event.target.value.replace('#', '')"
-                        />
-                    </div>
-                </div>
-
-                <!-- Categoría activa -->
-                <div class="flex align-items-center gap-3">
-                    <pv-input-switch v-model="form.isActive" input-id="inv-cat-active" />
-                    <div class="flex flex-column gap-0">
-                        <label for="inv-cat-active" class="cursor-pointer text-sm font-medium" style="color: #374151;">
-                            Categoría activa
-                        </label>
-                        <span class="text-xs" style="color: #6b7280;">
-                            {{ form.isActive ? 'Visible en filtros de inventario' : 'Oculta en filtros de inventario' }}
-                        </span>
-                    </div>
-                </div>
-
-            </div>
+            <ColoredEntityFormFields
+                :model="form"
+                name-label="Nombre de la Categoría"
+                name-placeholder="Ej: Carnes, Lácteos, Bebidas"
+                description-placeholder="Descripción opcional de la categoría"
+                active-input-id="inv-cat-active"
+                active-label="Categoría activa"
+                active-hint-on="Visible en filtros de inventario"
+                active-hint-off="Oculta en filtros de inventario"
+            />
         </template>
     </CreateAndEdit>
 </template>

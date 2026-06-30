@@ -1,5 +1,5 @@
 import { StockMovement, MOVEMENT_TYPE, MOVEMENT_DIRECTION } from '../../domain/models/stock-movement.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 const TYPE_API_TO_WEB = {
     PURCHASE:   MOVEMENT_TYPE.PURCHASE,

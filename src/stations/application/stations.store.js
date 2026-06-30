@@ -6,7 +6,10 @@ import { StationTicketAssembler } from '../infrastructure/assemblers/station-tic
 import { Station } from '../domain/models/station.entity.js';
 import { StationTicket, StationTicketItem, TICKET_STATUS } from '../domain/models/station-ticket.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { storeSuccess, storeFailure, storeFailureMessage } from '../../shared/application/store-result.js';
+import * as historyDisplay from './stations-history-display.js';
+import { useStationsFacade } from './stations.facade.js';
 
 export { TICKET_STATUS };
 
@@ -22,6 +25,7 @@ const ACTIVE_STATUSES = new Set([
 
 
 export const useStationsStore = defineStore('stations', () => {
+    const facade = useStationsFacade();
 
     // ── State ─────────────────────────────────────────────────────────────
     const stations          = ref([]);
@@ -139,6 +143,7 @@ export const useStationsStore = defineStore('stations', () => {
 
     async function createStation(data) {
         const optimisticId = Math.max(0, ...stations.value.map(s => s.id)) + 1;
+        const snapshot = [...stations.value];
         stations.value.push(new Station({ id: optimisticId, ...data }));
         try {
             const branchId = requireActiveBranchId();
@@ -151,12 +156,18 @@ export const useStationsStore = defineStore('stations', () => {
                     if (idx !== -1) stations.value.splice(idx, 1, saved);
                 }
             }
-        } catch { /* optimistic entry stays */ }
+            return storeSuccess();
+        } catch (e) {
+            stations.value = snapshot;
+            return storeFailure(e, 'No se pudo crear la estación');
+        }
     }
 
     async function updateStation(id, data) {
         const idx = stations.value.findIndex(s => s.id === id);
-        if (idx !== -1) stations.value[idx] = new Station({ ...stations.value[idx], ...data });
+        if (idx === -1) return storeFailureMessage('Estación no encontrada');
+        const snapshot = [...stations.value];
+        stations.value[idx] = new Station({ ...stations.value[idx], ...data });
         tickets.value.forEach(t => {
             if (t.stationId === id) t.stationName = data.name ?? t.stationName;
         });
@@ -167,20 +178,30 @@ export const useStationsStore = defineStore('stations', () => {
                 stationColor: data.color,
                 isActive: data.isActive,
             });
-        } catch { /* local change kept */ }
+            return storeSuccess();
+        } catch (e) {
+            stations.value = snapshot;
+            return storeFailure(e, 'No se pudo actualizar la estación');
+        }
     }
 
     async function removeStation(id) {
-        // Guard: cannot remove a station that has active (received/preparing) tickets
         const hasActiveTickets = tickets.value.some(
             t => t.stationId === id &&
                 (t.status === TICKET_STATUS.RECEIVED || t.status === TICKET_STATUS.PREPARING)
         );
-        if (hasActiveTickets) return;
+        if (hasActiveTickets) {
+            return storeFailureMessage('No se puede eliminar una estación con tickets activos');
+        }
+        const snapshot = [...stations.value];
         stations.value = stations.value.filter(s => s.id !== id);
         try {
             await api.deleteStation(id);
-        } catch { /* local change kept */ }
+            return storeSuccess();
+        } catch (e) {
+            stations.value = snapshot;
+            return storeFailure(e, 'No se pudo eliminar la estación');
+        }
     }
 
     function selectStation(id) {
@@ -393,6 +414,14 @@ export const useStationsStore = defineStore('stations', () => {
         }
     }
 
+    function filterTicketHistory(filters) {
+        return historyDisplay.filterHistoryTickets(ticketHistory.value, filters);
+    }
+
+    function ticketHistoryStats(tickets = ticketHistory.value) {
+        return historyDisplay.historySummaryStats(tickets);
+    }
+
     return {
         // State
         stations, tickets, ticketHistory, selectedStationId, isLoading, error,
@@ -405,5 +434,16 @@ export const useStationsStore = defineStore('stations', () => {
         handleOperationalEvent,
         // Ticket actions
         advanceTicket, cancelTicket, archiveTicket, sendSaleToStations, removeTicket, notifyItemCancelled,
+        ticketsFromResponse: (response) => StationTicketAssembler.toEntitiesFromResponse(response),
+        ticketFromResource: (r) => StationTicketAssembler.toEntityFromResource(r),
+        // History display (application layer)
+        filterTicketHistory,
+        ticketHistoryStats,
+        ticketDisplayRef: historyDisplay.ticketDisplayRef,
+        ticketOrderRef: historyDisplay.ticketOrderRef,
+        ticketTableLabel: historyDisplay.ticketTableLabel,
+        formatHistoryDateTime: historyDisplay.formatHistoryDateTime,
+        ensureMenuLoaded: facade.ensureMenuLoaded,
+        availableMenuItemsCount: facade.availableMenuItemsCount,
     };
 });

@@ -1,5 +1,5 @@
 import { OperationalMetrics } from '../domain/models/dashboard-metric.entity.js';
-import { PAYMENT_METHOD_KEYS } from '../presentation/constants/dashboard.constants-ui.js';
+import { PAYMENT_METHOD_KEYS } from '../domain/dashboard-payment-methods.js';
 import { paymentNetCollected } from '../../payments/domain/payment-net.js';
 
 /**

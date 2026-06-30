@@ -85,7 +85,6 @@ function onSave() {
         categoryId:  form.categoryId,
         isActive:    form.isActive,
     })
-    emit('update:visible', false)
 }
 </script>
 

@@ -1,6 +1,6 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
-import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
-import { apiEnv } from '../../../shared/infrustructure/env.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrastructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrastructure/env.js';
 
 export class PlatformApi extends BaseApi {
     #platform;
@@ -52,10 +52,6 @@ export class PlatformApi extends BaseApi {
         return this.#platform.listAt(`${apiEnv.platform}/audit-logs`);
     }
 
-    listCompanies() {
-        return this.#platform.listAt(`${apiEnv.platform}/companies`);
-    }
-
     listSubscriptionPlans() {
         return this.#platform.listAt(`${apiEnv.platform}/subscription-plans`);
     }
@@ -78,5 +74,9 @@ export class PlatformApi extends BaseApi {
 
     updateCompanySubscription(companyId, payload) {
         return this.http.patch(`${apiEnv.subscriptions}/companies/${companyId}`, payload);
+    }
+
+    deleteCompanySubscription(companyId) {
+        return this.http.delete(`${apiEnv.subscriptions}/companies/${companyId}`);
     }
 }

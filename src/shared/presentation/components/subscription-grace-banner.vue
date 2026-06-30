@@ -1,24 +1,22 @@
 <script setup>
 import { computed, watch } from 'vue'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useCompanyStore } from '../../../company/application/company.store.js'
+import { useShellFacade } from '../../application/shell.facade.js'
 import { ROLES } from '../constants/roles.constants.js'
 import { COMPANY_MESSAGES } from '../../../company/presentation/constants/company.constants-ui.js'
 
-const iamStore = useIamStore()
-const companyStore = useCompanyStore()
+const shell = useShellFacade()
 
 const visible = computed(() =>
-    iamStore.isAuthenticated
-    && iamStore.userRole === ROLES.OWNER
-    && companyStore.inGracePeriod,
+    shell.isAuthenticated.value
+    && shell.userRole.value === ROLES.OWNER
+    && shell.inGracePeriod.value,
 )
 
 watch(
-    () => [iamStore.isAuthenticated, iamStore.userRole, iamStore.companyId, iamStore.activeBranchId],
+    () => [shell.isAuthenticated.value, shell.userRole.value, shell.companyId.value, shell.activeBranchId.value],
     ([authenticated, role]) => {
         if (authenticated && role === ROLES.OWNER) {
-            companyStore.fetchSubscriptionSummary()
+            shell.fetchSubscriptionSummary()
         }
     },
     { immediate: true },

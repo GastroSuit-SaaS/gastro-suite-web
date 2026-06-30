@@ -1,8 +1,8 @@
-import { BaseApi } from '../../../shared/infrustructure/base-api.js';
-import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js';
-import { apiEnv } from '../../../shared/infrustructure/env.js';
+import { BaseApi } from '../../../shared/infrastructure/base-api.js';
+import { BaseEndpoint } from '../../../shared/infrastructure/base-endpoint.js';
+import { apiEnv } from '../../../shared/infrastructure/env.js';
 
-/** IAM: sign-in, sign-up y vínculo empleado bajo VITE_IAM_ENDPOINT (/auth). */
+/** IAM: sign-in, register-owner y vínculo empleado bajo VITE_IAM_ENDPOINT (/auth). */
 export class IamApi extends BaseApi {
     #auth;
 
@@ -15,10 +15,6 @@ export class IamApi extends BaseApi {
         return this.#auth.postAt(`${this.#auth.endpointPath}/sign-in`, credentials);
     }
 
-    signUp(resource) {
-        return this.#auth.postAt(`${this.#auth.endpointPath}/sign-up`, resource);
-    }
-
     /** POST /auth/register-owner — empresa + usuario + empleado atómicos (SAGA). */
     registerOwner(resource) {
         return this.#auth.postAt(`${this.#auth.endpointPath}/register-owner`, resource);
@@ -27,11 +23,6 @@ export class IamApi extends BaseApi {
     /** POST /auth/registration/send-verification-code — código 6 dígitos al correo del OWNER. */
     sendRegistrationVerificationCode(email) {
         return this.#auth.postAt(`${this.#auth.endpointPath}/registration/send-verification-code`, { email });
-    }
-
-    /** POST /companies — público; preferir registerOwner en onboarding. */
-    createCompany(resource) {
-        return this.http.post(apiEnv.companies, resource);
     }
 
     /** Crea o devuelve el empleado vinculado al usuario autenticado. */

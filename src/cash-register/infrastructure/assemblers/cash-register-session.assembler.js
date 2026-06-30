@@ -1,5 +1,5 @@
 import { CashRegisterSession, SESSION_STATUS } from '../../domain/models/cash-register-session.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 const SHIFT_LABEL_TO_API = {
     'Mañana':   'MORNING',

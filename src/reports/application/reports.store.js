@@ -4,14 +4,19 @@ import { ReportsApi } from '../infrastructure/api/reports.api.js';
 import { ReportAssembler } from '../infrastructure/assemblers/report.assembler.js';
 import { Report, REPORT_TYPE, REPORT_STATUS } from '../domain/models/report.entity.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
-import { useIamStore } from '../../iam/application/iam.store.js';
-import { REPORTS_MESSAGES } from '../presentation/constants/reports.constants-ui.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { useReportsFacade } from './reports.facade.js';
+import { storeFailure, storeFailureMessage, storeSuccess } from '../../shared/application/store-result.js';
+import {
+    exportCollectorSalesReportExcel,
+    exportSalesByPaymentMethodReportCsv,
+    exportSalesByPaymentMethodReportExcel,
+} from './reports-excel.js';
 
 const api = new ReportsApi();
 
 export const useReportsStore = defineStore('reports', () => {
-
+    const facade = useReportsFacade();
     // ── State ─────────────────────────────────────────────────────────────
     const reports        = ref([]);
     const selectedReport = ref(null);
@@ -82,15 +87,10 @@ export const useReportsStore = defineStore('reports', () => {
         error.value = null;
         try {
             const branchId = requireActiveBranchId();
-            const iamStore = useIamStore();
-            let employeeId = iamStore.currentUser?.employeeId;
+            const { employeeId, errorMessage } = await facade.resolveEmployeeIdForReport();
             if (!employeeId) {
-                await iamStore.ensureEmployeeLink();
-                employeeId = iamStore.currentUser?.employeeId;
-            }
-            if (!employeeId) {
-                error.value = iamStore.employeeLinkMessage ?? REPORTS_MESSAGES.EMPLOYEE_LINK_REQUIRED;
-                return false;
+                error.value = errorMessage;
+                return storeFailureMessage(error.value);
             }
 
             const dateFrom = reportData.dateFrom ?? new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
@@ -117,13 +117,13 @@ export const useReportsStore = defineStore('reports', () => {
                         reports.value.unshift(serverReport);
                     }
                     selectedReport.value = serverReport;
-                    return true;
+                    return storeSuccess({ report: serverReport });
                 }
             }
-            return false;
+            return storeFailureMessage('No se pudo generar el reporte');
         } catch (e) {
             error.value = getApiErrorMessage(e, 'Error al generar el reporte');
-            return false;
+            return storeFailure(e, 'Error al generar el reporte');
         } finally {
             isLoading.value = false;
         }
@@ -136,12 +136,26 @@ export const useReportsStore = defineStore('reports', () => {
         reports.value = reports.value.filter(r => r.id !== id);
         try {
             await api.delete(id);
+            return storeSuccess();
         } catch (e) {
             reports.value = backup;
             error.value = getApiErrorMessage(e, 'Error al eliminar el reporte');
+            return storeFailure(e, 'Error al eliminar el reporte');
         } finally {
             isLoading.value = false;
         }
+    }
+
+    function exportCollectorReportExcel(report, options = {}) {
+        exportCollectorSalesReportExcel(report, options);
+    }
+
+    function exportPaymentMethodReportExcel(report, options = {}) {
+        exportSalesByPaymentMethodReportExcel(report, options);
+    }
+
+    function exportPaymentMethodReportCsv(report, options = {}) {
+        exportSalesByPaymentMethodReportCsv(report, options);
     }
 
     return {
@@ -150,5 +164,10 @@ export const useReportsStore = defineStore('reports', () => {
         hasReports, totalReports, generatedCount, pendingCount, failedCount,
         reportTypes, filteredReports,
         fetchAll, fetchById, generate, remove,
+        exportCollectorReportExcel,
+        exportPaymentMethodReportExcel,
+        exportPaymentMethodReportCsv,
+        hasEmployeeLink: facade.hasEmployeeLink,
+        ensureEmployeeLink: facade.ensureEmployeeLink,
     };
 });

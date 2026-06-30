@@ -1,11 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { usePlatformStore } from '../../application/platform.store.js';
-import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js';
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js';
-import ModuleTable from '../../../shared/presentation/components/module-table.vue';
-import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue';
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue';
+import { useConfirmDialog } from '../../../shared/presentation/composables/use-confirm-dialog.js';
+import DataManager from '../../../shared/presentation/components/data-manager.vue';
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue';
 import ReviewSubscriptionRequest from './review-subscription-request.vue';
 
@@ -19,6 +16,7 @@ function clearActionError() {
 const reviewVisible = ref(false);
 const reviewAction = ref('reject');
 const selectedRequest = ref(null);
+const searchQuery = ref('');
 
 const REQUEST_TYPE_LABELS = {
     NEW_CONTRACT: 'Nuevo contrato',
@@ -27,15 +25,16 @@ const REQUEST_TYPE_LABELS = {
 
 const items = computed(() => store.pendingRequests ?? []);
 
-const {
-    page,
-    pageSize,
-    totalPages,
-    paginatedItems,
-    rangeStart,
-    rangeEnd,
-    totalItems,
-} = useTablePagination(items);
+const tableColumns = [
+    { field: 'companyName', header: 'Empresa', sortable: true, style: 'min-width: 140px' },
+    { field: 'companyRuc', header: 'RUC', sortable: true, style: 'min-width: 100px' },
+    { field: 'requestType', header: 'Tipo', sortable: true, template: 'sr-type', style: 'min-width: 120px' },
+    { field: 'planName', header: 'Plan', sortable: true, style: 'min-width: 120px' },
+    { field: 'subscriptionType', header: 'Periodicidad', sortable: true, style: 'min-width: 110px' },
+    { field: 'paymentReference', header: 'Ref. pago', sortable: true, style: 'min-width: 110px' },
+    { field: 'submittedAt', header: 'Enviada', sortable: true, template: 'sr-date', style: 'min-width: 130px' },
+    { field: 'actions', header: '', sortable: false, template: 'sr-actions', style: 'min-width: 12rem' },
+];
 
 onMounted(() => store.loadPendingRequests());
 
@@ -86,65 +85,65 @@ async function quickApprove(request) {
           {{ store.actionError }}
         </pv-message>
 
-        <module-empty-state
-          v-if="!store.isLoading && items.length === 0"
-          icon="pi-inbox"
-          title="No hay solicitudes pendientes"
-          subtitle="Cuando un restaurante envíe un contrato o renovación aparecerá aquí para validación."
-        />
+        <data-manager
+          class="platform-table-manager flex-1 min-h-0"
+          :items="items"
+          :columns="tableColumns"
+          :title="{ singular: 'solicitud', plural: 'solicitudes' }"
+          data-key="requestId"
+          :loading="store.isLoading"
+          :dynamic="true"
+          :global-filter-value="searchQuery"
+          search-placeholder="Buscar empresa, RUC o referencia..."
+          :show-new="false"
+          :show-export="false"
+          :show-selection="false"
+          :show-actions="false"
+          empty-icon="pi-inbox"
+          empty-title="No hay solicitudes pendientes"
+          empty-subtitle="Cuando un restaurante envíe un contrato o renovación aparecerá aquí para validación."
+          item-label="solicitudes"
+          :rows="15"
+          @global-filter-change="searchQuery = $event"
+        >
+          <template #sr-type="{ data: row }">
+            <span
+              class="gs-badge"
+              :style="{
+                background: (row.requestType === 'RENEWAL' ? '#6366f1' : '#059669') + '22',
+                color: row.requestType === 'RENEWAL' ? '#6366f1' : '#059669',
+                border: '1px solid ' + (row.requestType === 'RENEWAL' ? '#6366f1' : '#059669') + '66',
+              }"
+            >
+              {{ REQUEST_TYPE_LABELS[row.requestType] ?? row.requestType }}
+            </span>
+          </template>
 
-        <template v-else-if="items.length > 0">
-          <module-table>
-            <thead>
-              <tr>
-                <th>Empresa</th>
-                <th>RUC</th>
-                <th>Tipo</th>
-                <th>Plan</th>
-                <th>Periodicidad</th>
-                <th>Ref. pago</th>
-                <th>Enviada</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in paginatedItems" :key="row.requestId">
-                <td class="font-semibold">{{ row.companyName }}</td>
-                <td>{{ row.companyRuc || '—' }}</td>
-                <td>
-                  <span
-                    class="gs-badge"
-                    :style="{
-                      background: (row.requestType === 'RENEWAL' ? '#6366f1' : '#059669') + '22',
-                      color: row.requestType === 'RENEWAL' ? '#6366f1' : '#059669',
-                      border: '1px solid ' + (row.requestType === 'RENEWAL' ? '#6366f1' : '#059669') + '66',
-                    }"
-                  >
-                    {{ REQUEST_TYPE_LABELS[row.requestType] ?? row.requestType }}
-                  </span>
-                </td>
-                <td>{{ row.planName }}</td>
-                <td>{{ row.subscriptionType }}</td>
-                <td>{{ row.paymentReference || '—' }}</td>
-                <td>{{ formatDate(row.submittedAt) }}</td>
-                <td class="td-actions">
-                  <pv-button label="Aprobar" icon="pi pi-check" size="small" :loading="store.isLoading" @click="quickApprove(row)" />
-                  <pv-button label="Rechazar" icon="pi pi-times" size="small" severity="danger" outlined :loading="store.isLoading" @click="openReview(row, 'reject')" />
-                </td>
-              </tr>
-            </tbody>
-          </module-table>
+          <template #sr-date="{ data: row }">
+            {{ formatDate(row.submittedAt) }}
+          </template>
 
-          <table-pagination-bar
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :total-pages="totalPages"
-            :range-start="rangeStart"
-            :range-end="rangeEnd"
-            :total-items="totalItems"
-            item-label="solicitudes"
-          />
-        </template>
+          <template #sr-actions="{ data: row }">
+            <div class="platform-row-actions">
+              <pv-button
+                label="Aprobar"
+                icon="pi pi-check"
+                size="small"
+                :loading="store.isLoading"
+                @click.stop="quickApprove(row)"
+              />
+              <pv-button
+                label="Rechazar"
+                icon="pi pi-times"
+                size="small"
+                severity="danger"
+                outlined
+                :loading="store.isLoading"
+                @click.stop="openReview(row, 'reject')"
+              />
+            </div>
+          </template>
+        </data-manager>
       </div>
     </module-state-feedback>
 
@@ -171,6 +170,7 @@ async function quickApprove(request) {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem 1.5rem 1.5rem;
+  min-height: 0;
 }
 
 .gs-badge {
@@ -181,10 +181,10 @@ async function quickApprove(request) {
   font-weight: 600;
 }
 
-.td-actions {
-  white-space: nowrap;
+.platform-row-actions {
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

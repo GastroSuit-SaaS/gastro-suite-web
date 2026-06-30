@@ -1,40 +1,44 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useBranchesStore } from '../../../branches/application/branches.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useBranchSwitch } from '../../../shared/composables/use-branch-switch.js'
+import { useShellFacade } from '../../../shared/application/shell.facade.js'
+import { useBranchSwitch } from '../../../shared/presentation/composables/use-branch-switch.js'
 
-const branchesStore = useBranchesStore()
-const iamStore      = useIamStore()
+const shell = useShellFacade()
 const { switchToBranch, leaveBranch } = useBranchSwitch()
 const popoverRef    = ref()
 const isOpen        = ref(false)
 
-const activeBranches = computed(() => branchesStore.activeBranches)
+const activeBranches = shell.activeBranches
+const branchesIsLoading = shell.branchesIsLoading
+const activeBranchId = shell.activeBranchId
+const isOwner = shell.isOwner
+const activeBranchName = shell.activeBranchName
+const branchItems = shell.branchItems
+
 const availableCount = computed(() =>
-    activeBranches.value.filter(b => b.id !== iamStore.activeBranchId).length
+    activeBranches.value.filter(b => b.id !== activeBranchId.value).length
 )
 const currentBranch = computed(() =>
-    activeBranches.value.find(b => b.id === iamStore.activeBranchId) ?? null
+    activeBranches.value.find(b => b.id === activeBranchId.value) ?? null
 )
 
 const triggerLabel = computed(() => {
-    if (!currentBranch.value) return iamStore.activeBranchName || 'Sin sucursal'
+    if (!currentBranch.value) return activeBranchName.value || 'Sin sucursal'
     const b = currentBranch.value
     const loc = b.distrito || b.departamento || ''
     return loc ? `${b.nombre} - ${loc}` : b.nombre
 })
 
 function toggle(event) {
-    if (!iamStore.isOwner) return
-    if (!branchesStore.items.length) {
-        branchesStore.fetchAll()
+    if (!isOwner.value) return
+    if (!branchItems.value.length) {
+        shell.fetchBranches()
     }
     popoverRef.value.toggle(event)
 }
 
 async function selectBranch(branch) {
-    if (branch.id === iamStore.activeBranchId) return
+    if (branch.id === activeBranchId.value) return
     const ok = await switchToBranch(branch)
     if (ok) popoverRef.value.hide()
 }
@@ -49,8 +53,8 @@ function getBranchLocation(branch) {
 }
 
 onMounted(() => {
-    if (iamStore.isOwner && !branchesStore.items.length) {
-        branchesStore.fetchAll()
+    if (isOwner.value && !branchItems.value.length) {
+        shell.fetchBranches()
     }
 })
 </script>
@@ -60,7 +64,7 @@ onMounted(() => {
         <!-- Trigger -->
         <div
             class="bs__trigger"
-            :class="{ 'bs__trigger--interactive': iamStore.isOwner }"
+            :class="{ 'bs__trigger--interactive': isOwner }"
             @click="toggle"
         >
             <div class="bs__trigger-icon">
@@ -71,7 +75,7 @@ onMounted(() => {
                 <span class="bs__trigger-name">{{ triggerLabel }}</span>
             </div>
             <i
-                v-if="iamStore.isOwner"
+                v-if="isOwner"
                 class="pi bs__trigger-chevron"
                 :class="isOpen ? 'pi-chevron-up' : 'pi-chevron-down'"
             />
@@ -100,7 +104,7 @@ onMounted(() => {
                     <span class="bs__section-label">SUCURSALES ACTIVAS</span>
 
                     <!-- Loading -->
-                    <div v-if="branchesStore.isLoading" class="bs__loading">
+                    <div v-if="branchesIsLoading" class="bs__loading">
                         <i class="pi pi-spinner pi-spin" /> Cargando sucursales…
                     </div>
 
@@ -111,13 +115,13 @@ onMounted(() => {
                             :key="branch.id"
                             class="bs__item"
                             :class="{
-                                'bs__item--current':    branch.id === iamStore.activeBranchId,
-                                'bs__item--selectable':  branch.id !== iamStore.activeBranchId,
+                                'bs__item--current':    branch.id === activeBranchId,
+                                'bs__item--selectable':  branch.id !== activeBranchId,
                             }"
                             @click="selectBranch(branch)"
                         >
                             <div class="bs__item-icon">
-                                <i :class="branch.id === iamStore.activeBranchId
+                                <i :class="branch.id === activeBranchId
                                              ? 'pi pi-check'
                                              : 'pi pi-building'" />
                             </div>
@@ -125,7 +129,7 @@ onMounted(() => {
                                 <div class="bs__item-row">
                                     <span class="bs__item-name">{{ branch.nombre }}</span>
                                     <span
-                                        v-if="branch.id === iamStore.activeBranchId"
+                                        v-if="branch.id === activeBranchId"
                                         class="bs__item-badge"
                                     >Actual</span>
                                 </div>
@@ -133,7 +137,7 @@ onMounted(() => {
                                 <span class="bs__item-location">{{ getBranchLocation(branch) }}</span>
                             </div>
                             <div
-                                v-if="branch.id === iamStore.activeBranchId"
+                                v-if="branch.id === activeBranchId"
                                 class="bs__item-dot"
                             />
                         </div>

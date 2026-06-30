@@ -1,5 +1,5 @@
 import { InventoryCategory } from '../../domain/models/inventory-category.entity.js';
-import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrustructure/api-response.js';
+import { entitiesFromResponse, entityFromResponse } from '../../../shared/infrastructure/api-response.js';
 
 export class InventoryCategoryAssembler {
 

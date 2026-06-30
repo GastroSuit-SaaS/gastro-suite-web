@@ -1,27 +1,45 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { usePlatformStore } from '../../application/platform.store.js';
-import { useTablePagination } from '../../../shared/composables/use-table-pagination.js';
-import ModuleTable from '../../../shared/presentation/components/module-table.vue';
-import ModuleEmptyState from '../../../shared/presentation/components/module-empty-state.vue';
-import TablePaginationBar from '../../../shared/presentation/components/table-pagination-bar.vue';
+import DataManager from '../../../shared/presentation/components/data-manager.vue';
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue';
 import CreateAndEditPlatformAdmin from './create-and-edit-platform-admin.vue';
+import { useNotification } from '../../../shared/presentation/composables/use-notification.js';
+import { CRUD_MESSAGES } from '../../../shared/presentation/constants/crud-messages.constants.js';
 
 const store = usePlatformStore();
+const { showSuccess, showError } = useNotification();
 const showDialog = ref(false);
+const searchQuery = ref('');
 
 const items = computed(() => store.admins ?? []);
 
-const {
-    page,
-    pageSize,
-    totalPages,
-    paginatedItems,
-    rangeStart,
-    rangeEnd,
-    totalItems,
-} = useTablePagination(items);
+const filteredItems = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+    if (!q) return items.value;
+    return items.value.filter((row) => {
+        const name = fullName(row).toLowerCase();
+        return name.includes(q)
+            || (row.username ?? '').toLowerCase().includes(q)
+            || (row.email ?? '').toLowerCase().includes(q)
+            || (row.numeroDocumento ?? '').includes(q);
+    });
+});
+
+function fullName(row) {
+    return [row.nombres, row.apellidos].filter(Boolean).join(' ').trim() || '—';
+}
+
+const tableColumns = [
+    { field: 'fullName', header: 'Nombre', sortable: true, template: 'pa-name', style: 'min-width: 160px' },
+    { field: 'username', header: 'Usuario', sortable: true, style: 'min-width: 120px' },
+    { field: 'email', header: 'Correo', sortable: true, style: 'min-width: 160px' },
+    { field: 'tipoDocumento', header: 'Doc.', sortable: true, style: 'min-width: 80px' },
+    { field: 'numeroDocumento', header: 'Número', sortable: true, style: 'min-width: 100px' },
+    { field: 'telefono', header: 'Teléfono', sortable: true, style: 'min-width: 100px' },
+    { field: 'createdAt', header: 'Alta', sortable: true, template: 'pa-created', style: 'min-width: 110px' },
+    { field: 'active', header: 'Activo', sortable: true, template: 'pa-active', style: 'min-width: 80px' },
+];
 
 onMounted(() => store.loadAdmins());
 
@@ -30,13 +48,14 @@ function formatDate(value) {
     return new Date(value).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function fullName(row) {
-    return [row.nombres, row.apellidos].filter(Boolean).join(' ').trim() || '—';
-}
-
 async function onAdminSaved(payload) {
-    await store.createAdmin(payload);
-    showDialog.value = false;
+    try {
+        await store.createAdmin(payload);
+        showDialog.value = false;
+        showSuccess(CRUD_MESSAGES.created('Super administrador'));
+    } catch {
+        showError(store.actionError ?? store.error ?? 'No se pudo crear el super administrador');
+    }
 }
 </script>
 
@@ -50,68 +69,55 @@ async function onAdminSaved(payload) {
       @retry="store.loadAdmins()"
     >
       <div class="platform-page__body">
-        <div class="platform-toolbar">
-          <pv-button label="Nuevo super admin" icon="pi pi-user-plus" size="small" @click="showDialog = true" />
-        </div>
-
-        <module-empty-state
-          v-if="!store.isLoading && items.length === 0"
-          icon="pi-shield"
-          title="No hay super administradores"
-          subtitle="Crea el primer usuario SYSTEM para operar la plataforma Metasoft."
+        <data-manager
+          class="platform-table-manager flex-1 min-h-0"
+          :items="items"
+          :filtered-items="filteredItems"
+          :columns="tableColumns"
+          :title="{ singular: 'administrador', plural: 'administradores' }"
+          data-key="userId"
+          :loading="store.isLoading"
+          :dynamic="true"
+          :global-filter-value="searchQuery"
+          search-placeholder="Buscar nombre, usuario o correo..."
+          :inline-toolbar="true"
+          new-button-label="Nuevo super admin"
+          :show-export="false"
+          :show-selection="false"
+          :show-actions="false"
+          empty-icon="pi-shield"
+          empty-title="No hay super administradores"
+          empty-subtitle="Crea el primer usuario SYSTEM para operar la plataforma Metasoft."
+          item-label="administradores"
+          :rows="15"
+          @new-item-requested-manager="showDialog = true"
+          @global-filter-change="searchQuery = $event"
         >
-          <pv-button label="Nuevo super admin" icon="pi pi-user-plus" size="small" @click="showDialog = true" />
-        </module-empty-state>
+          <template #empty-actions>
+            <pv-button label="Nuevo super admin" icon="pi pi-user-plus" size="small" @click="showDialog = true" />
+          </template>
 
-        <template v-else-if="items.length > 0">
-          <module-table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Usuario</th>
-                <th>Correo</th>
-                <th>Doc.</th>
-                <th>Número</th>
-                <th>Teléfono</th>
-                <th>Alta</th>
-                <th>Activo</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in paginatedItems" :key="row.userId">
-                <td class="font-semibold">{{ fullName(row) }}</td>
-                <td>{{ row.username }}</td>
-                <td>{{ row.email || '—' }}</td>
-                <td>{{ row.tipoDocumento || '—' }}</td>
-                <td>{{ row.numeroDocumento || '—' }}</td>
-                <td>{{ row.telefono || '—' }}</td>
-                <td>{{ formatDate(row.createdAt) }}</td>
-                <td>
-                  <span
-                    class="gs-badge"
-                    :style="{
-                      background: (row.active ? '#059669' : '#6b7280') + '22',
-                      color: row.active ? '#059669' : '#6b7280',
-                      border: '1px solid ' + (row.active ? '#059669' : '#6b7280') + '66',
-                    }"
-                  >
-                    {{ row.active ? 'Sí' : 'No' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </module-table>
+          <template #pa-name="{ data: row }">
+            <span class="font-semibold">{{ fullName(row) }}</span>
+          </template>
 
-          <table-pagination-bar
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :total-pages="totalPages"
-            :range-start="rangeStart"
-            :range-end="rangeEnd"
-            :total-items="totalItems"
-            item-label="administradores"
-          />
-        </template>
+          <template #pa-created="{ data: row }">
+            {{ formatDate(row.createdAt) }}
+          </template>
+
+          <template #pa-active="{ data: row }">
+            <span
+              class="gs-badge"
+              :style="{
+                background: (row.active ? '#059669' : '#6b7280') + '22',
+                color: row.active ? '#059669' : '#6b7280',
+                border: '1px solid ' + (row.active ? '#059669' : '#6b7280') + '66',
+              }"
+            >
+              {{ row.active ? 'Sí' : 'No' }}
+            </span>
+          </template>
+        </data-manager>
       </div>
     </module-state-feedback>
 
@@ -136,12 +142,7 @@ async function onAdminSaved(payload) {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem 1.5rem 1.5rem;
-}
-
-.platform-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  min-height: 0;
 }
 
 .gs-badge {

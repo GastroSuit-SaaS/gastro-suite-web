@@ -5,9 +5,11 @@ import { PaymentAssembler } from '../infrastructure/assemblers/payment.assembler
 import { Payment, PAYMENT_STATUS, PAYMENT_METHOD, RECEIPT_TYPE } from '../domain/models/payment.entity.js';
 import { SETTLED_PAYMENT_STATUSES, paymentNetCollected } from '../domain/payment-net.js';
 import { requireActiveBranchId } from '../../shared/application/tenant-context.js';
-import { getApiErrorMessage } from '../../shared/infrustructure/api-error.js';
+import { getApiErrorMessage } from '../../shared/infrastructure/api-error.js';
+import { storeFailure, storeFailureMessage, storeSuccess } from '../../shared/application/store-result.js';
 import { useCashRegisterStore } from '../../cash-register/application/cash-register.store.js';
 import { useIamStore } from '../../iam/application/iam.store.js';
+import { exportPaymentsExcel } from './payments-excel.js';
 
 const api = new PaymentsApi();
 
@@ -130,14 +132,18 @@ export const usePaymentsStore = defineStore('payments', () => {
 
     async function remove(id) {
         const payment = payments.value.find(p => p.id === id);
-        if (payment && SETTLED_PAYMENT_STATUSES.includes(payment.status)) return;
+        if (payment && SETTLED_PAYMENT_STATUSES.includes(payment.status)) {
+            return storeFailureMessage('No se puede eliminar un pago ya liquidado.');
+        }
         isLoading.value = true;
         error.value = null;
         try {
             await api.delete(id);
             payments.value = payments.value.filter(p => p.id !== id);
+            return storeSuccess();
         } catch (e) {
             error.value = e?.response?.data?.message ?? 'Error al eliminar el pago';
+            return storeFailure(e, 'Error al eliminar el pago');
         } finally {
             isLoading.value = false;
         }
@@ -241,6 +247,10 @@ export const usePaymentsStore = defineStore('payments', () => {
         }
     }
 
+    function exportFilteredPaymentsExcel(options = {}) {
+        exportPaymentsExcel(filteredPayments.value, options);
+    }
+
     return {
         payments, selectedPayment, isLoading, error,
         todaysPayments, todayTotal, totalAmount, todayByMethod, todayCount,
@@ -248,6 +258,8 @@ export const usePaymentsStore = defineStore('payments', () => {
         setFilterMethod, setFilterReceipt, setSearchQuery, setShowAll,
         fetchAll, fetchAllSilent, fetchById, remove, addCompletedPayment, registerPayment,
         handleOperationalEvent,
-        createRefund, previewRefund, listRefunds,
+        createRefund, previewRefund,         listRefunds,
+        toCheckoutBffResource: (payment) => PaymentAssembler.toCreateBffResource(payment),
+        exportFilteredPaymentsExcel,
     };
 });

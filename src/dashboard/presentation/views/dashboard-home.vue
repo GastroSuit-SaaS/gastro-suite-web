@@ -2,11 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDashboardStore } from '../../application/dashboard.store.js'
-import { useIamStore } from '../../../iam/application/iam.store.js'
-import { useBranchesStore } from '../../../branches/application/branches.store.js'
 import ModuleStateFeedback from '../../../shared/presentation/components/module-state-feedback.vue'
 import DashboardComparisonPanel from '../components/dashboard-comparison-panel.vue'
-import { DASHBOARD_COMPARE_OPTIONS, COMPARISON_PERIOD_NONE } from '../../domain/models/dashboard-comparison.entity.js'
 import {
     DASHBOARD_MESSAGES,
     formatDashboardGreeting,
@@ -15,38 +12,15 @@ import {
     COMPARISON_UI,
     getComparisonTitle,
 } from '../constants/dashboard-comparison.constants-ui.js'
-import {
-    formatDashboardDateShort,
-    formatRelativeTime,
-    formatReservationTime,
-    getOrderStatusMeta,
-    getReservationStatusMeta,
-} from '../helpers/dashboard-view.helpers.js'
-import { useSubscriptionEntitlements } from '../../../shared/composables/use-subscription-entitlements.js'
+import { useSubscriptionEntitlements } from '../../../shared/presentation/composables/use-subscription-entitlements.js'
 
 const store = useDashboardStore()
 const route = useRoute()
 const router = useRouter()
-const iamStore = useIamStore()
-const branchesStore = useBranchesStore()
 const { entitlements } = useSubscriptionEntitlements()
-const ownerViewBootstrapping = ref(false)
-
-const ownerBranchOptions = computed(() => {
-    const sorted = [...branchesStore.activeBranches].sort((a, b) => {
-        const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number.MAX_SAFE_INTEGER
-        const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number.MAX_SAFE_INTEGER
-        if (ta !== tb) return ta - tb
-        return String(a.codigo ?? '').localeCompare(String(b.codigo ?? ''))
-    })
-    return sorted.map((branch) => ({
-        label: branch.nombre,
-        value: branch.id,
-    }))
-})
 
 const branchOptions = computed(() =>
-    iamStore.isOwner ? ownerBranchOptions.value : [],
+    store.isOwner ? store.ownerBranchOptions : [],
 )
 
 const selectedBranchId = computed({
@@ -58,28 +32,27 @@ const selectedBranchId = computed({
 })
 
 const needsBranchSelection = computed(
-    () => iamStore.isOwner && !store.viewBranchId && !ownerViewBootstrapping.value,
+    () => store.isOwner && !store.viewBranchId && !store.ownerViewBootstrapping,
 )
 
 const pageLoading = computed(() =>
-    ownerViewBootstrapping.value
+    store.ownerViewBootstrapping
         ? true
         : (needsBranchSelection.value
             ? false
             : (isComparisonMode.value ? store.comparisonLoading : store.isLoading)),
 )
 
-const compareOptions = computed(() => {
-    if (!entitlements.value.hasDashboardComparison) {
-        return DASHBOARD_COMPARE_OPTIONS.filter((o) => o.value === COMPARISON_PERIOD_NONE)
-    }
-    return DASHBOARD_COMPARE_OPTIONS
-})
+const ownerViewBootstrapping = computed(() => store.ownerViewBootstrapping)
+
+const compareOptions = computed(() =>
+    store.compareOptionsForEntitlements(entitlements.value),
+)
 
 const isComparisonMode = computed(
     () =>
         Boolean(store.comparisonPeriod)
-        && store.comparisonPeriod !== COMPARISON_PERIOD_NONE,
+        && store.comparisonPeriod !== store.comparisonPeriodNone,
 )
 
 const pageError = computed(() =>
@@ -104,26 +77,13 @@ function applyCompareFromQuery() {
 }
 
 async function bootstrapOwnerDashboardView() {
-    if (!iamStore.isOwner) return
-
-    ownerViewBootstrapping.value = true
-    try {
-        if (!branchesStore.items.length) {
-            await branchesStore.fetchAll()
-        }
-        store.initOwnerViewBranch(branchesStore.activeBranches)
-    } finally {
-        ownerViewBootstrapping.value = false
-    }
+    const { ready } = await store.bootstrapOwnerView()
+    return ready
 }
 
 onMounted(async () => {
-    if (iamStore.isOwner) {
-        await bootstrapOwnerDashboardView()
-        if (!store.viewBranchId) return
-    } else if (!iamStore.hasBranchSelected) {
-        return
-    }
+    const ready = await bootstrapOwnerDashboardView()
+    if (!ready) return
     await store.fetchAll()
     applyCompareFromQuery()
 })
@@ -133,7 +93,7 @@ watch(
     async (branchId, previous) => {
         if (!branchId || String(branchId) === String(previous)) return
         await store.fetchAll()
-        if (store.comparisonPeriod && store.comparisonPeriod !== COMPARISON_PERIOD_NONE) {
+        if (store.comparisonPeriod && store.comparisonPeriod !== store.comparisonPeriodNone) {
             await store.fetchComparison()
         }
     },
@@ -142,8 +102,8 @@ watch(
 watch(
     () => entitlements.value.hasDashboardComparison,
     (allowed) => {
-        if (!allowed && store.comparisonPeriod !== COMPARISON_PERIOD_NONE) {
-            store.setComparisonPeriod(COMPARISON_PERIOD_NONE)
+        if (!allowed && store.comparisonPeriod !== store.comparisonPeriodNone) {
+            store.setComparisonPeriod(store.comparisonPeriodNone)
         }
     },
     { immediate: true },
@@ -155,7 +115,7 @@ watch(
         if (period === previous) return
         store.fetchComparison(period)
         const nextQuery = { ...route.query }
-        if (period && period !== COMPARISON_PERIOD_NONE) nextQuery.compare = period
+        if (period && period !== store.comparisonPeriodNone) nextQuery.compare = period
         else delete nextQuery.compare
         router.replace({ query: nextQuery })
     },
@@ -167,11 +127,11 @@ const diningRoom = computed(() => m.value?.diningRoom)
 const kitchen = computed(() => m.value?.kitchen)
 
 const greeting = computed(() =>
-    formatDashboardGreeting(iamStore.currentUser?.nombres || iamStore.currentUser?.username),
+    formatDashboardGreeting(store.userGreetingName),
 )
 
 const dateLabel = computed(() =>
-    formatDashboardDateShort(store.comparison?.businessDate ?? m.value?.businessDate),
+    store.formatDashboardDateShort(store.comparison?.businessDate ?? m.value?.businessDate),
 )
 
 const metricsSourceLabel = computed(() =>
@@ -262,7 +222,7 @@ function goTo(path) {
                     </div>
                     <div class="dash__hero-actions">
                         <pv-select
-                            v-if="iamStore.isOwner && branchOptions.length"
+                            v-if="store.isOwner && branchOptions.length"
                             v-model="selectedBranchId"
                             :options="branchOptions"
                             option-label="label"
@@ -466,10 +426,10 @@ function goTo(path) {
                             <span class="list-row__avatar"><i class="pi pi-receipt"></i></span>
                             <div class="list-row__main">
                                 <p class="list-row__title">#{{ order.id }} · {{ order.customer }}</p>
-                                <p class="list-row__sub">{{ order.location }} · {{ formatRelativeTime(order.processedAt) }}</p>
+                                <p class="list-row__sub">{{ order.location }} · {{ store.formatRelativeTime(order.processedAt) }}</p>
                             </div>
-                            <span :class="['badge', `badge--${getOrderStatusMeta(order.status).tone}`]">
-                                {{ getOrderStatusMeta(order.status).label }}
+                            <span :class="['badge', `badge--${store.getOrderStatusMeta(order.status).tone}`]">
+                                {{ store.getOrderStatusMeta(order.status).label }}
                             </span>
                             <span class="list-row__amount">{{ formatSoles(order.amount) }}</span>
                         </li>
@@ -514,14 +474,14 @@ function goTo(path) {
                         >
                             <span class="list-row__avatar list-row__avatar--calendar"><i class="pi pi-calendar"></i></span>
                             <div class="list-row__main">
-                                <p class="list-row__title">{{ formatReservationTime(res.reservedAt) }} · {{ res.guestName }}</p>
+                                <p class="list-row__title">{{ store.formatReservationTime(res.reservedAt) }} · {{ res.guestName }}</p>
                                 <p class="list-row__sub">
                                     {{ res.partySize }} personas
                                     <template v-if="res.tableNumber"> · Mesa {{ res.tableNumber }}</template>
                                 </p>
                             </div>
-                            <span :class="['badge', `badge--${getReservationStatusMeta(res.status).tone}`]">
-                                {{ getReservationStatusMeta(res.status).label }}
+                            <span :class="['badge', `badge--${store.getReservationStatusMeta(res.status).tone}`]">
+                                {{ store.getReservationStatusMeta(res.status).label }}
                             </span>
                         </li>
                     </ul>

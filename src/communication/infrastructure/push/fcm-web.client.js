@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
-import { apiEnv } from '../../../shared/infrustructure/env.js';
+import { apiEnv } from '../../../shared/infrastructure/env.js';
 
 let messagingInstance = null;
 
@@ -47,16 +47,14 @@ function bindForegroundHandler(messaging) {
     onMessage(messaging, (payload) => {
         const title = payload.notification?.title ?? payload.data?.title ?? 'GastroSuite';
         const body = payload.notification?.body ?? payload.data?.body ?? '';
-        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-            window.dispatchEvent(new CustomEvent('gastro:notifications-updated'));
-        }
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try {
-                new Notification(title, { body, icon: '/favicon.ico' });
-            } catch {
-                /* ignore */
-            }
-        }
+        window.dispatchEvent(new CustomEvent('gastro:in-app-notification', {
+            detail: {
+                id: payload.data?.notificationId ?? null,
+                title,
+                body,
+            },
+        }));
+        window.dispatchEvent(new CustomEvent('gastro:notifications-updated'));
     });
 }
 
