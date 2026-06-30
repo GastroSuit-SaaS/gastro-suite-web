@@ -1,7 +1,7 @@
 # Plan de Acción — Cierre de Brechas
 
-> **Última actualización:** 2026-06-27 (Sprints 1–3 cerrados — espejo API)  
-> **Progreso global:** 22 / 37 ítems completados (59%) · ver detalle en `gastro-suite-api/docs/ACTION-PLAN.md`  
+> **Última actualización:** 2026-06-29 (PLAN-36 remediación DDD web)  
+> **Progreso global:** 23 / 38 ítems completados (61%) · ver detalle en `gastro-suite-api/docs/ACTION-PLAN.md`  
 > **Plan ejecutivo:** `gastro-suite-api/docs/GAP-CLOSURE-PLAN.md`  
 > **Validación operativa:** `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md`  
 > **Guía detallada (pasos, archivos, contratos, tests):** [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md)  
@@ -26,7 +26,7 @@
 | F0 | MVP operativo (POS / inventario / auth) | 6 | 4 |
 | F0b | Operación restaurante (post-análisis 2026-06-27) | 5 | 0 |
 | F1 | Integración inmediata | 6 | 6 |
-| F2 | Deuda arquitectónica | 6 | 0 |
+| F2 | Deuda arquitectónica | 7 | 1 |
 | F3 | Administración SaaS | 4 | 0 |
 | F4 | Producto Perú (SUNAT) | 4 | 0 |
 | F5 | Producción hardening | 4 | 0 |
@@ -214,11 +214,21 @@ Brechas con backend listo o UI a medias. Impacto directo en operación diaria.
 ### PLAN-12 — Corregir typos package (opcional)
 
 - [ ] **Estado:** Pendiente
-- **Brecha:** `shared/intefaces`, `shared/infrustructure`
+- **Brecha:** `shared/intefaces` (pendiente renombrar a `interfaces`)
 - **Acción:** Refactor coordinado o documentar como permanente
 - **Criterio de done:** Decisión registrada en KNOWLEDGE-BASE
 - **Repos:** api + web
 - **Inicio:** — | **Fin:** —
+
+### PLAN-36 — Remediación DDD frontend (web)
+
+- [x] **Estado:** Completado · **Esfuerzo:** L (3–5d) · **Repos:** web
+- **Brecha:** Presentation con stores ajenos, `presentation/utils|helpers|composables`, shell multi-store, cross-module sin facade
+- **Acción:** Facades por módulo; presentation delgada; `shared/application/shell.facade.js`; scripts `audit:architecture` + `verify:modules`
+- **Criterio de done:** `npm run audit:architecture` OK · `npm run verify:modules` 15/15 · `npm run build:only` OK
+- **Docs:** [ARCHITECTURE.md](./ARCHITECTURE.md) §3.3 · plan histórico en [archive/ARCHITECTURE-REMEDIATION-PLAN.md](./archive/ARCHITECTURE-REMEDIATION-PLAN.md)
+- **Inicio:** 2026-06-29 | **Fin:** 2026-06-29
+- **Archivos clave:** `src/shared/application/shell.facade.js`, `scripts/audit-architecture.mjs`, `scripts/verify-modules-compliance.mjs`, facades `*/application/*.facade.js`, `.cursor/prompts/` y `.cursor/skills/`
 
 ---
 

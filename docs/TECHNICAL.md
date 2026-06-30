@@ -40,7 +40,7 @@ gastro-suite-web/
 │   ├── router/index.js         # Router central
 │   ├── assets/styles/          # CSS global
 │   ├── public/                 # Layout shell (sidebar, toolbar)
-│   ├── shared/                 # Cross-cutting
+│   ├── shared/                 # Cross-cutting (application, domain, infrastructure, presentation)
 │   ├── iam/                    # Autenticación
 │   ├── branches/
 │   ├── tables/                 # Mesas + reservas
@@ -79,6 +79,34 @@ src/{module}/
     └── {module}.routes.js      # Rutas hijas
 ```
 
+### 3.2 Patrones de listado y reglas de capas
+
+**Dos patrones de pantallas de gestión** (coexisten por tipo de dato):
+
+| Patrón | Módulos | Componente base | Cuándo usar |
+|--------|---------|-----------------|-------------|
+| **Cards + tabs** | `menu`, `branches` | `ModuleTabBar`, cards, `table-pagination-bar` | Catálogos visuales, pocos campos por ítem |
+| **DataManager** | `inventory`, `users`, `payments`, `tables` (reservas), `stations` (historial), `cash-register` (movimientos), `platform` (admin) | `data-manager.vue` + columnas/slots | Tablas densas, CRUD o listados operativos |
+
+**Referencias de implementación:**
+
+- Catálogo/cards: `src/menu/` (entidades domain, assembler, `store-result.js` en mutaciones).
+- Tablas/CRUD: `src/inventory/` o `src/platform/` (`DataManager`, `CRUD_MESSAGES`, `store-result.js`).
+
+**Reglas de dependencia entre capas:**
+
+```
+presentation → application → domain
+                ↓
+         infrastructure → domain
+```
+
+- Los **stores** (`application/`) no deben importar `presentation/` (helpers, constants UI).
+- Lógica de vista derivada de métricas/entidades vive en `application/` (p. ej. `dashboard-view.helpers.js`, `cash-movement-display.js`).
+- Constantes de dominio compartidas (p. ej. métodos de pago del dashboard) en `domain/`.
+- Mutaciones de store retornan `{ ok: true }` / `{ ok: false, message }` vía `shared/application/store-result.js`.
+- Mensajes de éxito en vistas: `CRUD_MESSAGES` + nombre de entidad en `*.constants-ui.js`.
+
 ---
 
 ## 4. Bootstrap y shell
@@ -93,9 +121,11 @@ Registra: Pinia, Router, PrimeVue (componentes globales `pv-*`).
 
 - Sidebar filtrado por rol (`getMenuItemsByRole()`)
 - Toolbar con contexto de sucursal
-- Banners: caja cerrada, offline, employee-link pendiente
+- Banners: caja cerrada, offline, employee-link, inventario bajo, gracia suscripción
 - `<router-view :key="activeBranchId">` — remonta al cambiar sucursal
-- Hooks: `useOperationalBootstrap()`, `useOperationalSocket()`
+- Hooks: `useOperationalBootstrap()`, `useOperationalSocket()`, `useNotificationsBootstrap()`, `usePlatformNotificationsSync()`
+
+**Orquestación shell:** `public/` y composables/banners globales **no importan stores de módulos**; usan `useShellFacade()` desde `shared/application/shell.facade.js` (ver [ARCHITECTURE.md §3.3](./ARCHITECTURE.md#33-shell-facade-sharedapplicationshellfacadejs)).
 
 ### 4.3 Rutas públicas (sin layout)
 
@@ -168,7 +198,7 @@ Flujo:
 
 ### 7.1 Cliente base
 
-`shared/infrustructure/base-api.js`:
+`shared/infrastructure/base-api.js`:
 
 - `baseURL`: `getPlatformApiUrl()` → dev `http://localhost:8080/api/v1`
 - Interceptor request: `Authorization: Bearer`, `X-Branch-Id`
@@ -177,14 +207,14 @@ Flujo:
 
 ### 7.2 Endpoints genéricos
 
-`shared/infrustructure/base-endpoint.js`:
+`shared/infrastructure/base-endpoint.js`:
 
 - `getAll()`, `getById()`, `create()`, `update()`, `delete()`
 - `listAt(path)`, `postAt(path)`, `postSub(id, subpath)`
 
 ### 7.3 Configuración
 
-`shared/infrustructure/env.js` — prefijos configurables vía `VITE_*`:
+`shared/infrastructure/env.js` — prefijos configurables vía `VITE_*`:
 
 ```javascript
 apiEnv.branches      // /branches
@@ -221,10 +251,10 @@ apiEnv.payments      // /payments
 
 | Archivo | Rol |
 |---------|-----|
-| `shared/infrustructure/realtime/operational-socket.js` | Cliente STOMP |
-| `shared/infrustructure/realtime/operational-events.js` | Tipos y canales |
-| `shared/infrustructure/realtime/operational-event-dispatch.js` | Enruta a stores |
-| `shared/composables/use-operational-socket.js` | Integración Vue |
+| `shared/infrastructure/realtime/operational-socket.js` | Cliente STOMP |
+| `shared/infrastructure/realtime/operational-events.js` | Tipos y canales |
+| `shared/infrastructure/realtime/operational-event-dispatch.js` | Enruta a stores |
+| `shared/presentation/composables/use-operational-socket.js` | Integración Vue |
 
 **URL:** `VITE_WS_OPERATIONAL_URL` o derivada de API base.
 
@@ -236,7 +266,7 @@ apiEnv.payments      // /payments
 
 | Feature | Implementación |
 |---------|----------------|
-| Detección red | `shared/infrustructure/offline/network.js` |
+| Detección red | `shared/infrastructure/offline/network.js` |
 | Read cache | `read-cache.js` — menú, mesas |
 | Outbox POS | `pos/application/pos-offline-sync.js` + `outbox-storage.js` |
 | Replay | `use-operational-bootstrap.js` → evento `gastro:network-online` |
@@ -329,7 +359,7 @@ Scripts post-build:
 5. **Roles:** actualizar `roles.constants.js` + verificar backend.
 6. **Realtime:** handler en store como `handleOperationalEvent(event)`.
 7. **No usar** rutas `/support/*` del backend.
-8. **Typo intencional:** carpeta `infrustructure` (no renombrar sin refactor global).
+8. **Infra compartida:** `src/shared/infrastructure/` (HTTP, env, realtime, offline).
 
 ---
 
@@ -356,6 +386,8 @@ Detalle tracking: [ACTION-PLAN.md](./ACTION-PLAN.md)
 
 | Tema | Documento |
 |------|-----------|
+| **Arquitectura canónica (capas, facades, dependencias)** | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| **Plan remediación arquitectónica** | [ARCHITECTURE-REMEDIATION-PLAN.md](./ARCHITECTURE-REMEDIATION-PLAN.md) · [archive/](./archive/ARCHITECTURE-REMEDIATION-PLAN.md) |
 | Validación operativa + SaaS | `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md` |
 | Backend técnico | `gastro-suite-api/docs/TECHNICAL.md` |
 | Base conocimiento | `gastro-suite-api/docs/KNOWLEDGE-BASE.md` |

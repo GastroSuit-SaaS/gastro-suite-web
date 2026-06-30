@@ -1,11 +1,11 @@
 # Matriz de Integración Frontend ↔ Backend
 
-> **Última actualización:** 2026-06-28 (Fase F0c PLAN-38–51)  
+> **Última actualización:** 2026-06-29 (cierre brechas platform, communication, employees, company)  
 > **Base API:** `{VITE_PLATFORM_API_URL}` → dev: `http://localhost:8080/api/v1`  
 > **Política:** El web consume **solo** rutas BFF/operativas. **Cero** llamadas a `/support/*`.  
 > **Validación operativa:** `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md`
 
-**Leyenda:** ✅ Integrado · 🟡 Parcial · 🔴 Sin integración
+**Leyenda:** ✅ Integrado · 🟡 Parcial · 🔴 Sin integración · N/A No aplica (reemplazado o interno)
 
 ---
 
@@ -14,15 +14,17 @@
 | Categoría | ✅ | 🟡 | 🔴 |
 |-----------|----|----|-----|
 | Operaciones core | 15 | 2 | 0 |
-| Administración SaaS | 1 | 1 | 4 |
-| Infra / realtime | 2 | 0 | 2 |
-| **Total áreas** | **18** | **3** | **6** |
+| Administración SaaS | 5 | 0 | 0 |
+| Communication | 2 | 0 | 4 |
+| Infra / realtime | 2 | 0 | 0 |
+| **Total áreas** | **24** | **2** | **4** |
 
 | Dimensión | % |
 |-----------|---|
 | Núcleo operativo (POS→cocina→caja→mesas) E2E | **78–82%** |
-| Integración global FE↔BE | **~58–62%** |
-| SaaS admin (planes, companies post-onboarding) | **~15%** |
+| Integración global FE↔BE | **~68–72%** |
+| SaaS admin (platform SYSTEM + owner subscription) | **~85%** |
+
 ---
 
 ## 1. IAM y onboarding
@@ -33,12 +35,13 @@
 | `/auth/sign-up` | POST | `iam.api.signUp` | — (legacy) | 🟡 |
 | `/auth/register-owner` | POST | `iam.api.registerOwner` | `iam.store.register` | ✅ |
 | `/auth/ensure-employee` | POST | `iam.api.ensureEmployeeLink` | `iam.store.ensureEmployeeLink` | ✅ |
-| `/companies` | POST | `iam.api.createCompany` | onboarding fallback | ✅ |
-| `/companies` | GET | — | — | 🔴 |
-| `/companies/{id}` | GET/PATCH/DELETE | — | — | 🔴 |
+| `/companies` | POST | onboarding vía `register-owner` | `iam.store.register` | ✅ |
+| `/companies` | GET | — | — | N/A (SYSTEM usa `/platform/companies/overview`) |
+| `/companies/{id}` | GET/PATCH | `company.api.getById/update` | `company.store` | ✅ |
+| `/companies/{id}` | DELETE | — | — | N/A (solo SYSTEM; sin UI tenant) |
 | `/auth/forgot-password` | POST | `iam.api.forgotPassword` | `iam.store.forgotPassword` | ✅ |
 | `/auth/reset-password` | POST | `iam.api.resetPassword` | `reset-password.vue` | ✅ |
-| `/support/users` | CRUD | — | — | 🔴 (intencional; web usa `/employees`) |
+| `/support/users` | CRUD | — | — | N/A (intencional; web usa `/employees`) |
 | `/roles` | GET | `roles.api.list` | `iam.store.loadRolesCatalog` | ✅ |
 
 ---
@@ -50,7 +53,7 @@
 | `/companies/{companyId}/branches` | GET | `branches.api.listByCompany` | ✅ |
 | `/branches` | POST | `branches.api.create` | ✅ |
 | `/branches/{id}` | GET/PATCH/DELETE | `branches.api.*` | ✅ |
-| `/support/branches` | * | — | 🔴 (intencional) |
+| `/support/branches` | * | — | N/A (intencional) |
 
 ---
 
@@ -191,10 +194,10 @@
 
 | Backend | Método | Frontend | Estado |
 |---------|--------|----------|--------|
-| `/companies/{companyId}/employees` | GET | `users.api.listByCompany` | ✅ |
+| `/companies/{companyId}/employees` | GET | `users.api.listByCompany` | ✅ (OWNER) |
+| `/branches/{branchId}/employees` | GET | `users.api.listByBranch` | ✅ (`BRANCH_ADMIN` con sucursal activa) |
 | `/employees` | POST | `users.api.create` | ✅ |
 | `/employees/{id}` | GET/PATCH/DELETE | `users.api.*` | ✅ |
-| `/branches/{branchId}/employees` | GET | — (no usado en UI actual) | 🟡 |
 
 ---
 
@@ -205,41 +208,28 @@
 | `/branches/{branchId}/dashboard/metrics` | GET | `dashboard.api.getMetrics` | ✅ |
 | `/branches/{branchId}/dashboard/comparison` | GET | `dashboard.api.getComparison` | ✅ |
 
-**Query comparison:** `?date=YYYY-MM-DD&compare=yesterday|last_week|last_month`
-| — | — | Fallback: agregación client-side (5 stores) si API falla | ✅ |
+**Query comparison:** `?date=YYYY-MM-DD&compare=yesterday|last_week|last_month`  
+**Fallback:** agregación client-side (5 stores) si API falla | ✅ |
 
 **Query opcional:** `?date=YYYY-MM-DD` (día operativo, zona `America/Lima`).
 
-**Contrato (alineado frontend `OperationalMetrics`):**
-
-```json
-{
-  "businessDate": "2026-06-27",
-  "timezone": "America/Lima",
-  "sales": { "revenue", "paymentCount", "avgTicket", "byMethod", "topItems[]" },
-  "diningRoom": { "totalTables", "occupiedTables", "availableTables", "reservedTables", "cleaningTables", "occupancyRate", "reservationsToday", "activeOrders" },
-  "kitchen": { "received", "preparing", "ready", "totalToday", "stations[]" },
-  "cashRegister": { "open", "shiftName", "expectedCash", "paymentCount" },
-  "inventory": { "lowStockCount" }
-}
-```
-
-**Fallback:** agregación client-side con la misma estructura si el endpoint falla.
-
 ---
 
-## 14. Communication (backend only)
+## 14. Communication
 
 | Backend | Método | Frontend | Estado |
 |---------|--------|----------|--------|
-| `/conversations` | POST/GET/PATCH | — | 🔴 |
+| `/me/notifications` | GET/PATCH/DELETE | `notifications.api` | ✅ |
+| `/me/notifications/unread-count` | GET | `notifications.api` | ✅ |
+| `/me/push-tokens` | POST/DELETE | `push-tokens.api` | ✅ |
+| `/conversations` | POST/GET/PATCH | — | 🔴 (sin módulo chat) |
 | `/conversations/{id}/messages` | GET/POST | — | 🔴 |
-| `/users/{id}/notifications` | GET/PATCH | — | 🔴 |
-| `/users/{id}/push-tokens` | GET/POST/DELETE | — | 🔴 |
-| `/push-notifications` | POST | — | 🔴 |
-| `/email-notifications/*` | POST | — | 🔴 |
+| `/users/{id}/notifications` | * | — | N/A (reemplazado por BFF `/me/*`) |
+| `/users/{id}/push-tokens` | * | — | N/A (reemplazado por BFF `/me/*`) |
+| `/push-notifications` | POST | — | N/A (uso interno servidor) |
+| `/email-notifications/*` | POST | — | N/A (password reset vía `CommunicationContextFacade`) |
 
-**Nota:** forgot-password backend usa `CommunicationContextFacade` (SendGrid); no hay UI de notificaciones.
+**UI:** `notifications-bell.vue` en layout + STOMP `/topic/users/{id}/notifications` + FCM (PLAN-34 ✅).
 
 ---
 
@@ -247,8 +237,18 @@
 
 | Backend | Método | Frontend | Estado |
 |---------|--------|----------|--------|
-| `/subscriptions` | CRUD | — | 🔴 |
-| `/subscriptions/companies` | POST/PATCH/DELETE | — | 🔴 |
+| `/platform/subscription-plans` | CRUD | `platform.api` + `platform-plans.vue` | ✅ |
+| `/platform/subscription-requests` | GET + approve/reject | `platform-subscription-requests.vue` | ✅ |
+| `/platform/companies/overview` | GET | `platform-companies.vue` | ✅ |
+| `/companies/{id}/owner/subscription-summary` | GET | `company.api` + `company-subscription.vue` | ✅ |
+| `/companies/{id}/owner/subscription-plans` | GET | `company.api` | ✅ |
+| `/companies/{id}/owner/subscription` | POST | `company.store.choosePlan` | ✅ |
+| `/subscriptions/companies` | POST | `platform.api.assignCompanySubscription` | ✅ |
+| `/subscriptions/companies/{id}` | PATCH | `platform.api.updateCompanySubscription` | ✅ |
+| `/subscriptions/companies/{id}` | DELETE | `platform.api.deleteCompanySubscription` | ✅ |
+
+**Requisito API:** `gastrosuite.platform.enabled=true` (no `@Profile dev`; `@ConditionalOnProperty`).  
+**Requisito web:** `VITE_PLATFORM_ENABLED=true` para rutas `/platform/*`.
 
 ---
 
@@ -258,14 +258,15 @@
 |---------|----------|--------|
 | STOMP `/ws/operational` | `operational-socket.js` | ✅ |
 | Topics `/topic/branch/{id}/{channel}` | `operational-event-dispatch.js` | ✅ |
+| Topic `/topic/users/{id}/notifications` | `user-notifications-socket.js` | ✅ |
 
-Canales consumidos: `kitchen`, `floor`, `cash`, `payments`, `reservations`.
+Canales operacionales: `kitchen`, `floor`, `cash`, `payments`, `reservations`.
 
 ---
 
 ## 17. Headers de integración
 
-Todas las llamadas autenticadas (excepto `/auth/*`):
+Todas las llamadas autenticadas (excepto `/auth/*` y bootstrap platform):
 
 ```http
 Authorization: Bearer {gs_token}
@@ -273,8 +274,8 @@ X-Branch-Id: {gs_branch_id}
 Content-Type: application/json
 ```
 
-Definidos en: `shared/infrustructure/base-api.js`  
-Storage keys: `shared/infrustructure/session-storage.js`
+Definidos en: `shared/infrastructure/base-api.js`  
+Storage keys: `shared/infrastructure/session-storage.js`
 
 ---
 
@@ -283,10 +284,11 @@ Storage keys: `shared/infrustructure/session-storage.js`
 | Grupo | Razón |
 |-------|-------|
 | `/api/v1/support/*` | Superficie admin duplicada; política: no usar desde web |
-| **Communication** (7 controllers) | Sin módulo FE |
-| Subscriptions | Sin UI; controllers `@Profile dev` en API |
-| Company PATCH/DELETE | Sin UI post-onboarding |
-| User support CRUD | Web gestiona Employee vía BFF |
+| **Chat** (`/conversations/*`) | Sin módulo FE (roadmap) |
+| `/users/{id}/notifications` | Legacy; web usa `/me/*` |
+| `/email-notifications/*` | Solo uso interno (SendGrid) |
+| `/push-notifications` | Solo disparo servidor |
+| `GET /companies` (listado crudo) | SYSTEM usa `/platform/companies/overview` |
 | `/test/image-upload` | Solo dev backend |
 | Billing/SUNAT | Bounded context no implementado |
 
@@ -297,15 +299,16 @@ Storage keys: `shared/infrustructure/session-storage.js`
 | Brecha | Impacto | Estado / Plan |
 |--------|---------|---------------|
 | Transfer mesa no sync tickets backend | Cocina muestra mesa antigua | ✅ PLAN-31 |
-| Checkout sin caja → error backend | UX: banner; pedidos permitidos por default | ✅ PLAN-33; configurable PLAN-45 (`requireOpenCashSessionForSales`) |
-| Ítems sin estación sin ticket | Líneas no visibles en cocina | ✅ PLAN-40 (validación menú + dispatch + pre-check POS) |
-| Pago parcial → edición confusa | Usuario agrega ítems tras abono | ✅ PLAN-42 (solo lectura + CTA cobrar saldo) |
+| Checkout sin caja → error backend | UX: banner; pedidos permitidos por default | ✅ PLAN-33; configurable PLAN-45 |
+| Ítems sin estación sin ticket | Líneas no visibles en cocina | ✅ PLAN-40 |
+| Pago parcial → edición confusa | Usuario agrega ítems tras abono | ✅ PLAN-42 |
 | Entitlements permisivos post-login | Flash de rutas premium | ✅ PLAN-43 |
-| Comprobante UI vs SUNAT | Expectativa fiscal incorrecta | ✅ PLAN-44 (ticket interno / pre-cuenta) |
-| Cobro offline | Cola sin checkout | ✅ PLAN-48 v1 (botón deshabilitado) |
+| Comprobante UI vs SUNAT | Expectativa fiscal incorrecta | ✅ PLAN-44 |
+| Cobro offline | Cola sin checkout | ✅ PLAN-48 v1 |
 | PRODUCT_MIX solo UUIDs | Reporte ilegible | ✅ PLAN-41 |
-| Venta no descuenta stock | Inventario desconectado | Recetas + BFF sales (PLAN-32 diferido) |
+| Venta no descuenta stock | Inventario desconectado | PLAN-32 diferido |
 | Sin emisión SUNAT | Legal Perú | PLAN-17–19 (roadmap) |
+| Chat / conversaciones | Sin UI mensajería | Roadmap communication |
 
 ---
 

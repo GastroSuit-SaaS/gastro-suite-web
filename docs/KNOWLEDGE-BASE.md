@@ -1,6 +1,6 @@
 # Base de Conocimiento — gastro-suite-web
 
-> **Proyecto:** Frontend SPA · **Última actualización:** 2026-06-27 (análisis arquitectónico profundo)  
+> **Proyecto:** Frontend SPA · **Última actualización:** 2026-06-29 (remediación arquitectónica + shell.facade)  
 > **Índice global:** `gastro-suite-api/docs/KNOWLEDGE-BASE-INDEX.md`  
 > **Validación operativa:** `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md`  
 > **Backend:** `gastro-suite-api/docs/KNOWLEDGE-BASE.md`
@@ -44,17 +44,19 @@ Documento de **conocimiento en profundidad** del frontend. Fuente de verdad para
 
 ```
 src/{module}/
+├── application/*.store.js   # Pinia (estado + acciones); *.facade.js si agregador
 ├── domain/models/           # Entidades, VOs, reglas cliente
-├── application/*.store.js   # Pinia (estado + acciones)
 ├── infrastructure/
 │   ├── api/*.api.js         # HTTP (extends BaseApi)
 │   └── assemblers/          # DTO ↔ entity
 └── presentation/
-    ├── views/               # Páginas enrutadas
-    ├── components/          # UI del módulo
-    ├── constants/           # Labels, mensajes UI
+    ├── views/               # Páginas enrutadas — solo use<Module>Store()
+    ├── components/
+    ├── constants/           # Labels, mensajes UI (sin lógica de negocio)
     └── {module}.routes.js   # Rutas hijas
 ```
+
+**Prohibido en módulos feature:** `presentation/composables/`, `presentation/utils/`, `presentation/helpers/`. Composables → `shared/presentation/composables/`. Ver [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ### 1.2 Entry y boot
 
@@ -72,7 +74,7 @@ src/{module}/
 | API class | `{Module}Api extends BaseApi` |
 | Assembler | `{Entity}Assembler.toEntityFromResponse()` |
 | Rutas | `{module}.routes.js` importado en router |
-| Carpeta infra | **`infrustructure`** (typo intencional, no renombrar sin refactor global) |
+| Carpeta infra | **`infrastructure`** (`src/shared/infrastructure/`) |
 | Scope sucursal | `requireActiveBranchId()` antes de API branch-scoped |
 | Scope empresa | `requireCompanyId()` o `iamStore.companyId` |
 
@@ -101,9 +103,25 @@ src/{module}/
 
 ## 3. Capa shared (transversal)
 
+Estructura alineada con el resto de módulos:
+
+```
+src/shared/
+├── application/          # tenant-context, store-result, post-login-route, branch-switch, shell.facade.js
+├── domain/               # roles, debounce, order-display, cash-movement-display
+├── infrastructure/       # base-api, env, offline, realtime, export/excel-export
+└── presentation/
+    ├── composables/      # use-confirm-dialog, use-operational-socket, use-branch-switch, etc.
+    ├── components/       # data-manager, banners, module chrome
+    ├── constants/        # roles (re-export domain), subscription entitlements
+    └── views/            # page-not-found
+```
+
+**Shell facade:** `shared/application/shell.facade.js` (`useShellFacade()`) — único punto de acceso a stores de módulos desde `public/` y composables/banners globales. Ver [ARCHITECTURE.md §3.3](./ARCHITECTURE.md#33-shell-facade-sharedapplicationshellfacadejs).
+
 ### 3.1 Session storage
 
-**Archivo:** `src/shared/infrustructure/session-storage.js`
+**Archivo:** `src/shared/infrastructure/session-storage.js`
 
 | Constante | Key localStorage | Uso |
 |-----------|------------------|-----|
@@ -126,7 +144,7 @@ src/{module}/
 
 ### 3.3 Environment
 
-**Archivo:** `src/shared/infrustructure/env.js`
+**Archivo:** `src/shared/infrastructure/env.js`
 
 Todas las variables `VITE_*` — ver `.env.example`. Destacadas:
 
@@ -146,18 +164,23 @@ Todas las variables `VITE_*` — ver `.env.example`. Destacadas:
 
 **`reset-application-stores.js`** — dispose todos los stores excepto `iam`.
 
-### 3.6 Composables
+### 3.6 Composables (`shared/presentation/composables/`)
 
 | Composable | Archivo | Consumidores |
 |------------|---------|--------------|
 | `useOperationalBootstrap` | `use-operational-bootstrap.js` | layout — refresh caja 45s, replay offline |
 | `useOperationalSocket` | `use-operational-socket.js` | layout — STOMP |
+| `useNotificationsBootstrap` | `use-notifications-bootstrap.js` | layout — polling + push |
+| `usePlatformNotificationsSync` | `use-platform-notifications-sync.js` | layout — refresh plataforma SYSTEM |
+| `useBranchSwitch` | `use-branch-switch.js` | branch-switcher — cambio sucursal OWNER |
+| `useSubscriptionEntitlements` | `use-subscription-entitlements.js` | guards menú, banners, rutas |
 | `useCentralCashSession` | `use-central-cash-session.js` | pos-payment |
 | `useConfirmDialog` | `use-confirm-dialog.js` | mayoría management views |
-| `useNotification` | `use-notification.js` | menu, inventory, payments, etc. |
 | `useToolbarContext` | `use-toolbar-context.js` | POS, stations |
 | `useDateFormatter` | `use-date-formatter.js` | tables, cash-register |
 | `useNetworkStatus` | `use-network-status.js` | offline banner |
+
+> Composables del shell orquestan vía `useShellFacade()`; no importan stores de módulos directamente.
 
 ### 3.7 Banners globales (layout)
 
@@ -166,6 +189,10 @@ Todas las variables `VITE_*` — ver `.env.example`. Destacadas:
 | `offline-status-banner` | Outbox pendiente o sin red |
 | `employee-link-status-banner` | Falta vínculo employee/company; en `/reports` también si `!hasEmployeeLink` |
 | `cash-register-status-banner` | Sin sesión caja abierta (roles caja) |
+| `subscription-grace-banner` | OWNER en periodo de gracia SaaS |
+| `low-stock-status-banner` | Productos bajo/agotado stock (dashboard, POS, inventario) |
+
+> Todos los banners shell consumen `useShellFacade()`.
 
 ---
 
@@ -573,11 +600,11 @@ Campos empleado + `role`, `sucursalId`; `fullName`, `initials`
 
 ### 15.2 Store — `useUsersStore`
 
-CRUD empleados por company
+CRUD empleados. Listado: `listByCompany` (OWNER) o `listByBranch` (`BRANCH_ADMIN` con sucursal activa).
 
 ### 15.3 API — `UsersApi`
 
-Base path: **`/employees`** (env `VITE_USERS_ENDPOINT`)
+Base path: **`/employees`** — `listByCompany`, `listByBranch`, CRUD.
 
 ### 15.4 Roles UI (PLAN-04 ✅)
 
@@ -594,12 +621,14 @@ Base path: **`/employees`** (env `VITE_USERS_ENDPOINT`)
 
 | Componente | Rol |
 |------------|-----|
-| `layout.vue` | Shell autenticado; bootstrap + socket; `:key="activeBranchId"` |
-| `sidebar.vue` | Nav filtrado por rol |
-| `toolbar.vue` | Título, back, logout |
+| `layout.vue` | Shell autenticado; bootstrap + socket + notificaciones; `:key="activeBranchId"` |
+| `sidebar.vue` | Nav filtrado por rol; logout |
+| `toolbar.vue` | Título, back, branch switcher, campana notificaciones |
 | `branch-switcher.vue` | Cambio sucursal OWNER |
 
-**Constants:** `layout.constants-ui.js` → `getMenuItemsByRole(role, hasBranch)`
+**Orquestación:** todos los componentes anteriores y los composables/banners globales usan **`useShellFacade()`** (`shared/application/shell.facade.js`). No importan `useIamStore`, `useCompanyStore`, etc. directamente.
+
+**Constants:** `layout.constants-ui.js` → `getMenuItemsByRole(role, hasBranch, features, subscriptionSummary)`
 
 ---
 
@@ -671,7 +700,7 @@ Base path: **`/employees`** (env `VITE_USERS_ENDPOINT`)
 
 ### 20.1 Cliente
 
-`shared/infrustructure/realtime/operational-socket.js`  
+`shared/infrastructure/realtime/operational-socket.js`  
 URL: `VITE_WS_OPERATIONAL_URL` o derivada de API
 
 ### 20.2 Event types
@@ -721,7 +750,9 @@ IAM ──provides──► token, branchId, companyId, employeeId
          └────────► dashboard (aggregador)
 ```
 
-**Acoplamiento intencional:** POS importa tables, menu, stations, payments, cash-register (~1.350 líneas en `pos.store.js`).
+**Acoplamiento intencional:** POS orquesta tables, menu, stations, payments, cash-register vía **`pos.facade`** y `pos.store` (~1.350 líneas). Presentation de POS solo usa `usePosStore()`.
+
+**Shell:** `public/` + bootstrap global → **`shell.facade.js`** (no stores directos).
 
 ---
 
@@ -749,9 +780,10 @@ Login → [OWNER: /select-branch] → [CASHIER: abrir caja /cash-register]
 
 - Unión / separación de mesas
 - Variantes / combos / promociones menú
-- Módulo communication (notificaciones push/in-app)
-- Admin subscriptions / companies post-onboarding
+- Admin subscriptions / companies post-onboarding (parcial en platform)
 - Emisión comprobante SUNAT (solo captura NOTA/BOLETA/FACTURA en pago)
+
+> **Nota:** Módulo `communication` (campana, push, STOMP usuario) **sí está implementado** (PLAN-34 ✅).
 
 ---
 
@@ -767,10 +799,11 @@ Login → [OWNER: /select-branch] → [CASHIER: abrir caja /cash-register]
 | WEB-06 | Branch switcher + stale state | PLAN-16 |
 | WEB-07 | Labels bajo contraste modales | ~~PLAN-28~~ ✅ |
 | WEB-08 | Header delivery saturaba búsqueda | ~~PLAN-28~~ ✅ |
-| WEB-09 | Transfer mesa desync cocina | PLAN-31 |
-| WEB-10 | Checkout sin bloqueo UI si caja cerrada | PLAN-33 |
-| WEB-11 | Sin módulo communication | PLAN-34 |
-| WEB-12 | pos.store monolítico (~1350 líneas) | Refactor composables |
+| WEB-09 | Transfer mesa desync cocina | ~~PLAN-31~~ ✅ |
+| WEB-10 | Checkout sin bloqueo UI si caja cerrada | ~~PLAN-33~~ ✅ |
+| WEB-11 | Sin módulo communication | ~~PLAN-34~~ ✅ |
+| WEB-12 | pos.store monolítico (~1350 líneas) | Refactor interno (facade OK) |
+| WEB-13 | Deuda arquitectónica DDD (presentation/utils, cross-store) | ~~Remediación 2026-06-29~~ ✅ |
 
 ### Madurez por módulo (operación + SaaS)
 
@@ -785,10 +818,10 @@ Login → [OWNER: /select-branch] → [CASHIER: abrir caja /cash-register]
 | tables/reservations | ✅ | read cache | 🟡 |
 | inventory | ✅ | — | 🟡 |
 | reports | ✅ | — | 🟡 |
-| users/employees | ✅ | — | 🟡 |
+| users/employees | ✅ | — | ✅ |
 | branches | ✅ | — | 🟡 |
-| communication | 🔴 | — | N/A |
-| subscriptions admin | 🔴 | — | 🔴 |
+| communication | ✅ | STOMP + FCM | 🟡 (sin chat) |
+| platform / subscriptions | ✅ | — | ✅ |
 
 ---
 
@@ -808,6 +841,7 @@ Login → [OWNER: /select-branch] → [CASHIER: abrir caja /cash-register]
 | 2026-06-27 | ACTION-PLAN | Progreso 10/30; Fase 1 completa (6/6). |
 | 2026-06-27 | Inventario | 14 stores, 13 APIs, 21 entidades domain |
 | 2026-06-27 | **Análisis arquitectónico** | Sección flujo operativo diario; madurez SaaS; brechas WEB-09–12; corrección IAM forgot/reset; delivery-status; dashboard comparison; ref `OPERATIONAL-VALIDATION.md`. |
+| 2026-06-29 | **PLAN-36** | Remediación DDD web cerrada; `ARCHITECTURE-REMEDIATION-PLAN` movido a `docs/archive/`. |
 
 ```markdown
 <!-- Plantilla -->

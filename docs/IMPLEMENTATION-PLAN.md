@@ -355,7 +355,7 @@ Pasar `email` desde `forgot-password.vue` (hoy no lo envía — **bug adicional*
 | 1 | `dashboard/infrastructure/api/dashboard.api.js` | **Eliminar** |
 | 2 | `dashboard/infrastructure/assemblers/dashboard-metric.assembler.js` | Eliminar si no se usa |
 | 3 | `dashboard/domain/models/dashboard-metric.entity.js` | Eliminar si no se usa |
-| 4 | `shared/infrustructure/env.js` | Quitar `dashboard: readEnv('VITE_DASHBOARD_ENDPOINT', '/dashboard')` |
+| 4 | `shared/infrastructure/env.js` | Quitar `dashboard: readEnv('VITE_DASHBOARD_ENDPOINT', '/dashboard')` |
 | 5 | `.env.example` | Quitar `VITE_DASHBOARD_ENDPOINT` |
 | 6 | `docs/TECHNICAL.md` (web) | Documentar patrón read-model aggregator |
 | 7 | `KNOWLEDGE-BASE.md` | Registrar decisión ADR-lite en changelog |
@@ -696,7 +696,7 @@ npm install -D vitest @vue/test-utils jsdom
 | Opción | Esfuerzo | Acción |
 |--------|----------|--------|
 | Mantener | 0 | Documentar en KNOWLEDGE-BASE como convención permanente |
-| Refactor | ~1 día | Mover `intefaces` → `interfaces`, `infrustructure` → `infrastructure` con IDE refactor + grep |
+| Refactor | ~1 día | Mover `intefaces` → `interfaces` (completado: `infrustructure` → `infrastructure`) |
 
 **Recomendación:** Mantener hasta v2.0 unless new major refactor sprint.
 

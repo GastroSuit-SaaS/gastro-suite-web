@@ -4,12 +4,15 @@
 
 | Documento | Descripción |
 |-----------|-------------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | **Arquitectura canónica** — capas DDD, facades, dependencias, contratos |
+| [ARCHITECTURE-REMEDIATION-PLAN.md](./ARCHITECTURE-REMEDIATION-PLAN.md) | Stub cierre remediación (histórico: [archive/ARCHITECTURE-REMEDIATION-PLAN.md](./archive/ARCHITECTURE-REMEDIATION-PLAN.md)) |
 | [KNOWLEDGE-BASE.md](./KNOWLEDGE-BASE.md) | **Base de conocimiento profunda — Web** (stores, APIs, flujos POS, offline, realtime) |
 | [TECHNICAL.md](./TECHNICAL.md) | Documentación técnica operativa del SPA |
 | [INTEGRATION.md](./INTEGRATION.md) | Matriz de integración con el backend |
 | Validación operativa + SaaS | `gastro-suite-api/docs/OPERATIONAL-VALIDATION.md` | Flujo restaurante vs código, riesgos, roadmap |
 | [ACTION-PLAN.md](./ACTION-PLAN.md) | Tracking de brechas |
 | [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md) | Plan de implementación detallado |
+| [archive/](./archive/) | Planes cerrados (remediación DDD 2026-06-29) |
 
 **Índice global + KB API:** `gastro-suite-api/docs/KNOWLEDGE-BASE-INDEX.md` · `KNOWLEDGE-BASE.md`
 
